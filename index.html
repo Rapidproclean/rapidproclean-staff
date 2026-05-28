@@ -52,7 +52,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:7px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--t3);border:none;background:none;padding-bottom:4px}
 .ni.on{color:var(--nv)}
 .ni svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.pg{display:none;padding:16px 14px calc(var(--nav)+40px)}.pg.on{display:block}
+.pg{display:none;padding:16px 14px calc(var(--nav)+80px)}.pg.on{display:block}
 .sl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:10px;padding-left:2px}
 .np{display:none;position:fixed;top:var(--hdr);right:0;left:0;z-index:85;background:var(--cd);border-bottom:1px solid var(--bd);box-shadow:var(--shl);max-height:60vh;overflow-y:auto}
 .np.on{display:block}
@@ -172,6 +172,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .fbanner{background:var(--rdl);border:1.5px solid #f5b5b5;border-radius:var(--rs);padding:12px 14px;margin-bottom:14px}
 .fi{font-size:11px;color:var(--rd);margin-top:3px;line-height:1.4}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+.inc-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}.inc-open{background:#fff3e0;color:#e65100}.inc-reviewed{background:#e8f5e9;color:#2e7d32}.inc-card{background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -203,7 +204,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <!-- NOTIFICATION PANEL -->
 <div class="np" id="NP">
   <div class="nph">
-    <div style="font-size:13px;font-weight:700;color:var(--nv)">Notifications</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div style="font-size:13px;font-weight:700;color:var(--nv)">Notifications</div><button onclick="clearReadNotifs()" style="background:none;border:none;cursor:pointer;font-size:11px;color:#e53935;padding:2px 6px;border-radius:4px;">Clear read</button></div>
     <button onclick="markAllRead()" style="background:none;border:none;font-size:11px;color:var(--nv2);cursor:pointer;font-family:var(--fn);font-weight:600">Mark all read</button>
   </div>
   <div id="NL"><div class="empty" style="padding:20px"><div class="empty-ico">&#128276;</div>No notifications</div></div>
@@ -234,6 +235,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div>
 <div class="pg" id="p-leave"><div id="LeaveC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
 <div class="pg" id="p-docs"><div id="DocsC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
+<div class="pg" id="p-incidents"><div id="IncidentsC"></div></div>
 <div class="pg" id="p-photos">
   <div class="sl">Work Photos</div>
   <div id="ShareP" style="display:none;background:var(--nvl);border:1.5px solid var(--nv2);border-radius:var(--r);padding:14px;margin-bottom:14px">
@@ -524,8 +526,8 @@ async function loadSites(){try{const {data}=await db.from('rpc_sites').select('*
 // NAV
 function buildNav(){
   const n=q('MNav');
-  const ic={home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>'};
-  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs']];
+  const ic={home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',incidents:'<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'};
+  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['incidents','SOS'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['incidents','SOS']];
   n.innerHTML=pages.map(([p,l])=>'<button class="ni" id="n-'+p+'" onclick="goPage(\''+p+'\')">'+ic[p]+l+'</button>').join('');
 }
 function goPage(p){
@@ -541,6 +543,7 @@ function goPage(p){
   else if(p==='photos')renderPhotos();
   else if(p==='payroll')initPayroll();
   else if(p==='admin')renderAdmin();
+  else if(p==='incidents')renderIncidents();
 }
 function tick(){const n=new Date();q('CT').textContent=n.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});q('CD').textContent=n.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}
 
@@ -556,11 +559,16 @@ async function loadNotifs(){
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
       d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
+      const delBtn=document.createElement('button');delBtn.textContent='Del';
+      delBtn.style.cssText='background:none;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:11px;padding:2px 6px;flex-shrink:0;margin-left:4px;';
+      delBtn.onclick=(e)=>{e.stopPropagation();if(confirm('Delete?'))db.from('rpc_notifications').delete().eq('id',n.id).then(()=>loadNotifs())};
+      d.appendChild(delBtn);
       nl.appendChild(d);
     });
   }catch{}
 }
 async function markAllRead(){try{await db.from('rpc_notifications').update({is_read:true}).eq('staff_id',CU.id);loadNotifs();toast('All read')}catch{}}
+async function clearReadNotifs(){if(!confirm('Delete all read notifications?'))return;try{await db.from('rpc_notifications').delete().eq('staff_id',CU.id).eq('is_read',true);loadNotifs();toast('Cleared')}catch{}}
 function toggleNotif(){q('NP').classList.toggle('on')}
 async function sendNotif(){
   const tg=q('ntTg').value,msg=q('ntMsg').value.trim();
@@ -1292,7 +1300,56 @@ function downloadLeaveForm(){
   p.push('<div class="chk"><input type="checkbox"> Rejected</div></div>');
   p.push('<textarea class="box" placeholder="Admin comments..."></textarea><br>');
   p.push('<button class="noprint" onclick="window.print()" style="background:#0a2540;color:#fff;border:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-top:12px">Print / Save as PDF</button>');
-  p.push('</body></html>');
+  p.push('<div class="mov" id="IncidentM"><div class="msh"><div class="mh"></div><div class="mt">Report Incident</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px">Report within 24 hours. Serious incidents: Rajesh Khanal 0432 635 667</div>
+  <div class="sl" style="margin:0 0 8px;font-size:12px">SECTION 1 - INCIDENT DETAILS</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Given Name *</div><input class="mi" id="incGiven" type="text" placeholder="Given name"></div>
+    <div><div class="mlbl">Surname *</div><input class="mi" id="incSurname" type="text" placeholder="Surname"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date of Birth</div><input class="mi" id="incDOB" type="date"></div>
+    <div><div class="mlbl">Employee ID</div><input class="mi" id="incEmpID" type="text" placeholder="e.g. EMP001"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date *</div><input class="mi" id="incDate" type="date"></div>
+    <div><div class="mlbl">Time *</div><input class="mi" id="incTime" type="time"></div>
+  </div>
+  <div class="mlbl">Weather</div>
+  <select class="msel" id="incWeather"><option value="">Select...</option><option>Fine / Clear</option><option>Raining</option><option>Wet / Slippery</option><option>Windy</option><option>Hot</option><option>Indoor - N/A</option></select>
+  <div class="mlbl">Site *</div><input class="mi" id="incSite" type="text" placeholder="e.g. Coles Westfield">
+  <div class="mlbl">Exact Location</div><input class="mi" id="incLocation" type="text" placeholder="e.g. Car park Level 2">
+  <div class="mlbl">Incident Type *</div>
+  <select class="msel" id="incType"><option value="">Select...</option><option>Slip / Trip / Fall</option><option>Chemical Exposure</option><option>Equipment Damage</option><option>Property Damage</option><option>Near Miss</option><option>Staff Conflict</option><option>Other</option></select>
+  <div class="mlbl">Who Caused It</div><input class="mi" id="incCaused" type="text" placeholder="Name of person">
+  <div class="mlbl">Nature of Injuries</div><textarea class="mi" id="incInjuries" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Was Anyone Injured?</div>
+  <select class="msel" id="incInjured"><option value="No">No</option><option value="Yes - Minor">Yes - Minor</option><option value="Yes - Moderate">Yes - Moderate</option><option value="Yes - Serious">Yes - Serious</option></select>
+  <div class="mlbl">Witnesses</div><input class="mi" id="incWitness" type="text" placeholder="Leave blank if none">
+  <div class="mlbl">What Happened? *</div><textarea class="mi" id="incWhat" rows="3" placeholder="Describe in detail..." style="resize:vertical"></textarea>
+  <div class="mlbl">Action Taken</div><textarea class="mi" id="incAction" rows="2" placeholder="What was done after?" style="resize:vertical"></textarea>
+  <div class="mlbl">Reported To</div><input class="mi" id="incReportedTo" type="text" placeholder="Manager/Supervisor name">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 2 - COMPANY PROPERTY</div>
+  <div class="mlbl">Extent of Damage</div><textarea class="mi" id="incCompDamage" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Vehicle/Equipment Reg</div><input class="mi" id="incVehicleReg" type="text" placeholder="e.g. ABC123 or N/A">
+  <div class="mlbl">Trailer Reg</div><input class="mi" id="incTrailerReg" type="text" placeholder="e.g. TRL001 or N/A">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 3 - THIRD PARTY</div>
+  <div class="mlbl">Third Party Name and Contact</div><input class="mi" id="incThirdParty" type="text" placeholder="Name and phone or N/A">
+  <div class="mlbl">Their Injuries</div><textarea class="mi" id="incThirdInjuries" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Their Property Damage</div><textarea class="mi" id="incThirdDamage" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 4 - PHOTO</div>
+  <div class="mlbl">Attach Photo (optional)</div><input class="mi" id="incPhoto" type="file" accept="image/*" style="padding:8px">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 5 - ACKNOWLEDGEMENT</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">I acknowledge this information is true and correct.</div>
+  <div class="mlbl">Signature *</div>
+  <canvas id="incSigPad" width="400" height="100" style="border:1px solid var(--bd);border-radius:8px;background:#fff;width:100%;touch-action:none"></canvas>
+  <button class="btn sc sm" style="margin:4px 0 10px" onclick="clearIncSig()">Clear Signature</button>
+  <div class="mlbl">Date</div><input class="mi" id="incAckDate" type="date">
+  <div id="incErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
+  <button class="btn nv" onclick="submitIncident()">Submit Report</button>
+  <button class="btn sc" onclick="closeM('IncidentM')">Cancel</button>
+</div></div>
+</body></html>');
   var h=p.join('');
   try{
     var blob=new Blob([h],{type:'text/html'});
@@ -2216,6 +2273,106 @@ function doLogout(){CU=null;q('LS').classList.remove('h');q('MH').style.display=
   const sd=new URLSearchParams(window.location.search).get('share');if(!sd)return;
   try{const p=JSON.parse(decodeURIComponent(escape(atob(sd))));document.body.innerHTML='<div style="font-family:Outfit,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f0f4f9;min-height:100vh"><div style="background:linear-gradient(135deg,#0a2540,#1058a0);border-radius:16px;padding:20px;margin-bottom:20px;text-align:center"><div style="font-size:20px;font-weight:800;color:#fff">Rapid Pro Clean</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">Work Completion Photos · '+new Date(p.generated).toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})+'</div></div>'+p.photos.map(ph=>'<div style="background:#fff;border-radius:12px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.1)"><img src="'+ph.url+'" style="width:100%;max-height:300px;object-fit:cover;display:block"><div style="padding:12px">'+(p.opts.C&&ph.cat?'<div style="font-size:13px;font-weight:700;color:#0a2540">📁 '+ph.cat+'</div>':'')+(p.opts.N&&ph.staffName?'<div style="font-size:12px;color:#4d6a85;margin-top:3px">👤 '+ph.staffName+'</div>':'')+(p.opts.T&&ph.date?'<div style="font-size:11px;color:#95adc3;margin-top:2px">📅 '+ph.date+'</div>':'')+(p.opts.Nt&&ph.note?'<div style="font-size:11px;color:#0a9e7a;margin-top:3px">💬 '+ph.note+'</div>':'')+'</div></div>').join('')+'<div style="text-align:center;padding:20px;color:#95adc3;font-size:11px">Rapid Pro Clean · rapidproclean.com.au</div></div>'}catch{}
 })();
+
+var incSigCtx=null,incSigDrawing=false;
+function initIncSig(){var cv=q('incSigPad');if(!cv)return;incSigCtx=cv.getContext('2d');incSigCtx.strokeStyle='#0a2540';incSigCtx.lineWidth=2;incSigCtx.lineCap='round';cv.onmousedown=function(e){incSigDrawing=true;var r=cv.getBoundingClientRect();incSigCtx.beginPath();incSigCtx.moveTo(e.clientX-r.left,e.clientY-r.top)};cv.onmousemove=function(e){if(!incSigDrawing)return;var r=cv.getBoundingClientRect();incSigCtx.lineTo(e.clientX-r.left,e.clientY-r.top);incSigCtx.stroke()};cv.onmouseup=function(){incSigDrawing=false};cv.ontouchstart=function(e){e.preventDefault();incSigDrawing=true;var r=cv.getBoundingClientRect();var t=e.touches[0];incSigCtx.beginPath();incSigCtx.moveTo(t.clientX-r.left,t.clientY-r.top)};cv.ontouchmove=function(e){e.preventDefault();if(!incSigDrawing)return;var r=cv.getBoundingClientRect();var t=e.touches[0];incSigCtx.lineTo(t.clientX-r.left,t.clientY-r.top);incSigCtx.stroke()};cv.ontouchend=function(){incSigDrawing=false};}
+function clearIncSig(){if(incSigCtx){var cv=q('incSigPad');incSigCtx.clearRect(0,0,cv.width,cv.height);}}
+async function renderIncidents(){
+  var el2=q('IncidentsC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
+  try{
+    var qb=db.from('rpc_incidents').select('*').order('created_at',{ascending:false});
+    if(!CU.is_admin)qb=qb.eq('reporter_id',CU.id);
+    var {data:incidents,error}=await qb;if(error)throw error;el2.innerHTML='';
+    var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+    var ttl=document.createElement('div');ttl.className='sl';ttl.style.margin='0';ttl.textContent=CU.is_admin?'All Incidents':'My Incidents';
+    var nb=document.createElement('button');nb.className='btn nv sm';nb.style.margin='0';nb.textContent='+ Report';nb.onclick=function(){openIncidentForm()};
+    hdr.appendChild(ttl);hdr.appendChild(nb);el2.appendChild(hdr);
+    if(!incidents||!incidents.length){var emp=document.createElement('div');emp.className='empty';emp.innerHTML='<div class="empty-ico">&#128680;</div>No incidents yet.';el2.appendChild(emp);return;}
+    incidents.forEach(function(inc){
+      var card=document.createElement('div');card.className='inc-card';
+      var top=document.createElement('div');top.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
+      var badge=document.createElement('span');badge.className='inc-badge '+(inc.status==='Reviewed'?'inc-reviewed':'inc-open');badge.textContent=inc.status||'Open';
+      var dt=document.createElement('span');dt.style.cssText='font-size:10px;color:var(--t3)';dt.textContent=(inc.incident_number||'')+'  '+new Date(inc.created_at).toLocaleDateString('en-AU');
+      top.appendChild(badge);top.appendChild(dt);card.appendChild(top);
+      var ttl2=document.createElement('div');ttl2.style.cssText='font-size:13px;font-weight:700;margin-bottom:6px';ttl2.textContent=(inc.incident_type||'Incident')+' - '+esc(inc.site||'');card.appendChild(ttl2);
+      var meta=document.createElement('div');meta.style.cssText='font-size:11px;color:var(--t2);line-height:1.7;background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px';
+      meta.innerHTML='<b>By:</b> '+esc(inc.reporter_name||'')+'<br><b>Date:</b> '+(inc.incident_date||'')+' '+(inc.incident_time||'')+(inc.weather?'  <b>Weather:</b> '+esc(inc.weather):'')+'<br><b>Location:</b> '+esc(inc.site||'')+(inc.location_desc?' - '+esc(inc.location_desc):'')+(inc.caused_by?'<br><b>Caused by:</b> '+esc(inc.caused_by):'')+'<br><b>Injured:</b> '+esc(inc.injured||'No')+(inc.injuries?'<br><b>Injuries:</b> '+esc(inc.injuries):'')+(inc.witness_names?'<br><b>Witnesses:</b> '+esc(inc.witness_names):'')+(inc.reported_to?'<br><b>Reported to:</b> '+esc(inc.reported_to):'');
+      card.appendChild(meta);
+      if(inc.what_happened){var wh=document.createElement('div');wh.style.cssText='font-size:12px;background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px';wh.innerHTML='<b>What happened:</b><br>'+esc(inc.what_happened);card.appendChild(wh);}
+      if(inc.action_taken){var at=document.createElement('div');at.style.cssText='font-size:12px;background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px';at.innerHTML='<b>Action taken:</b><br>'+esc(inc.action_taken);card.appendChild(at);}
+      if(inc.comp_damage){var cd=document.createElement('div');cd.style.cssText='font-size:11px;color:var(--t2);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px;line-height:1.7';cd.innerHTML='<b>Company Damage:</b> '+esc(inc.comp_damage)+(inc.vehicle_reg?'<br><b>Vehicle:</b> '+esc(inc.vehicle_reg):'')+(inc.trailer_reg?'<br><b>Trailer:</b> '+esc(inc.trailer_reg):'');card.appendChild(cd);}
+      if(inc.third_party){var tp=document.createElement('div');tp.style.cssText='font-size:11px;color:var(--t2);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px;line-height:1.7';tp.innerHTML='<b>Third Party:</b> '+esc(inc.third_party)+(inc.third_injuries?'<br><b>Injuries:</b> '+esc(inc.third_injuries):'')+(inc.third_damage?'<br><b>Damage:</b> '+esc(inc.third_damage):'');card.appendChild(tp);}
+      if(inc.photo_url){var img=document.createElement('img');img.src=inc.photo_url;img.style.cssText='width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin:4px 0;cursor:pointer';img.onclick=function(){openLB(inc.photo_url,'Photo')};card.appendChild(img);}
+      var acts=document.createElement('div');acts.style.cssText='display:flex;gap:6px;margin-top:8px;flex-wrap:wrap';
+      var pdfB=document.createElement('button');pdfB.className='btn sc sm';pdfB.style.margin='0';pdfB.textContent='Download PDF';
+      (function(i){pdfB.onclick=function(){downloadIncidentPDF(i)};})(inc);acts.appendChild(pdfB);
+      if(CU.is_admin&&inc.status!=='Reviewed'){var rvB=document.createElement('button');rvB.className='btn tl sm';rvB.style.margin='0';rvB.textContent='Mark Reviewed';(function(id){rvB.onclick=function(){markIncidentReviewed(id)};})(inc.id);acts.appendChild(rvB);}
+      card.appendChild(acts);el2.appendChild(card);
+    });
+  }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">&#9888;</div>Error loading. Run SQL in Supabase first.</div>';}
+}
+function openIncidentForm(){
+  var today=new Date().toISOString().slice(0,10);var now=new Date().toTimeString().slice(0,5);
+  q('incGiven').value=CU.name?CU.name.split(' ')[0]:'';q('incSurname').value=CU.name&&CU.name.split(' ').length>1?CU.name.split(' ').slice(1).join(' '):'';
+  q('incDOB').value='';q('incEmpID').value='';q('incDate').value=today;q('incTime').value=now;q('incWeather').value='';
+  q('incSite').value='';q('incLocation').value='';q('incType').value='';q('incCaused').value='';q('incInjured').value='No';
+  q('incInjuries').value='';q('incWitness').value='';q('incWhat').value='';q('incAction').value='';q('incReportedTo').value='';
+  q('incCompDamage').value='';q('incVehicleReg').value='';q('incTrailerReg').value='';
+  q('incThirdParty').value='';q('incThirdInjuries').value='';q('incThirdDamage').value='';
+  q('incPhoto').value='';q('incAckDate').value=today;q('incErr').textContent='';
+  openM('IncidentM');setTimeout(initIncSig,300);
+}
+async function submitIncident(){
+  var given=q('incGiven').value.trim(),surname=q('incSurname').value.trim(),date=q('incDate').value,site=q('incSite').value.trim(),type=q('incType').value,what=q('incWhat').value.trim(),err=q('incErr');
+  if(!given||!surname||!date||!site||!type||!what){err.textContent='Fill all required fields (*)';return;}
+  err.textContent='Submitting...';
+  try{
+    var sigDataUrl=null;var cv=q('incSigPad');
+    if(cv&&incSigCtx){var bl=document.createElement('canvas');bl.width=cv.width;bl.height=cv.height;if(cv.toDataURL()!==bl.toDataURL())sigDataUrl=cv.toDataURL('image/png');}
+    var photoUrl=null;var pf=q('incPhoto').files[0];
+    if(pf){var comp=await compressImg(pf,1200,0.8);var fn='incidents/'+CU.id+'_'+Date.now();var up=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg',upsert:true});if(!up.error)photoUrl=db.storage.from('rpc-photos').getPublicUrl(fn).data.publicUrl;}
+    var incNum='INC-'+date.replace(/-/g,'')+'-'+Math.floor(1000+Math.random()*9000);
+    var {error}=await db.from('rpc_incidents').insert({reporter_id:CU.id,reporter_name:given+' '+surname,given_name:given,surname:surname,dob:q('incDOB').value,emp_id:q('incEmpID').value,incident_date:date,incident_time:q('incTime').value,weather:q('incWeather').value,site:site,location_desc:q('incLocation').value,incident_type:type,caused_by:q('incCaused').value,injured:q('incInjured').value,injuries:q('incInjuries').value,witness_names:q('incWitness').value,what_happened:what,action_taken:q('incAction').value,reported_to:q('incReportedTo').value,comp_damage:q('incCompDamage').value,vehicle_reg:q('incVehicleReg').value,trailer_reg:q('incTrailerReg').value,third_party:q('incThirdParty').value,third_injuries:q('incThirdInjuries').value,third_damage:q('incThirdDamage').value,ack_date:q('incAckDate').value,sig_data:sigDataUrl,photo_url:photoUrl,status:'Open',incident_number:incNum});
+    if(error)throw error;
+    var admins=allStaff.filter(function(s){return s.is_admin});
+    if(admins.length)await db.from('rpc_notifications').insert(admins.map(function(a){return {staff_id:a.id,title:'Incident Reported',message:given+' '+surname+' reported '+type+' at '+site+' ['+incNum+']',icon:'alert',is_read:false};}));
+    closeM('IncidentM');toast('Submitted! Ref: '+incNum);renderIncidents();
+  }catch(e){err.textContent='Error: '+(e.message||'Try again');}
+}
+async function markIncidentReviewed(id){try{await db.from('rpc_incidents').update({status:'Reviewed'}).eq('id',id);toast('Marked reviewed');renderIncidents();}catch(e){toast('Error');}}
+async function loadJsPDF(){if(window.jspdf)return true;return new Promise(function(resolve){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=function(){resolve(true)};s.onerror=function(){resolve(false)};document.head.appendChild(s);});}
+async function downloadIncidentPDF(inc){
+  var loaded=await loadJsPDF();if(!loaded){toast('PDF failed to load. Try again.');return;}
+  try{
+    var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=15;var y=0;
+    doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
+    try{var lr=await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');var lb=await lr.blob();var ld=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(lb)});doc.addImage(ld,'PNG',m,4,40,18);}catch(e){}
+    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('RAPID PRO CLEAN',pw/2,14,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('rapidproclean.com.au | info@rapidproclean.com.au | 0432 635 667',pw/2,21,{align:'center'});
+    doc.setFontSize(12);doc.setFont('helvetica','bold');doc.text('INCIDENT REPORT FORM',pw/2,30,{align:'center'});
+    y=45;doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
+    doc.text('Ref: '+(inc.incident_number||'N/A')+'  Status: '+(inc.status||'Open')+'  Date: '+new Date(inc.created_at).toLocaleDateString('en-AU'),m,y);y+=8;
+    function sh(t){doc.setFillColor(230,235,245);doc.rect(m,y,pw-m*2,7,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text(t,m+2,y+5);y+=10;}
+    function fld(l,v){if(y>ph-30){doc.addPage();y=20;}doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);doc.text(l+':',m,y);doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);var lines=doc.splitTextToSize(v||'N/A',pw-m*2-40);doc.text(lines,m+50,y);y+=Math.max(6,lines.length*5);}
+    sh('SECTION 1 - INCIDENT DETAILS');fld('Given Name',inc.given_name);fld('Surname',inc.surname);fld('Date of Birth',inc.dob);fld('Employee ID',inc.emp_id);
+    fld('Date',inc.incident_date);fld('Time',inc.incident_time);fld('Weather',inc.weather);fld('Site',inc.site);fld('Location',inc.location_desc);
+    fld('Type',inc.incident_type);fld('Caused By',inc.caused_by);fld('Injured',inc.injured);fld('Injuries',inc.injuries);fld('Witnesses',inc.witness_names);fld('Reported To',inc.reported_to);
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);doc.text('What Happened:',m,y);y+=5;doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);var dl=doc.splitTextToSize(inc.what_happened||'N/A',pw-m*2);doc.text(dl,m,y);y+=dl.length*5+4;
+    doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);doc.text('Action Taken:',m,y);y+=5;doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);var al=doc.splitTextToSize(inc.action_taken||'N/A',pw-m*2);doc.text(al,m,y);y+=al.length*5+6;
+    if(y>ph-50){doc.addPage();y=20;}sh('SECTION 2 - COMPANY PROPERTY');fld('Damage',inc.comp_damage);fld('Vehicle Reg',inc.vehicle_reg);fld('Trailer Reg',inc.trailer_reg);
+    if(y>ph-50){doc.addPage();y=20;}sh('SECTION 3 - THIRD PARTY');fld('Name/Contact',inc.third_party);fld('Their Injuries',inc.third_injuries);fld('Their Damage',inc.third_damage);
+    if(y>ph-70){doc.addPage();y=20;}sh('SECTION 4 - ACKNOWLEDGEMENT');
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);doc.text('I acknowledge this information is true and correct.',m,y);y+=8;
+    fld('Staff Name',inc.reporter_name);fld('Date',inc.ack_date||inc.incident_date);
+    if(inc.sig_data&&inc.sig_data.startsWith('data:image')){try{doc.addImage(inc.sig_data,'PNG',m,y,70,22);y+=26;}catch(e){y+=10;}}
+    if(y>ph-40){doc.addPage();y=20;}sh('SECTION 5 - MANAGER (OFFICE USE ONLY)');
+    doc.rect(m,y,pw-m*2,28);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+    doc.text('Manager: _________________________',m+3,y+8);doc.text('Signed: _________________________',m+3,y+16);doc.text('Date: ___________',m+3,y+24);doc.text('Ref: '+(inc.incident_number||''),pw-m-40,y+8);y+=34;
+    doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');doc.setFontSize(7);doc.setTextColor(120,120,120);doc.text('Rapid Pro Clean - rapidproclean.com.au',pw/2,ph-5,{align:'center'});
+    doc.save('Incident_'+(inc.incident_number||'Report')+'.pdf');toast('PDF downloaded!');
+  }catch(e){toast('PDF error: '+(e.message||'Try again'));}
+}
 </script>
 
 
@@ -2252,6 +2409,55 @@ function doLogout(){CU=null;q('LS').classList.remove('h');q('MH').style.display=
   </div>
   <button class="btn tl" style="margin-top:14px;width:100%" onclick="submitStaffLeave()">✅ Add and Approve Leave</button>
   <button class="btn ol" style="margin-top:8px;width:100%" onclick="closeM('AddLvM')">Cancel</button>
+</div></div>
+<div class="mov" id="IncidentM"><div class="msh"><div class="mh"></div><div class="mt">Report Incident</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px">Report within 24 hours. Serious incidents: Rajesh Khanal 0432 635 667</div>
+  <div class="sl" style="margin:0 0 8px;font-size:12px">SECTION 1 - INCIDENT DETAILS</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Given Name *</div><input class="mi" id="incGiven" type="text" placeholder="Given name"></div>
+    <div><div class="mlbl">Surname *</div><input class="mi" id="incSurname" type="text" placeholder="Surname"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date of Birth</div><input class="mi" id="incDOB" type="date"></div>
+    <div><div class="mlbl">Employee ID</div><input class="mi" id="incEmpID" type="text" placeholder="e.g. EMP001"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date *</div><input class="mi" id="incDate" type="date"></div>
+    <div><div class="mlbl">Time *</div><input class="mi" id="incTime" type="time"></div>
+  </div>
+  <div class="mlbl">Weather</div>
+  <select class="msel" id="incWeather"><option value="">Select...</option><option>Fine / Clear</option><option>Raining</option><option>Wet / Slippery</option><option>Windy</option><option>Hot</option><option>Indoor - N/A</option></select>
+  <div class="mlbl">Site *</div><input class="mi" id="incSite" type="text" placeholder="e.g. Coles Westfield">
+  <div class="mlbl">Exact Location</div><input class="mi" id="incLocation" type="text" placeholder="e.g. Car park Level 2">
+  <div class="mlbl">Incident Type *</div>
+  <select class="msel" id="incType"><option value="">Select...</option><option>Slip / Trip / Fall</option><option>Chemical Exposure</option><option>Equipment Damage</option><option>Property Damage</option><option>Near Miss</option><option>Staff Conflict</option><option>Other</option></select>
+  <div class="mlbl">Who Caused It</div><input class="mi" id="incCaused" type="text" placeholder="Name of person">
+  <div class="mlbl">Nature of Injuries</div><textarea class="mi" id="incInjuries" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Was Anyone Injured?</div>
+  <select class="msel" id="incInjured"><option value="No">No</option><option value="Yes - Minor">Yes - Minor</option><option value="Yes - Moderate">Yes - Moderate</option><option value="Yes - Serious">Yes - Serious</option></select>
+  <div class="mlbl">Witnesses</div><input class="mi" id="incWitness" type="text" placeholder="Leave blank if none">
+  <div class="mlbl">What Happened? *</div><textarea class="mi" id="incWhat" rows="3" placeholder="Describe in detail..." style="resize:vertical"></textarea>
+  <div class="mlbl">Action Taken</div><textarea class="mi" id="incAction" rows="2" placeholder="What was done after?" style="resize:vertical"></textarea>
+  <div class="mlbl">Reported To</div><input class="mi" id="incReportedTo" type="text" placeholder="Manager/Supervisor name">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 2 - COMPANY PROPERTY</div>
+  <div class="mlbl">Extent of Damage</div><textarea class="mi" id="incCompDamage" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Vehicle/Equipment Reg</div><input class="mi" id="incVehicleReg" type="text" placeholder="e.g. ABC123 or N/A">
+  <div class="mlbl">Trailer Reg</div><input class="mi" id="incTrailerReg" type="text" placeholder="e.g. TRL001 or N/A">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 3 - THIRD PARTY</div>
+  <div class="mlbl">Third Party Name and Contact</div><input class="mi" id="incThirdParty" type="text" placeholder="Name and phone or N/A">
+  <div class="mlbl">Their Injuries</div><textarea class="mi" id="incThirdInjuries" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Their Property Damage</div><textarea class="mi" id="incThirdDamage" rows="2" placeholder="Describe or N/A" style="resize:vertical"></textarea>
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 4 - PHOTO</div>
+  <div class="mlbl">Attach Photo (optional)</div><input class="mi" id="incPhoto" type="file" accept="image/*" style="padding:8px">
+  <div class="sl" style="margin:12px 0 8px;font-size:12px">SECTION 5 - ACKNOWLEDGEMENT</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">I acknowledge this information is true and correct.</div>
+  <div class="mlbl">Signature *</div>
+  <canvas id="incSigPad" width="400" height="100" style="border:1px solid var(--bd);border-radius:8px;background:#fff;width:100%;touch-action:none"></canvas>
+  <button class="btn sc sm" style="margin:4px 0 10px" onclick="clearIncSig()">Clear Signature</button>
+  <div class="mlbl">Date</div><input class="mi" id="incAckDate" type="date">
+  <div id="incErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
+  <button class="btn nv" onclick="submitIncident()">Submit Report</button>
+  <button class="btn sc" onclick="closeM('IncidentM')">Cancel</button>
 </div></div>
 </body>
 </html>
