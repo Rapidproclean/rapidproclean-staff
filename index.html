@@ -491,6 +491,19 @@ const fmtHrs=m=>{if(!m&&m!==0)return'0m';const h=Math.floor(m/60),r=Math.round(m
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const q=id=>document.getElementById(id);
+// Show connection status on login screen
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var err = q('lErr');
+    if(!err) return;
+    if(typeof supabase === 'undefined'){
+      err.textContent = 'App failed to load. Please check your internet and refresh.';
+      err.style.color = '#ff8a8a';
+    } else if(!db){
+      window.db = supabase.createClient(SB_URL, SB_KEY);
+    }
+  }, 2000);
+});
 const toast=m=>{const t=q('TT');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3200)};
 const openM=id=>q(id).classList.add('on');
 const closeM=id=>q(id).classList.remove('on');
