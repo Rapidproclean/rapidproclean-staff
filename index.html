@@ -8,7 +8,7 @@
 <title>Rapid Pro Clean — Staff Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -510,6 +510,13 @@ const el=(tag,style,html)=>{const e=document.createElement(tag);if(style)e.style
 async function doLogin(){
   const name=q('lName').value.trim(),pin=q('lPin').value.trim(),err=q('lErr');
   if(!name||!pin){err.textContent='Please enter your name and PIN';return}
+  if(!db){
+    if(typeof supabase!=='undefined'){
+      window.db=supabase.createClient(SB_URL,SB_KEY);
+    } else {
+      err.textContent='Connection error. Please refresh the page and try again.';return;
+    }
+  }
   err.textContent='Checking...';
   try{
     const {data,error}=await db.from('rpc_staff').select('*').ilike('name',name).eq('pin',pin).limit(1);
