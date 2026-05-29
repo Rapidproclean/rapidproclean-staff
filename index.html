@@ -1052,8 +1052,8 @@ async function renderLeave(){
 
 var lastLvNavTime=0;
 var lvApDates=[],lvPnDates=[];
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}}
-function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}}
+function lvPrev(){alert('PREV clicked! lvM='+lvM+' lvY='+lvY);var now=Date.now();if(now-lastLvNavTime<800){alert('BLOCKED by lock');return;}lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}else{alert('buildLeaveCal returned null!');}}
+function lvNext(){alert('NEXT clicked! lvM='+lvM+' lvY='+lvY);var now=Date.now();if(now-lastLvNavTime<800){alert('BLOCKED by lock');return;}lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}else{alert('buildLeaveCal returned null!');}}
 
 
 function buildLvCal(){
