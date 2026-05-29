@@ -1051,13 +1051,14 @@ async function renderLeave(){
 
 
 var lastLvNavTime=0;
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;buildLvCal();}
-function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;buildLvCal();}
+var lvApDates=[],lvPnDates=[];
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}}
+function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}}
 
 
 function buildLvCal(){
 const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0),today=todayStr();
-q('LvCalM').textContent=first.toLocaleDateString('en-AU',{month:'long',year:'numeric'});
+if(q('LvCalM'))q('LvCalM').textContent=first.toLocaleDateString('en-AU',{month:'long',year:'numeric'});
 const dh=q('LvDH');dh.innerHTML='';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;dh.appendChild(h)});
 const dc=q('LvDD');dc.innerHTML='';
 const startDow=first.getDay()===0?6:first.getDay()-1;
@@ -1068,6 +1069,19 @@ for(let d=1;d<=last.getDate();d++){
   const e2=document.createElement('div');e2.className=cls;e2.textContent=''+d;
   const dsCopy=ds;e2.onclick=()=>selectLvDate(dsCopy);dc.appendChild(e2);
 }
+}
+
+function buildLeaveCal(apDates,pnDates){
+  const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0);
+  const cal=document.createElement('div');cal.className='lcal';
+  cal.innerHTML='<div class="lcnav"><button onclick="lvPrev()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8249;</button><div class="lcm">'+first.toLocaleDateString('en-AU',{month:'long',year:'numeric'})+'</div><button onclick="lvNext()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8250;</button></div>';
+  const g=document.createElement('div');g.style.padding='8px';
+  const hG=document.createElement('div');hG.className='lcg';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;hG.appendChild(h)});
+  const dG=document.createElement('div');dG.className='lcg';
+  const today=todayStr();const startDow=first.getDay()===0?6:first.getDay()-1;
+  for(let i=0;i<startDow;i++){const d=document.createElement('div');d.className='lcd om';dG.appendChild(d)}
+  for(let d=1;d<=last.getDate();d++){const ds=lvY+'-'+String(lvM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');let cls='lcd';if(ds===today)cls+=' td';if(apDates.includes(ds))cls+=' ap';else if(pnDates.includes(ds))cls+=' pn';const el2=document.createElement('div');el2.className=cls;el2.textContent=''+d;dG.appendChild(el2);}
+  g.appendChild(hG);g.appendChild(dG);cal.appendChild(g);return cal;
 }
 
 async function renderStaffLeave(el2){
@@ -1103,7 +1117,7 @@ async function renderStaffLeave(el2){
       }
     });
     // Re-render calendar with actual dates
-    calDiv.innerHTML='';calDiv.appendChild(buildLeaveCal(apDates,pnDates));
+    calDiv.innerHTML='';lvApDates=apDates;lvPnDates=pnDates;calDiv.appendChild(buildLeaveCal(apDates,pnDates));
     // Render history
     histDiv.innerHTML='';
     if(!leaves.length){
