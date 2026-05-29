@@ -1052,8 +1052,8 @@ async function renderLeave(){
 
 var lastLvNavTime=0;
 var lvApDates=[],lvPnDates=[],lvCalDiv=null;
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800){return;}lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
-function lvNext(){var now=Date.now();if(now-lastLvNavTime<800){return;}lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvNext(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
 
 
 function buildLvCal(){
