@@ -835,43 +835,25 @@ async function renderRoster(){
 
 // DAY VIEW
 var currentDayView=null;
-var lastDayNavTime=0;
-function dayNav(dir){
-  var now=Date.now();
-  if(now-lastDayNavTime<1000)return;
-  lastDayNavTime=now;
-  var cur=currentDayView||new Date().toISOString().slice(0,10);
-  var d=new Date(cur+'T00:00:00');
-  d.setDate(d.getDate()+dir);
-  currentDayView=d.toISOString().slice(0,10);
-  var el2=q('RC');
-  el2.dataset.day=currentDayView;
-  renderDay(el2);
-}
-function makeDayNavBtn(label,dir){
-  var btn=document.createElement('button');
-  btn.textContent=label;
-  btn.style.cssText='background:var(--nv);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:8px 18px;font-weight:700;-webkit-user-select:none;user-select:none';
-  btn.onclick=function(){dayNav(dir);};
-  return btn;
-}
 async function renderDay(el2){
   if(!currentDayView)currentDayView=el2.dataset.day||new Date().toISOString().slice(0,10);
   el2.dataset.day=currentDayView;
   var selDay=currentDayView;
   var selDate=new Date(selDay+'T00:00:00');
   var dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  var nav=document.createElement('div');nav.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
-  var pb=makeDayNavBtn('PREV',-1);
-  var nb=makeDayNavBtn('NEXT',1);
-  var dlblEl=document.createElement('div');dlblEl.style.cssText='font-size:12px;font-weight:700;color:var(--tx);text-align:center;flex:1;padding:0 8px';dlblEl.textContent=dayLbl;
-  nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
-  var dateRow=document.createElement('div');dateRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
-  var dateLbl=document.createElement('div');dateLbl.style.cssText='font-size:11px;color:var(--t2)';dateLbl.textContent='Jump to date:';
-  var dateInp=document.createElement('input');dateInp.type='date';dateInp.value=selDay;
-  dateInp.style.cssText='border:1px solid var(--bd);background:var(--cd);border-radius:6px;font-size:12px;color:var(--tx);padding:4px 8px;cursor:pointer';
+
+  var dateRow=document.createElement('div');
+  dateRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
+  var dateLbl=document.createElement('div');
+  dateLbl.style.cssText='font-size:13px;font-weight:700;color:var(--tx);flex:1';
+  dateLbl.textContent=dayLbl;
+  var dateInp=document.createElement('input');
+  dateInp.type='date';
+  dateInp.value=selDay;
+  dateInp.style.cssText='border:1px solid var(--bd);background:var(--sf);border-radius:6px;font-size:13px;color:var(--tx);padding:6px 10px;cursor:pointer';
   dateInp.onchange=function(){currentDayView=dateInp.value;el2.dataset.day=currentDayView;renderDay(el2);};
   dateRow.appendChild(dateLbl);dateRow.appendChild(dateInp);
+
   var tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
   var lb=document.createElement('button');lb.className='pvb on';lb.textContent='List';
   var bb=document.createElement('button');bb.className='pvb';bb.textContent='Blocks';
@@ -884,10 +866,11 @@ async function renderDay(el2){
   bb.onclick=function(){bb.classList.add('on');lb.classList.remove('on');renderDayBlocks(listEl,shifts,sm);};
   tog.appendChild(lb);tog.appendChild(bb);
   el2.innerHTML='';
-  el2.appendChild(nav);el2.appendChild(dateRow);el2.appendChild(tog);el2.appendChild(listEl);
+  el2.appendChild(dateRow);el2.appendChild(tog);el2.appendChild(listEl);
   if(!shifts||!shifts.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts on this day.</div>';return;}
   renderDayList(listEl,shifts,sm);
 }
+
 
 function mkShiftItem(sh,sm){
   const s=sm[sh.staff_id],av=AV[s?s.color:'a']||AV.a;
