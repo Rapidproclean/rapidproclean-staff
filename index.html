@@ -829,18 +829,21 @@ async function renderRoster(){
 }
 
 // DAY VIEW
+var currentDayView=null;
 async function renderDay(el2){
+  if(currentDayView){el2.dataset.day=currentDayView;}
   let selDay=el2.dataset.day||todayStr();
+  currentDayView=selDay;
   const selDate=new Date(selDay+'T00:00:00');
   const dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const nav=document.createElement('div');nav.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
   const pb=document.createElement('button');pb.style.cssText='background:none;border:none;cursor:pointer;font-size:24px;color:var(--nv2);padding:4px 12px;font-weight:bold';pb.textContent='<';
-  pb.onclick=function(){var cur=el2.dataset.day||new Date().toISOString().slice(0,10);var d=new Date(cur+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2);};
+  pb.onclick=function(){var cur=currentDayView||el2.dataset.day||todayStr();var d=new Date(cur+'T00:00:00');d.setDate(d.getDate()-1);currentDayView=d.toISOString().slice(0,10);el2.dataset.day=currentDayView;renderDay(el2);};
   const nb=document.createElement('button');nb.style.cssText='background:none;border:none;cursor:pointer;font-size:24px;color:var(--nv2);padding:4px 12px;font-weight:bold';nb.textContent='>';
-  nb.onclick=function(){var cur=el2.dataset.day||new Date().toISOString().slice(0,10);var d=new Date(cur+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2);};
+  nb.onclick=function(){var cur=currentDayView||el2.dataset.day||todayStr();var d=new Date(cur+'T00:00:00');d.setDate(d.getDate()+1);currentDayView=d.toISOString().slice(0,10);el2.dataset.day=currentDayView;renderDay(el2);};
   const dlblEl=document.createElement('input');dlblEl.type='date';dlblEl.value=selDay;
   dlblEl.style.cssText='border:1px solid var(--bd);background:var(--cd);border-radius:6px;font-size:13px;font-weight:700;color:var(--tx);padding:4px 8px;cursor:pointer;text-align:center';
-  dlblEl.onchange=function(){el2.dataset.day=dlblEl.value;renderDay(el2);};
+  dlblEl.onchange=function(){currentDayView=dlblEl.value;el2.dataset.day=dlblEl.value;renderDay(el2);};
   nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
   const tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
   const lb=document.createElement('button');lb.className='pvb on';lb.textContent='📋 List';
