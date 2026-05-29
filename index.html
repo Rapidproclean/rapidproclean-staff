@@ -839,7 +839,7 @@ var dayNavLock=false;
 function dayNav(dir){
   if(dayNavLock)return;
   dayNavLock=true;
-  setTimeout(function(){dayNavLock=false;},500);
+  setTimeout(function(){dayNavLock=false;},800);
   var cur=currentDayView||new Date().toISOString().slice(0,10);
   var d=new Date(cur+'T00:00:00');
   d.setDate(d.getDate()+dir);
@@ -848,6 +848,15 @@ function dayNav(dir){
   el2.dataset.day=currentDayView;
   renderDay(el2);
 }
+function makeDayNavBtn(label,dir){
+  var btn=document.createElement('button');
+  btn.textContent=label;
+  btn.style.cssText='background:var(--nv);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:8px 18px;font-weight:700;touch-action:manipulation;-webkit-user-select:none;user-select:none';
+  var fired=false;
+  btn.addEventListener('touchstart',function(e){e.preventDefault();fired=true;dayNav(dir);},{ passive:false });
+  btn.addEventListener('click',function(e){if(!fired)dayNav(dir);fired=false;});
+  return btn;
+}
 async function renderDay(el2){
   if(!currentDayView)currentDayView=el2.dataset.day||new Date().toISOString().slice(0,10);
   el2.dataset.day=currentDayView;
@@ -855,12 +864,8 @@ async function renderDay(el2){
   var selDate=new Date(selDay+'T00:00:00');
   var dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   var nav=document.createElement('div');nav.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
-  var pb=document.createElement('button');pb.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:6px;cursor:pointer;font-size:18px;color:var(--nv2);padding:6px 14px;font-weight:bold;touch-action:manipulation';pb.textContent='PREV';
-  pb.addEventListener('touchend',function(e){e.preventDefault();dayNav(-1);});
-  pb.addEventListener('click',function(e){dayNav(-1);});
-  var nb=document.createElement('button');nb.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:6px;cursor:pointer;font-size:18px;color:var(--nv2);padding:6px 14px;font-weight:bold;touch-action:manipulation';nb.textContent='NEXT';
-  nb.addEventListener('touchend',function(e){e.preventDefault();dayNav(1);});
-  nb.addEventListener('click',function(e){dayNav(1);});
+  var pb=makeDayNavBtn('PREV',-1);
+  var nb=makeDayNavBtn('NEXT',1);
   var dlblEl=document.createElement('div');dlblEl.style.cssText='font-size:12px;font-weight:700;color:var(--tx);text-align:center;flex:1;padding:0 8px';dlblEl.textContent=dayLbl;
   nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
   var dateRow=document.createElement('div');dateRow.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
