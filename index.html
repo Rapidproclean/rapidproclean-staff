@@ -835,10 +835,12 @@ async function renderDay(el2){
   const dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const nav=document.createElement('div');nav.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
   const pb=document.createElement('button');pb.style.cssText='background:none;border:none;cursor:pointer;font-size:20px;color:var(--nv2);padding:4px 10px';pb.textContent='‹';
-  pb.onclick=()=>{const cur=el2.dataset.day||selDay;const d=new Date(cur+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
+  pb.onclick=()=>{const d=new Date((el2.dataset.day||selDay)+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
   const nb=document.createElement('button');nb.style.cssText=pb.style.cssText;nb.textContent='›';
-  nb.onclick=()=>{const cur=el2.dataset.day||selDay;const d=new Date(cur+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
-  const dlblEl=document.createElement('div');dlblEl.style.cssText='font-size:13px;font-weight:700;color:var(--tx)';dlblEl.textContent=dayLbl;
+  nb.onclick=()=>{const d=new Date((el2.dataset.day||selDay)+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
+  const dlblEl=document.createElement('input');dlblEl.type='date';dlblEl.value=selDay;
+  dlblEl.style.cssText='border:1px solid var(--bd);background:var(--cd);border-radius:6px;font-size:13px;font-weight:700;color:var(--tx);padding:4px 8px;cursor:pointer;text-align:center';
+  dlblEl.onchange=function(){el2.dataset.day=dlblEl.value;renderDay(el2);};
   nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
   const tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
   const lb=document.createElement('button');lb.className='pvb on';lb.textContent='📋 List';
@@ -1331,7 +1333,7 @@ async function renderStaffDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   var signedIds=signed.map(function(s){return s.doc_id});
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   el2.innerHTML='<div class="sl">Company Documents</div>';
   if(!folders.length){
     var empty=document.createElement('div');
@@ -1425,7 +1427,7 @@ async function renderAdminDocs(el2){
     return;
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
 
   // Clear and rebuild — NO innerHTML+= anywhere after this point
