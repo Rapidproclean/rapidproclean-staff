@@ -1614,11 +1614,17 @@ async function renderTrainingOverview(el2){
       section.appendChild(empty);return;
     }
     // Summary counts at top
-    var totalStaff=staff.length;
-    var fullyComplete=staff.filter(function(s){
-      return folders.every(function(f){
-        var applies=!f.staff_folder_id||f.staff_folder_id===s.id;
-        if(!applies)return true;
+    // Only count staff who have at least one folder assigned to them
+    var assignedStaff=staff.filter(function(s){
+      return folders.some(function(f){
+        return !f.staff_folder_id||f.staff_folder_id===s.id;
+      });
+    });
+    var totalStaff=assignedStaff.length;
+    var fullyComplete=assignedStaff.filter(function(s){
+      // Only check folders that apply to this staff member
+      var myFolders=folders.filter(function(f){return !f.staff_folder_id||f.staff_folder_id===s.id;});
+      return myFolders.every(function(f){
         var fDocs=docs.filter(function(d){return d.folder_id===f.id});
         if(!fDocs.length)return true;
         return fDocs.every(function(d){
@@ -1641,7 +1647,11 @@ async function renderTrainingOverview(el2){
     });
     section.appendChild(summary);
     // One card per staff member
-    staff.forEach(function(s){
+    // Show only staff who have folders assigned to them
+    var displayStaff=staff.filter(function(s){
+      return folders.some(function(f){return !f.staff_folder_id||f.staff_folder_id===s.id;});
+    });
+    displayStaff.forEach(function(s){
       var av=AV[s.color||'a']||AV.a;
       // Get folders that apply to this staff member
       var myFolders=folders.filter(function(f){
