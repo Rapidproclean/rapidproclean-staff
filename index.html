@@ -558,6 +558,11 @@ async function loadNotifs(){
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
       d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
+      const delBtn=document.createElement('button');
+      delBtn.textContent='Del';
+      delBtn.style.cssText='background:none;border:1px solid #e53935;color:#e53935;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 6px;flex-shrink:0;margin-left:4px;';
+      delBtn.onclick=(e)=>{e.stopPropagation();if(confirm('Delete this notification?'))db.from('rpc_notifications').delete().eq('id',n.id).then(()=>loadNotifs())};
+      d.appendChild(delBtn);
       nl.appendChild(d);
     });
   }catch{}
@@ -838,7 +843,12 @@ async function renderDay(el2){
   pb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
   const nb=document.createElement('button');nb.style.cssText=pb.style.cssText;nb.textContent='›';
   nb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
-  const dlblEl=document.createElement('div');dlblEl.style.cssText='font-size:13px;font-weight:700;color:var(--tx)';dlblEl.textContent=dayLbl;
+  const dlblEl=document.createElement('div');dlblEl.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px';
+  const dlblTxt=document.createElement('div');dlblTxt.style.cssText='font-size:11px;font-weight:700;color:var(--tx)';dlblTxt.textContent=dayLbl;
+  const dateInp=document.createElement('input');dateInp.type='date';dateInp.value=selDay;
+  dateInp.style.cssText='border:none;background:none;font-size:11px;color:var(--nv2);font-weight:600;cursor:pointer;text-align:center;width:130px';
+  dateInp.onchange=function(){el2.dataset.day=dateInp.value;renderDay(el2);};
+  dlblEl.appendChild(dlblTxt);dlblEl.appendChild(dateInp);
   nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
   const tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
   const lb=document.createElement('button');lb.className='pvb on';lb.textContent='📋 List';
@@ -1536,6 +1546,9 @@ async function renderAdminDocs(el2){
         var rinf=document.createElement('div');rinf.style.flex='1';
         rinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(docNames[s.doc_id]||'Document')+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px">Signed '+fmtD(s.signed_at)+'</div>';
         row.appendChild(tick);row.appendChild(rinf);
+        var dlPdfBtn=document.createElement('button');dlPdfBtn.className='btn nv sm';dlPdfBtn.style.cssText='margin:0;font-size:11px;padding:4px 8px';dlPdfBtn.textContent='PDF';
+        (function(dn,sn,sa,su){dlPdfBtn.onclick=function(){downloadSignedDoc(dn,sn,sa,su);};})(docNames[s.doc_id]||'Document',s.staff_name,s.signed_at,s.signed_url);
+        row.appendChild(dlPdfBtn);
         if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
         body2.appendChild(row);
       });
@@ -2321,6 +2334,44 @@ async function downloadIncidentPDF(inc){
     doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');doc.setFontSize(7);doc.setTextColor(120,120,120);
     doc.text('Rapid Pro Clean - rapidproclean.com.au',pw/2,ph-5,{align:'center'});
     doc.save('Incident_'+(inc.incident_number||'Report')+'.pdf');toast('PDF downloaded!');
+  }catch(e){toast('PDF error: '+(e.message||'Try again'));}
+}
+
+async function downloadSignedDoc(docName, staffName, signedAt, signedUrl){
+  var loaded=await loadJsPDF();
+  if(!loaded){toast('PDF failed to load. Try again.');return;}
+  try{
+    var jsPDF=window.jspdf.jsPDF;
+    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=20;var y=0;
+    doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
+    try{var lr=await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');var lb=await lr.blob();var ld=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(lb)});doc.addImage(ld,'PNG',m,4,40,18);}catch(e){}
+    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('RAPID PRO CLEAN',pw/2,14,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('rapidproclean.com.au | info@rapidproclean.com.au',pw/2,21,{align:'center'});
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('SIGNED DOCUMENT RECORD',pw/2,30,{align:'center'});
+    y=48;
+    doc.setTextColor(10,37,64);doc.setFontSize(12);doc.setFont('helvetica','bold');
+    var dlines=doc.splitTextToSize('Document: '+(docName||'Document'),pw-m*2);doc.text(dlines,m,y);y+=dlines.length*7+4;
+    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+    doc.text('Signed by: '+(staffName||''),m,y);y+=7;
+    doc.text('Date & Time: '+new Date(signedAt).toLocaleString('en-AU'),m,y);y+=7;
+    doc.text('Status: SIGNED',m,y);y+=12;
+    doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(m,y,pw-m,y);y+=10;
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF SIGNATURE',m,y);y+=10;
+    if(signedUrl&&signedUrl.startsWith('data:image')){
+      try{doc.addImage(signedUrl,'PNG',m,y,80,30);y+=35;}catch(e){y+=10;}
+    } else if(signedUrl&&!signedUrl.startsWith('data:')){
+      try{var sr=await fetch(signedUrl);var sb=await sr.blob();var sd=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(sb)});doc.addImage(sd,'PNG',m,y,80,30);y+=35;}catch(e){doc.setTextColor(150,150,150);doc.text('[Signature on file]',m,y+10);y+=20;}
+    } else {
+      doc.setTextColor(150,150,150);doc.setFontSize(9);doc.text('[No signature captured]',m,y+5);y+=15;
+    }
+    doc.setDrawColor(100,100,100);doc.setLineWidth(0.3);doc.line(m,y,m+90,y);
+    doc.setFontSize(8);doc.setTextColor(100,100,100);doc.text('Staff Signature',m,y+5);y+=20;
+    doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');
+    doc.setFontSize(7);doc.setTextColor(100,100,100);
+    doc.text('Rapid Pro Clean | This document was digitally signed via the Staff Portal',pw/2,ph-5,{align:'center'});
+    var fname='Signed_'+(docName||'Document').replace(/[^a-zA-Z0-9]/g,'_')+'_'+(staffName||'').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf';
+    doc.save(fname);toast('Signed PDF downloaded!');
   }catch(e){toast('PDF error: '+(e.message||'Try again'));}
 }
 </script>
