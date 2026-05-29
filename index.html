@@ -838,7 +838,7 @@ var currentDayView=null;
 var lastDayNavTime=0;
 function dayNav(dir){
   var now=Date.now();
-  if(now-lastDayNavTime<600)return;
+  if(now-lastDayNavTime<1000)return;
   lastDayNavTime=now;
   var cur=currentDayView||new Date().toISOString().slice(0,10);
   var d=new Date(cur+'T00:00:00');
@@ -851,18 +851,8 @@ function dayNav(dir){
 function makeDayNavBtn(label,dir){
   var btn=document.createElement('button');
   btn.textContent=label;
-  btn.style.cssText='background:var(--nv);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:8px 18px;font-weight:700;touch-action:manipulation;-webkit-user-select:none;user-select:none';
-  btn.addEventListener('touchstart',function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    dayNav(dir);
-  },{passive:false});
-  btn.addEventListener('click',function(e){
-    e.preventDefault();
-    e.stopPropagation();
-    var now=Date.now();
-    if(now-lastDayNavTime>600){dayNav(dir);}
-  });
+  btn.style.cssText='background:var(--nv);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:8px 18px;font-weight:700;-webkit-user-select:none;user-select:none';
+  btn.onclick=function(){dayNav(dir);};
   return btn;
 }
 async function renderDay(el2){
