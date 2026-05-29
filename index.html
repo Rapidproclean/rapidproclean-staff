@@ -52,7 +52,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:7px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--t3);border:none;background:none;padding-bottom:4px}
 .ni.on{color:var(--nv)}
 .ni svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.pg{display:none;padding:16px 14px calc(var(--nav)+200px)}.pg.on{display:block}
+.pg{display:none;padding:16px 14px calc(var(--nav)+20px)}.pg.on{display:block}
 .sl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:10px;padding-left:2px}
 .np{display:none;position:fixed;top:var(--hdr);right:0;left:0;z-index:85;background:var(--cd);border-bottom:1px solid var(--bd);box-shadow:var(--shl);max-height:60vh;overflow-y:auto}
 .np.on{display:block}
@@ -635,7 +635,7 @@ async function renderAdminHome(el2,sm,tm){
   const onS=vis.filter(s=>sm[s.id]&&sm[s.id].is_in).length;
   el2.innerHTML='<div class="stats"><div class="sc"><div class="sn b">'+vis.length+'</div><div class="sl2">Total</div></div><div class="sc"><div class="sn g">'+onS+'</div><div class="sl2">On Shift</div></div><div class="sc"><div class="sn r">'+(vis.length-onS)+'</div><div class="sl2">Off</div></div></div><div id="FlagDiv"></div><div class="sl">Staff</div><div class="sgrid" id="StaffGrid"></div>';
   loadFlags(sm);
-  const sg=q('StaffGrid');
+  const sg=q('StaffGrid');sg.style.paddingBottom='200px';
   vis.forEach(s=>{
     const st=sm[s.id]||{},isIn=!!st.is_in,isTr=!!tm[s.id],av=AV[s.color||'a']||AV.a;
     const card=document.createElement('div');card.className='scard'+(isIn?' in':isTr?' tr':'');
