@@ -226,9 +226,9 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="sl">Roster</div>
   <div class="vtabs" id="RTabs"></div>
   <div class="wnav" id="WNav" style="display:none">
-    <button onclick="chgWk(-1)" style="background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:6px 16px;font-size:16px;font-weight:bold;cursor:pointer;color:var(--nv2)">PREV</button>
+    <button onclick="chgWk(-1)">&#8249;</button>
     <div class="wl" id="WL">This Week</div>
-    <button onclick="chgWk(1)" style="background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:6px 16px;font-size:16px;font-weight:bold;cursor:pointer;color:var(--nv2)">NEXT</button>
+    <button onclick="chgWk(1)">&#8250;</button>
   </div>
   <div id="RC"><div class="loader"><div class="spin"></div>Loading...</div></div>
 </div>
@@ -558,11 +558,6 @@ async function loadNotifs(){
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
       d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
-      var delBtnN=document.createElement('button');
-      delBtnN.textContent='Del';
-      delBtnN.style.cssText='background:none;border:1px solid #e53935;color:#e53935;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 6px;flex-shrink:0;margin-left:4px;touch-action:manipulation';
-      (function(nid){delBtnN.onclick=function(e){e.stopPropagation();if(confirm('Delete this notification?'))db.from('rpc_notifications').delete().eq('id',nid).then(function(){loadNotifs();});};})(n.id);
-      d.appendChild(delBtnN);
       nl.appendChild(d);
     });
   }catch{}
@@ -834,44 +829,34 @@ async function renderRoster(){
 }
 
 // DAY VIEW
-var currentDayView=null;
 async function renderDay(el2){
-  if(!currentDayView)currentDayView=el2.dataset.day||new Date().toISOString().slice(0,10);
-  el2.dataset.day=currentDayView;
-  var selDay=currentDayView;
-  var selDate=new Date(selDay+'T00:00:00');
-  var dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-
-  var dateRow=document.createElement('div');
-  dateRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
-  var dateLbl=document.createElement('div');
-  dateLbl.style.cssText='font-size:13px;font-weight:700;color:var(--tx);flex:1';
-  dateLbl.textContent=dayLbl;
-  var dateInp=document.createElement('input');
-  dateInp.type='date';
-  dateInp.value=selDay;
-  dateInp.style.cssText='border:1px solid var(--bd);background:var(--sf);border-radius:6px;font-size:13px;color:var(--tx);padding:6px 10px;cursor:pointer';
-  dateInp.onchange=function(){currentDayView=dateInp.value;el2.dataset.day=currentDayView;renderDay(el2);};
-  dateRow.appendChild(dateLbl);dateRow.appendChild(dateInp);
-
-  var tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
-  var lb=document.createElement('button');lb.className='pvb on';lb.textContent='List';
-  var bb=document.createElement('button');bb.className='pvb';bb.textContent='Blocks';
-  var listEl=document.createElement('div');
-  var qb=db.from('rpc_shifts').select('*').eq('shift_date',selDay).order('start_time');
+  let selDay=el2.dataset.day||todayStr();
+  const selDate=new Date(selDay+'T00:00:00');
+  const dayLbl=selDate.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const nav=document.createElement('div');nav.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 14px;box-shadow:var(--sh)';
+  const pb=document.createElement('button');pb.style.cssText='background:none;border:none;cursor:pointer;font-size:20px;color:var(--nv2);padding:4px 10px';pb.textContent='‹';
+  pb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
+  const nb=document.createElement('button');nb.style.cssText=pb.style.cssText;nb.textContent='›';
+  nb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
+  const dlblEl=document.createElement('input');dlblEl.type='date';dlblEl.value=selDay;
+  dlblEl.style.cssText='border:1px solid var(--bd);background:var(--cd);border-radius:6px;font-size:13px;font-weight:700;color:var(--tx);padding:6px 10px;cursor:pointer';
+  dlblEl.onchange=function(){el2.dataset.day=dlblEl.value;renderDay(el2);};
+  nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
+  const tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
+  const lb=document.createElement('button');lb.className='pvb on';lb.textContent='📋 List';
+  const bb=document.createElement('button');bb.className='pvb';bb.textContent='🗓 Blocks';
+  const listEl=document.createElement('div');
+  let qb=db.from('rpc_shifts').select('*').eq('shift_date',selDay).order('start_time');
   if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
-  var {data:shifts}=await qb;
-  var sm={};allStaff.forEach(function(s){sm[s.id]=s;});
-  lb.onclick=function(){lb.classList.add('on');bb.classList.remove('on');renderDayList(listEl,shifts,sm);};
-  bb.onclick=function(){bb.classList.add('on');lb.classList.remove('on');renderDayBlocks(listEl,shifts,sm);};
+  const {data:shifts}=await qb;
+  const sm={};allStaff.forEach(s=>sm[s.id]=s);
+  lb.onclick=()=>{lb.classList.add('on');bb.classList.remove('on');renderDayList(listEl,shifts,sm)};
+  bb.onclick=()=>{bb.classList.add('on');lb.classList.remove('on');renderDayBlocks(listEl,shifts,sm)};
   tog.appendChild(lb);tog.appendChild(bb);
-  el2.innerHTML='';
-  el2.appendChild(dateRow);el2.appendChild(tog);el2.appendChild(listEl);
-  if(!shifts||!shifts.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts on this day.</div>';return;}
+  el2.innerHTML='';el2.appendChild(nav);el2.appendChild(tog);el2.appendChild(listEl);
+  if(!shifts||!shifts.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts on this day.</div>';return}
   renderDayList(listEl,shifts,sm);
 }
-
-
 function mkShiftItem(sh,sm){
   const s=sm[sh.staff_id],av=AV[s?s.color:'a']||AV.a;
   const card=document.createElement('div');card.className='rcard';
@@ -1348,7 +1333,7 @@ async function renderStaffDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   var signedIds=signed.map(function(s){return s.doc_id});
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url});
   el2.innerHTML='<div class="sl">Company Documents</div>';
   if(!folders.length){
     var empty=document.createElement('div');
@@ -1416,25 +1401,11 @@ async function renderStaffDocs(el2){
       var info2=document.createElement('div');
       info2.innerHTML='<div class="cl" style="font-size:13px">'+(d?esc(d.name):'Document')+'</div><div class="cs">Signed '+fmtD(s.signed_at)+'</div>';
       row.appendChild(info2);
-      var rowActs=document.createElement('div');rowActs.style.cssText='display:flex;gap:4px;flex-shrink:0;align-items:center;flex-wrap:wrap';
       if(s.signed_url){
-        var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View Sig';
+        var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);
-        rowActs.appendChild(vb);
+        row.appendChild(vb);
       }
-      var dlb=document.createElement('button');dlb.className='btn nv sm';
-      dlb.style.cssText='margin:0;font-size:10px;padding:3px 8px;touch-action:manipulation';
-      dlb.textContent='PDF';
-      (function(dn,sn,sa,su,du){dlb.onclick=function(){downloadSignedDoc(dn,sn,sa,su,du);};})(d?d.name:'Document',s.staff_name||CU.name,s.signed_at,s.signed_url,d?d.url:null);
-      rowActs.appendChild(dlb);
-      if(d&&d.url){
-        var openB=document.createElement('button');openB.className='btn sc sm';
-        openB.style.cssText='margin:0;font-size:10px;padding:3px 8px;touch-action:manipulation';
-        openB.textContent='Open Doc';
-        (function(du){openB.onclick=function(){window.open(du,'_blank');};})(d.url);
-        rowActs.appendChild(openB);
-      }
-      row.appendChild(rowActs);
       sc.appendChild(row);
     });
     el2.appendChild(sc);
@@ -1456,7 +1427,7 @@ async function renderAdminDocs(el2){
     return;
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
 
   // Clear and rebuild — NO innerHTML+= anywhere after this point
@@ -1567,16 +1538,6 @@ async function renderAdminDocs(el2){
         var rinf=document.createElement('div');rinf.style.flex='1';
         rinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(docNames[s.doc_id]||'Document')+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px">Signed '+fmtD(s.signed_at)+'</div>';
         row.appendChild(tick);row.appendChild(rinf);
-        var rowBtns=document.createElement('div');rowBtns.style.cssText='display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap';
-        var dlPdfBtn=document.createElement('button');dlPdfBtn.className='btn nv sm';dlPdfBtn.style.cssText='margin:0;font-size:11px;padding:4px 8px;touch-action:manipulation';dlPdfBtn.textContent='PDF';
-        (function(dn,sn,sa,su,du){dlPdfBtn.onclick=function(){downloadSignedDoc(dn,sn,sa,su,du);};})(docNames[s.doc_id]||'Document',s.staff_name,s.signed_at,s.signed_url,docUrls[s.doc_id]||null);
-        rowBtns.appendChild(dlPdfBtn);
-        if(docUrls[s.doc_id]){
-          var openDocBtn=document.createElement('button');openDocBtn.className='btn sc sm';openDocBtn.style.cssText='margin:0;font-size:11px;padding:4px 8px;touch-action:manipulation';openDocBtn.textContent='Open Doc';
-          (function(du){openDocBtn.onclick=function(){window.open(du,'_blank');};})(docUrls[s.doc_id]);
-          rowBtns.appendChild(openDocBtn);
-        }
-        row.appendChild(rowBtns);
         if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
         body2.appendChild(row);
       });
@@ -2102,58 +2063,6 @@ async function downloadIncidentPDF(inc){
     doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');doc.setFontSize(7);doc.setTextColor(120,120,120);
     doc.text('Rapid Pro Clean - rapidproclean.com.au',pw/2,ph-5,{align:'center'});
     doc.save('Incident_'+(inc.incident_number||'Report')+'.pdf');toast('PDF downloaded!');
-  }catch(e){toast('PDF error: '+(e.message||'Try again'));}
-}
-
-async function loadJsPDF(){if(window.jspdf)return true;return new Promise(function(resolve){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=function(){resolve(true)};s.onerror=function(){resolve(false)};document.head.appendChild(s);});}
-
-async function downloadSignedDoc(docName,staffName,signedAt,signedUrl,docUrl){
-  var loaded=await loadJsPDF();if(!loaded){toast('PDF failed. Try again.');return;}
-  try{
-    var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=20;var y=0;
-    doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
-    try{var lr=await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');var lb=await lr.blob();var ld=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(lb)});doc.addImage(ld,'PNG',m,4,40,18);}catch(e){}
-    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('RAPID PRO CLEAN',pw/2,14,{align:'center'});
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('rapidproclean.com.au | info@rapidproclean.com.au',pw/2,21,{align:'center'});
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('SIGNED DOCUMENT RECORD',pw/2,30,{align:'center'});
-    y=48;
-    doc.setTextColor(10,37,64);doc.setFontSize(12);doc.setFont('helvetica','bold');
-    var dlines=doc.splitTextToSize('Document: '+(docName||'Document'),pw-m*2);doc.text(dlines,m,y);y+=dlines.length*7+4;
-    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    doc.text('Signed by: '+(staffName||''),m,y);y+=7;
-    doc.text('Date & Time: '+new Date(signedAt).toLocaleString('en-AU'),m,y);y+=7;
-    doc.text('Status: DIGITALLY SIGNED',m,y);y+=10;
-    doc.setDrawColor(10,37,64);doc.setLineWidth(0.3);doc.line(m,y,pw-m,y);y+=8;
-    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('ORIGINAL DOCUMENT',m,y);y+=7;
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    if(docUrl){
-      doc.text('Access the original document at:',m,y);y+=5;
-      var urlLines=doc.splitTextToSize(docUrl,pw-m*2);doc.setTextColor(0,0,200);doc.text(urlLines,m,y);y+=urlLines.length*5+4;
-      doc.setTextColor(80,80,80);doc.text('The staff member has read and agreed to the full contents of this document.',m,y,{maxWidth:pw-m*2});y+=10;
-    } else {
-      doc.text('Document: '+docName,m,y);y+=8;
-    }
-    doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(m,y,pw-m,y);y+=8;
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF SIGNATURE',m,y);y+=8;
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    doc.text('By signing, staff confirms they have read and understood: '+docName,m,y,{maxWidth:pw-m*2});y+=12;
-    if(signedUrl&&signedUrl.startsWith('data:image')){
-      try{doc.addImage(signedUrl,'PNG',m,y,80,30);y+=35;}catch(e){y+=10;}
-    } else if(signedUrl){
-      try{var sr=await fetch(signedUrl);var sb=await sr.blob();var sd=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(sb)});doc.addImage(sd,'PNG',m,y,80,30);y+=35;}catch(e){doc.text('[Signature on file]',m,y+5);y+=15;}
-    } else {
-      doc.setTextColor(150,150,150);doc.text('[No signature captured]',m,y+5);y+=15;
-    }
-    doc.setDrawColor(100,100,100);doc.setLineWidth(0.3);doc.line(m,y,m+90,y);
-    doc.setFontSize(8);doc.setTextColor(100,100,100);
-    doc.text('Staff: '+(staffName||''),m,y+5);y+=8;
-    doc.text('Date: '+new Date(signedAt).toLocaleDateString('en-AU'),m,y);y+=15;
-    doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');
-    doc.setFontSize(7);doc.setTextColor(100,100,100);
-    doc.text('Rapid Pro Clean | Digitally signed via Staff Portal | rapidproclean.com.au',pw/2,ph-5,{align:'center'});
-    doc.save('Signed_'+(docName||'Doc').replace(/[^a-zA-Z0-9]/g,'_')+'_'+(staffName||'').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf');
-    toast('Signed PDF downloaded!');
   }catch(e){toast('PDF error: '+(e.message||'Try again'));}
 }
 </script>
