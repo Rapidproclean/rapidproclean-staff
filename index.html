@@ -356,7 +356,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Leave Type</div>
   <select class="msel" id="lvTp"><option value="">-- Select --</option><option>Annual Leave</option><option>Sick Leave</option><option>Unpaid Leave</option><option>Compassionate Leave</option><option>Public Holiday</option><option>Personal Leave</option><option>Carer's Leave</option></select>
   <div class="lcal" id="LvCal">
-    <div class="lcnav"><button onclick="lvPrev()">&#8249;</button><div class="lcm" id="LvCalM"></div><button onclick="lvNext()">&#8250;</button></div>
+    <div class="lcnav"><button onclick="lvPrev()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px;touch-action:manipulation">&#8249;</button><div class="lcm" id="LvCalM"></div><button onclick="lvNext()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px;touch-action:manipulation">&#8250;</button></div>
     <div style="padding:8px"><div class="lcg" id="LvDH"></div><div class="lcg" id="LvDD"></div></div>
   </div>
   <div style="display:flex;gap:10px;margin-bottom:10px">
@@ -1148,8 +1148,9 @@ function buildLvCal(){
     const dsCopy=ds;e2.onclick=()=>selectLvDate(dsCopy);dc.appendChild(e2);
   }
 }
-function lvPrev(){if(lvM===0){lvM=11;lvY--}else lvM--;buildLvCal()}
-function lvNext(){if(lvM===11){lvM=0;lvY++}else lvM++;buildLvCal()}
+var lastLvNavTime=0;
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;buildLvCal()}
+function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;buildLvCal()}
 function selectLvDate(ds){
   if(!lvStart||!lvPick){lvStart=ds;lvEnd=null;lvPick=true;q('lvS').value=ds;q('lvE').value=''}
   else{if(ds<lvStart){lvEnd=lvStart;lvStart=ds}else lvEnd=ds;lvPick=false;q('lvS').value=lvStart;q('lvE').value=lvEnd||lvStart}
