@@ -558,6 +558,11 @@ async function loadNotifs(){
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
       d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
+      var delBtnN=document.createElement('button');
+      delBtnN.textContent='Del';
+      delBtnN.style.cssText='background:none;border:1px solid #e53935;color:#e53935;border-radius:4px;cursor:pointer;font-size:10px;padding:2px 6px;flex-shrink:0;margin-left:4px;touch-action:manipulation';
+      (function(nid){delBtnN.onclick=function(e){e.stopPropagation();if(confirm('Delete this notification?'))db.from('rpc_notifications').delete().eq('id',nid).then(function(){loadNotifs();});};})(n.id);
+      d.appendChild(delBtnN);
       nl.appendChild(d);
     });
   }catch{}
@@ -1419,11 +1424,18 @@ async function renderStaffDocs(el2){
       var info2=document.createElement('div');
       info2.innerHTML='<div class="cl" style="font-size:13px">'+(d?esc(d.name):'Document')+'</div><div class="cs">Signed '+fmtD(s.signed_at)+'</div>';
       row.appendChild(info2);
+      var rowActs=document.createElement('div');rowActs.style.cssText='display:flex;gap:4px;flex-shrink:0;align-items:center';
       if(s.signed_url){
         var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);
-        row.appendChild(vb);
+        rowActs.appendChild(vb);
       }
+      var dlb=document.createElement('button');dlb.className='btn nv sm';
+      dlb.style.cssText='margin:0;font-size:10px;padding:3px 8px;touch-action:manipulation';
+      dlb.textContent='PDF';
+      (function(dn,sn,sa,su,du){dlb.onclick=function(){downloadSignedDoc(dn,sn,sa,su,du);};})(d?d.name:'Document',s.staff_name||CU.name,s.signed_at,s.signed_url,d?d.url:null);
+      rowActs.appendChild(dlb);
+      row.appendChild(rowActs);
       sc.appendChild(row);
     });
     el2.appendChild(sc);
