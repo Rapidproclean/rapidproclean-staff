@@ -1348,7 +1348,7 @@ async function renderStaffDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   var signedIds=signed.map(function(s){return s.doc_id});
-  docUrls={};docs.forEach(function(d){try{docUrls[d.id]=d.url||(d.storage_path?db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl:null);}catch(ex){docUrls[d.id]=d.url;}});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   el2.innerHTML='<div class="sl">Company Documents</div>';
   if(!folders.length){
     var empty=document.createElement('div');
@@ -1456,7 +1456,7 @@ async function renderAdminDocs(el2){
     return;
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
-  docUrls={};docs.forEach(function(d){try{docUrls[d.id]=d.url||(d.storage_path?db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl:null);}catch(ex){docUrls[d.id]=d.url;}});
+  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
 
   // Clear and rebuild — NO innerHTML+= anywhere after this point
@@ -1587,6 +1587,118 @@ async function renderAdminDocs(el2){
   }
 
 }
+async function saveDocFolder(){
+  var nm=q('dfNm').value.trim(),ds=q('dfDs').value.trim(),sg=q('dfSg').value;
+  if(!nm){toast('Enter a folder name');return}
+  var assignVal=q('dfAssign').value;
+  var assignedStaffId=assignVal==='all'?null:parseInt(assignVal);
+  try{
+    var ins=await db.from('rpc_doc_folders').insert({
+      name:nm,
+      description:ds||null,
+      requires_signature:sg,
+      staff_folder_id:assignedStaffId
+    });
+    if(ins.error)throw ins.error;
+    closeM('DFM');
+    var who=assignedStaffId?allStaff.find(function(s){return s.id===assignedStaffId}):null;
+    toast('Folder created ✅'+(who?' — assigned to '+who.name:' — for all staff'));
+    renderDocs();
+  }catch(e){toast('Error creating folder: '+(e.message||'Check database'))}
+}
+async function openUploadDoc(){
+  try{
+    const {data:folders,error}=await db.from('rpc_doc_folders').select('*').order('name');
+    if(error)throw error;
+    if(!folders||!folders.length){toast('Create a folder first before uploading documents');return}
+    q('udFd').innerHTML=folders.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('');
+    q('udNm').value='';q('udFile').value='';q('udSg').value='no';openM('UDM');
+  }catch(e){toast('Error loading folders: '+(e.message||'Check database setup'))}
+}
+async function saveDocUpload(){
+  const fidRaw=q('udFd').value,fid=parseInt(fidRaw);
+  if(!fid||isNaN(fid)){toast('Select a folder first');return}
+  const nm=q('udNm').value.trim(),files=q('udFile').files,sg=q('udSg').value;
+  if(!files||!files.length){toast('Select at least one file');return}
+  toast('Uploading '+files.length+' file'+(files.length>1?'s':'')+'...');
+  let cnt=0;const staff=allStaff.filter(s=>!s.is_admin);
+  for(const file of files){
+    // Sanitise filename — Supabase rejects spaces and special chars in paths
+    const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const name=files.length===1&&nm?nm:(nm?nm+' — '+file.name:file.name);
+    const fn='docs/'+fid+'_'+Date.now()+'_'+safeName;
+    try{
+      const {error:ue}=await db.storage.from('rpc-photos').upload(fn,file,{contentType:file.type,upsert:true});
+      if(ue){toast('Upload failed: '+ue.message);continue}
+      const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
+      const {error:ie}=await db.from('rpc_documents').insert({folder_id:fid,name,url:ud.publicUrl,storage_path:fn});
+      if(ie){toast('Save failed: '+ie.message);continue}
+      if(sg==='yes')await db.from('rpc_doc_folders').update({requires_signature:'yes'}).eq('id',fid);
+      if(staff.length){try{await db.from('rpc_notifications').insert(staff.map(s=>({staff_id:s.id,title:'New Document',message:'"'+name+'" uploaded. Please review.',icon:'📄',is_read:false})))}catch{}}
+      cnt++;
+    }catch(e){toast('Error: '+(e.message||'Upload failed'))}
+  }
+  if(cnt>0){closeM('UDM');toast(cnt+' document'+(cnt>1?'s':'')+' uploaded ✅');renderDocs();loadNotifs();}
+  else toast('No files were uploaded. Check the errors above.');
+}
+async function delDocFolder(id,name){if(!confirm('Delete "'+name+'" and all documents?'))return;try{await db.from('rpc_documents').delete().eq('folder_id',id);await db.from('rpc_doc_folders').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
+async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path)await db.storage.from('rpc-photos').remove([path]);await db.from('rpc_documents').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
+
+// SIGNATURE
+function openSign(docId,docName){pSignId=docId;q('SignMId').value=docId;q('SignMN').textContent=docName;q('sigTyped').value='';q('sigFile').value='';q('sigMeth').value='draw';sigMethCh();openM('SignM');setTimeout(initSig,100)}
+function sigMethCh(){const m=q('sigMeth').value;q('sigDA').style.display=m==='draw'?'block':'none';q('sigTA').style.display=m==='type'?'block':'none';q('sigUA').style.display=m==='upload'?'block':'none'}
+function initSig(){const cv=q('sigPad');if(!cv)return;sigCtx=cv.getContext('2d');sigCtx.strokeStyle='#0a2540';sigCtx.lineWidth=2;sigCtx.lineCap='round';cv.onmousedown=e=>{sigDrw=true;sigCtx.beginPath();sigCtx.moveTo(e.offsetX,e.offsetY)};cv.onmousemove=e=>{if(!sigDrw)return;sigCtx.lineTo(e.offsetX,e.offsetY);sigCtx.stroke()};cv.onmouseup=()=>sigDrw=false;cv.ontouchstart=e=>{e.preventDefault();sigDrw=true;const t=e.touches[0],r=cv.getBoundingClientRect();sigCtx.beginPath();sigCtx.moveTo(t.clientX-r.left,t.clientY-r.top)};cv.ontouchmove=e=>{e.preventDefault();if(!sigDrw)return;const t=e.touches[0],r=cv.getBoundingClientRect();sigCtx.lineTo(t.clientX-r.left,t.clientY-r.top);sigCtx.stroke()};cv.ontouchend=()=>sigDrw=false}
+function clearSig(){if(sigCtx)sigCtx.clearRect(0,0,q('sigPad').width,q('sigPad').height)}
+async function saveSign(){
+  var m=q('sigMeth').value,docId=parseInt(q('SignMId').value),docName=q('SignMN').textContent;
+  var signedUrl=null;
+  try{
+    if(m==='draw'){
+      var cv=q('sigPad');
+      var blob=await new Promise(function(res){cv.toBlob(function(b){res(b)},'image/png')});
+      var fn='signatures/'+CU.id+'_'+docId+'_'+Date.now()+'.png';
+      var up=await db.storage.from('rpc-photos').upload(fn,blob,{contentType:'image/png',upsert:true});
+      if(!up.error){var ud2=db.storage.from('rpc-photos').getPublicUrl(fn);signedUrl=ud2.data.publicUrl;}
+      else{toast('Signature upload failed: '+up.error.message);return;}
+    } else if(m==='type'){
+      var t=q('sigTyped').value.trim();
+      if(!t){toast('Please type your full name');return}
+      signedUrl='typed:'+t;
+    } else {
+      var f=q('sigFile').files[0];
+      if(!f){toast('Please select a file to upload');return}
+      var safeName=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      var fn2='signatures/'+CU.id+'_'+docId+'_'+Date.now()+'_'+safeName;
+      var up2=await db.storage.from('rpc-photos').upload(fn2,f,{contentType:f.type,upsert:true});
+      if(!up2.error){var ud3=db.storage.from('rpc-photos').getPublicUrl(fn2);signedUrl=ud3.data.publicUrl;}
+      else{toast('Upload failed: '+up2.error.message);return;}
+    }
+    // Save signature record
+    var upsertRes=await db.from('rpc_signed_docs').upsert({
+      staff_id:CU.id,staff_name:CU.name,doc_id:docId,
+      signed_at:new Date().toISOString(),signed_url:signedUrl
+    },{onConflict:'staff_id,doc_id'});
+    if(upsertRes.error)throw upsertRes.error;
+    // Notify admins
+    try{
+      var admins=allStaff.filter(function(s){return s.is_admin});
+      if(admins.length){
+        await db.from('rpc_notifications').insert(admins.map(function(a){
+          return {staff_id:a.id,title:'Document Signed',
+            message:CU.name+' signed "'+docName+'"',icon:'✍️',is_read:false};
+        }));
+      }
+    }catch(e){}
+    closeM('SignM');
+    toast('Document signed ✅ — saved to your profile');
+    renderDocs();
+    checkTraining();
+  }catch(e){
+    toast('Error saving signature: '+(e.message||'Please try again'));
+  }
+}
+
+// PHOTOS
 async function renderPhotos(){
   const el2=q('PhotosC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
