@@ -1047,6 +1047,29 @@ async function renderLeave(){
   catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">🌴</div>Error loading leave portal.<br><small>Run the database SQL setup first.</small></div>'}
 }
 
+
+
+
+var lastLvNavTime=0;
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;buildLvCal();}
+function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;buildLvCal();}
+
+
+function buildLvCal(){
+const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0),today=todayStr();
+q('LvCalM').textContent=first.toLocaleDateString('en-AU',{month:'long',year:'numeric'});
+const dh=q('LvDH');dh.innerHTML='';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;dh.appendChild(h)});
+const dc=q('LvDD');dc.innerHTML='';
+const startDow=first.getDay()===0?6:first.getDay()-1;
+for(let i=0;i<startDow;i++){const d=document.createElement('div');d.className='lcd om';dc.appendChild(d)}
+for(let d=1;d<=last.getDate();d++){
+  const ds=lvY+'-'+String(lvM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  let cls='lcd';if(ds===today)cls+=' td';if(ds===lvStart||ds===lvEnd)cls+=' sel';else if(lvStart&&lvEnd&&ds>lvStart&&ds<lvEnd)cls+=' rng';
+  const e2=document.createElement('div');e2.className=cls;e2.textContent=''+d;
+  const dsCopy=ds;e2.onclick=()=>selectLvDate(dsCopy);dc.appendChild(e2);
+}
+}
+
 async function renderStaffLeave(el2){
   el2.innerHTML='';
   // Render buttons and calendar FIRST — before any DB call
@@ -1134,23 +1157,7 @@ function openLeaveReq(){
   q('lvTp').value='';q('lvS').value='';q('lvE').value='';q('lvCm').value='';q('lvAt').value='';
   buildLvCal();openM('LeaveM');
 }
-function buildLvCal(){
-  const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0),today=todayStr();
-  q('LvCalM').textContent=first.toLocaleDateString('en-AU',{month:'long',year:'numeric'});
-  const dh=q('LvDH');dh.innerHTML='';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;dh.appendChild(h)});
-  const dc=q('LvDD');dc.innerHTML='';
-  const startDow=first.getDay()===0?6:first.getDay()-1;
-  for(let i=0;i<startDow;i++){const d=document.createElement('div');d.className='lcd om';dc.appendChild(d)}
-  for(let d=1;d<=last.getDate();d++){
-    const ds=lvY+'-'+String(lvM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    let cls='lcd';if(ds===today)cls+=' td';if(ds===lvStart||ds===lvEnd)cls+=' sel';else if(lvStart&&lvEnd&&ds>lvStart&&ds<lvEnd)cls+=' rng';
-    const e2=document.createElement('div');e2.className=cls;e2.textContent=''+d;
-    const dsCopy=ds;e2.onclick=()=>selectLvDate(dsCopy);dc.appendChild(e2);
-  }
-}
-var lastLvNavTime=0;
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;buildLvCal()}
-function lvNext(){var now=Date.now();if(now-lastLvNavTime<800)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;buildLvCal()}
+
 function selectLvDate(ds){
   if(!lvStart||!lvPick){lvStart=ds;lvEnd=null;lvPick=true;q('lvS').value=ds;q('lvE').value=''}
   else{if(ds<lvStart){lvEnd=lvStart;lvStart=ds}else lvEnd=ds;lvPick=false;q('lvS').value=lvStart;q('lvE').value=lvEnd||lvStart}
