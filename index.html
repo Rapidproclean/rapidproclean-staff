@@ -1348,7 +1348,7 @@ async function renderStaffDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   var signedIds=signed.map(function(s){return s.doc_id});
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  docUrls={};docs.forEach(function(d){try{docUrls[d.id]=d.url||(d.storage_path?db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl:null);}catch(ex){docUrls[d.id]=d.url;}});
   el2.innerHTML='<div class="sl">Company Documents</div>';
   if(!folders.length){
     var empty=document.createElement('div');
@@ -1456,7 +1456,7 @@ async function renderAdminDocs(el2){
     return;
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
-  docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  docUrls={};docs.forEach(function(d){try{docUrls[d.id]=d.url||(d.storage_path?db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl:null);}catch(ex){docUrls[d.id]=d.url;}});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
 
   // Clear and rebuild — NO innerHTML+= anywhere after this point
