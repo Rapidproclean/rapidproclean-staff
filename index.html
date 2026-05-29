@@ -835,11 +835,11 @@ async function renderRoster(){
 
 // DAY VIEW
 var currentDayView=null;
-var dayNavLock=false;
+var lastDayNavTime=0;
 function dayNav(dir){
-  if(dayNavLock)return;
-  dayNavLock=true;
-  setTimeout(function(){dayNavLock=false;},800);
+  var now=Date.now();
+  if(now-lastDayNavTime<600)return;
+  lastDayNavTime=now;
   var cur=currentDayView||new Date().toISOString().slice(0,10);
   var d=new Date(cur+'T00:00:00');
   d.setDate(d.getDate()+dir);
@@ -852,9 +852,17 @@ function makeDayNavBtn(label,dir){
   var btn=document.createElement('button');
   btn.textContent=label;
   btn.style.cssText='background:var(--nv);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:16px;padding:8px 18px;font-weight:700;touch-action:manipulation;-webkit-user-select:none;user-select:none';
-  var fired=false;
-  btn.addEventListener('touchstart',function(e){e.preventDefault();fired=true;dayNav(dir);},{ passive:false });
-  btn.addEventListener('click',function(e){if(!fired)dayNav(dir);fired=false;});
+  btn.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    dayNav(dir);
+  },{passive:false});
+  btn.addEventListener('click',function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var now=Date.now();
+    if(now-lastDayNavTime>600){dayNav(dir);}
+  });
   return btn;
 }
 async function renderDay(el2){
