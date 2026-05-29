@@ -1051,9 +1051,9 @@ async function renderLeave(){
 
 
 var lastLvNavTime=0;
-var lvApDates=[],lvPnDates=[];
-function lvPrev(){alert('PREV clicked! lvM='+lvM+' lvY='+lvY);var now=Date.now();if(now-lastLvNavTime<800){alert('BLOCKED by lock');return;}lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}else{alert('buildLeaveCal returned null!');}}
-function lvNext(){alert('NEXT clicked! lvM='+lvM+' lvY='+lvY);var now=Date.now();if(now-lastLvNavTime<800){alert('BLOCKED by lock');return;}lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){var old=document.querySelector('.lcal');if(old)old.replaceWith(cal);}else{alert('buildLeaveCal returned null!');}}
+var lvApDates=[],lvPnDates=[],lvCalDiv=null;
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<800){return;}lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvNext(){var now=Date.now();if(now-lastLvNavTime<800){return;}lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
 
 
 function buildLvCal(){
@@ -1092,7 +1092,7 @@ async function renderStaffLeave(el2){
   var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📥 Download Form';dlb.onclick=downloadLeaveForm;
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
   // Calendar placeholder — shows current month, approved/pending dates added after DB loads
-  var calDiv=document.createElement('div');el2.appendChild(calDiv);
+  var calDiv=document.createElement('div');el2.appendChild(calDiv);lvCalDiv=calDiv;
   var leg=document.createElement('div');leg.style.cssText='display:flex;gap:12px;margin-bottom:14px;font-size:11px;font-weight:600';
   leg.innerHTML='<span style="color:var(--rd)">&#x1F534; Approved</span><span style="color:var(--t3)">&#x25A1; Pending</span>';
   el2.appendChild(leg);
