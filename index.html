@@ -1119,7 +1119,7 @@ function buildLeaveCal(apDates,pnDates){
   const n=new Date(),y=n.getFullYear(),m=n.getMonth();
   const first=new Date(y,m,1),last=new Date(y,m+1,0);
   const cal=document.createElement('div');cal.className='lcal';
-  cal.innerHTML='<div class="lcnav"><button style="opacity:.3;cursor:default">&#8249;</button><div class="lcm">'+first.toLocaleDateString('en-AU',{month:'long',year:'numeric'})+'</div><button style="opacity:.3;cursor:default">&#8250;</button></div>';
+  cal.innerHTML='<div class="lcnav"><button onclick="lvPrev()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8249;</button><div class="lcm">'+first.toLocaleDateString('en-AU',{month:'long',year:'numeric'})+'</div><button onclick="lvNext()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8250;</button></div>';
   const g=document.createElement('div');g.style.padding='8px';
   const hG=document.createElement('div');hG.className='lcg';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;hG.appendChild(h)});
   const dG=document.createElement('div');dG.className='lcg';
