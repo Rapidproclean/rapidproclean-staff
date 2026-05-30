@@ -2163,7 +2163,12 @@ async function renderIncidents(){
       var acts=document.createElement('div');acts.style.cssText='display:flex;gap:6px;margin-top:8px;flex-wrap:wrap';
       var pdfB=document.createElement('button');pdfB.className='btn sc sm';pdfB.style.margin='0';pdfB.textContent='Download PDF';
       (function(i){pdfB.onclick=function(){downloadIncidentPDF(i)};})(inc);acts.appendChild(pdfB);
-      if(CU.is_admin&&inc.status!=='Reviewed'){var rvB=document.createElement('button');rvB.className='btn tl sm';rvB.style.margin='0';rvB.textContent='Mark Reviewed';(function(id){rvB.onclick=function(){markIncidentReviewed(id)};})(inc.id);acts.appendChild(rvB);}
+      if(CU.is_admin){
+        if(inc.status!=='Reviewed'){var rvB=document.createElement('button');rvB.className='btn tl sm';rvB.style.margin='0';rvB.textContent='Mark Reviewed';(function(id){rvB.onclick=function(){markIncidentReviewed(id)};})(inc.id);acts.appendChild(rvB);}
+        var delIncBtn=document.createElement('button');delIncBtn.className='btn sc sm';delIncBtn.style.cssText='margin:0;color:#e53935;border-color:#e53935';delIncBtn.textContent='Delete';
+        (function(id,num){delIncBtn.onclick=function(){if(confirm('Delete incident report '+(num||id)+'? This cannot be undone.')){db.from('rpc_incidents').delete().eq('id',id).then(function(){toast('Incident deleted');renderIncidents();});}};})(inc.id,inc.incident_number);
+        acts.appendChild(delIncBtn);
+      }
       card.appendChild(acts);el2.appendChild(card);
     });
   }catch(e){el2.innerHTML='<div class="empty">Error loading. Run SQL in Supabase first.</div>';}
