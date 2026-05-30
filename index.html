@@ -1100,7 +1100,16 @@ async function renderStaffLeave(el2){
   el2.innerHTML='';
   // Buttons
   var topDiv=document.createElement('div');topDiv.style.cssText='display:flex;gap:8px;margin-bottom:14px';
-  var nb2=document.createElement('button');nb2.className='btn tl sm';nb2.style.cssText='margin:0;flex:1';nb2.textContent='+ New Request';nb2.onclick=openLeaveReq;
+  var nb2=document.createElement('button');nb2.className='btn tl sm';nb2.style.cssText='margin:0;flex:1';nb2.textContent='+ New Request';
+  nb2.onclick=function(){
+    lvStart=null;lvEnd=null;lvPick=false;
+    lvY=new Date().getFullYear();lvM=new Date().getMonth();
+    if(q('lvTp'))q('lvTp').value='';
+    if(q('lvCm'))q('lvCm').value='';
+    if(q('lvAt'))q('lvAt').value='';
+    buildLvCal();
+    openM('LeaveM');
+  };
   var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='Download Form';
   dlb.onclick=function(){window.open('https://rapidproclean.com.au','_blank');};
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
@@ -1151,7 +1160,7 @@ async function renderStaffLeave(el2){
     });
     el2.appendChild(listDiv);
   }catch(e){
-    el2.innerHTML+='<div class="empty"><div class="empty-ico">🌴</div>Error loading leave.</div>';
+    el2.innerHTML='<div class="empty"><div class="empty-ico">🌴</div>Error: '+esc(e.message||'Unknown error')+'</div>';
   }
 }
 
