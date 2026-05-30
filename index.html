@@ -1053,7 +1053,19 @@ async function renderLeave(){
 var lastLvNavTime=0;
 var lvApDates=[],lvPnDates=[],lvCalDiv=null;
 function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
-function lvNext(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===11){lvM=0;lvY++}else lvM++;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvNext(){
+  var now=Date.now();
+  if(now-lastLvNavTime<300)return;
+  lastLvNavTime=now;
+  if(lvM===11){lvM=0;lvY++}else lvM++;
+  alert('lvM now='+lvM+' lvY='+lvY+' lvCalDiv='+(lvCalDiv?'OK':'NULL')+' lvApDates='+lvApDates.length);
+  try{
+    var cal=buildLeaveCal(lvApDates,lvPnDates);
+    alert('cal built='+(cal?'OK':'NULL'));
+    if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);alert('Done!');}
+    else{alert('FAILED: cal='+cal+' lvCalDiv='+lvCalDiv);}
+  }catch(e){alert('ERROR: '+e.message);}
+}
 
 
 function buildLvCal(){
@@ -1086,97 +1098,64 @@ function buildLeaveCal(apDates,pnDates){
 
 async function renderStaffLeave(el2){
   el2.innerHTML='';
-  // Render buttons and calendar FIRST — before any DB call
+  // Buttons
   var topDiv=document.createElement('div');topDiv.style.cssText='display:flex;gap:8px;margin-bottom:14px';
   var nb2=document.createElement('button');nb2.className='btn tl sm';nb2.style.cssText='margin:0;flex:1';nb2.textContent='+ New Request';nb2.onclick=openLeaveReq;
-  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📥 Download Form';dlb.onclick=downloadLeaveForm;
+  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='Download Form';
+  dlb.onclick=function(){window.open('https://rapidproclean.com.au','_blank');};
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
-  // Calendar placeholder — shows current month, approved/pending dates added after DB loads
-  var calDiv=document.createElement('div');el2.appendChild(calDiv);lvCalDiv=calDiv;
-  var leg=document.createElement('div');leg.style.cssText='display:flex;gap:12px;margin-bottom:14px;font-size:11px;font-weight:600';
-  leg.innerHTML='<span style="color:var(--rd)">&#x1F534; Approved</span><span style="color:var(--t3)">&#x25A1; Pending</span>';
-  el2.appendChild(leg);
-  var slEl=document.createElement('div');slEl.className='sl';slEl.textContent='My Leave History';el2.appendChild(slEl);
-  var histDiv=document.createElement('div');el2.appendChild(histDiv);
-  // Render empty calendar immediately so staff can see it
-  calDiv.appendChild(buildLeaveCal([],[]));
-  histDiv.innerHTML='<div class="loader"><div class="spin"></div>Loading history...</div>';
-  // Now load leave data
+
+  // Load leave data
   try{
-    var res=await db.from('rpc_leave').select('*').eq('staff_id',CU.id).order('created_at',{ascending:false});
-    var leaves=res.data||[];
-    var apDates=[],pnDates=[];
-    leaves.forEach(function(l){
-      var cur=new Date(l.start_date+'T00:00:00');
-      var end2=new Date((l.end_date||l.start_date)+'T00:00:00');
-      while(cur<=end2){
-        var ds=cur.toISOString().slice(0,10);
-        if(l.status==='approved')apDates.push(ds);
-        else if(l.status==='pending')pnDates.push(ds);
-        cur.setDate(cur.getDate()+1);
-      }
+    var {data:leaves,error}=await db.from('rpc_leave').select('*').eq('staff_id',CU.id).order('created_at',{ascending:false});
+    if(error)throw error;
+
+    // Tabs: Pending / Approved / Rejected / All
+    var tabs=document.createElement('div');tabs.className='vtabs';tabs.style.marginBottom='14px';
+    var statuses=['all','pending','approved','rejected'];
+    var listDiv=document.createElement('div');
+
+    statuses.forEach(function(st,i){
+      var t=document.createElement('button');
+      t.className='vtab'+(i===0?' on':'');
+      t.textContent=st.charAt(0).toUpperCase()+st.slice(1);
+      t.onclick=function(){
+        tabs.querySelectorAll('.vtab').forEach(function(x){x.classList.remove('on');});
+        t.classList.add('on');
+        listDiv.querySelectorAll('.lv-item').forEach(function(x){
+          x.style.display=(st==='all'||x.dataset.status===st)?'block':'none';
+        });
+      };
+      tabs.appendChild(t);
     });
-    // Re-render calendar with actual dates
-    calDiv.innerHTML='';lvApDates=apDates;lvPnDates=pnDates;calDiv.appendChild(buildLeaveCal(apDates,pnDates));
-    // Render history
-    histDiv.innerHTML='';
-    if(!leaves.length){
-      histDiv.innerHTML='<div class="empty"><div class="empty-ico">🌴</div>No leave requests yet</div>';
-      return;
+    el2.appendChild(tabs);
+
+    if(!leaves||!leaves.length){
+      listDiv.innerHTML='<div class="empty"><div class="empty-ico">🌴</div>No leave requests yet.</div>';
+      el2.appendChild(listDiv);return;
     }
-    var lc=document.createElement('div');lc.className='card';
+
     leaves.forEach(function(l){
-      var item=document.createElement('div');item.style.cssText='padding:14px;border-bottom:1px solid var(--bd)';
-      var statusColor=l.status==='approved'?'var(--gn)':l.status==='rejected'?'var(--rd)':'var(--am)';
-      var top2=document.createElement('div');top2.style.cssText='display:flex;align-items:center;justify-content:space-between';
-      var lt=document.createElement('div');
-      lt.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(l.leave_type)+'</div>'
-        +'<div style="display:flex;align-items:center;gap:6px;margin-top:4px">'
-        +'<div style="width:10px;height:10px;border-radius:2px;background:'+statusColor+'"></div>'
-        +'<span style="font-size:12px;font-weight:600;color:'+statusColor+'">'+l.status.charAt(0).toUpperCase()+l.status.slice(1)+'</span>'
+      var card=document.createElement('div');
+      card.className='card lv-item';card.dataset.status=l.status;card.style.marginBottom='10px';
+      var statusColor=l.status==='approved'?'var(--gnl)':l.status==='rejected'?'var(--rdl)':'var(--aml)';
+      var statusTextColor=l.status==='approved'?'var(--gn)':l.status==='rejected'?'var(--rd)':'var(--am)';
+      card.innerHTML='<div class="cr" style="flex-wrap:wrap;gap:6px">'
+        +'<div style="flex:1"><div class="cl">'+esc(l.leave_type)+'</div>'
+        +'<div class="cs">'+fmtDate(l.start_date)+' → '+fmtDate(l.end_date||l.start_date)
+        +' · '+calcDays(l.start_date,l.end_date)+' day'+(calcDays(l.start_date,l.end_date)>1?'s':'')+'</div>'
+        +(l.comment?'<div class="cs" style="color:var(--t2);margin-top:3px">"'+esc(l.comment)+'"</div>':'')+'</div>'
+        +'<span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:'+statusColor+';color:'+statusTextColor+'">'+l.status.toUpperCase()+'</span>'
         +'</div>';
-      var exp=document.createElement('button');exp.style.cssText='background:none;border:none;font-size:16px;color:var(--t3);cursor:pointer';exp.textContent='▼';
-      top2.appendChild(lt);top2.appendChild(exp);item.appendChild(top2);
-      var det=document.createElement('div');det.style.display='none';det.style.marginTop='10px';
-      var days=calcDays(l.start_date,l.end_date);
-      det.innerHTML='<div style="font-size:12px;color:var(--t2);margin-bottom:4px">'+fmtDate(l.start_date)+' → '+fmtDate(l.end_date||l.start_date)+' ('+days+' day'+(days>1?'s':'')+')</div>'
-        +(l.comment?'<div style="font-size:11px;color:var(--t3);margin-bottom:3px">'+esc(l.comment)+'</div>':'')
-        +(l.admin_comment?'<div style="font-size:11px;color:var(--nv2);font-weight:600">Admin: '+esc(l.admin_comment)+'</div>':'');
-      item.appendChild(det);
-      exp.onclick=function(){var open=det.style.display==='block';det.style.display=open?'none':'block';exp.textContent=open?'▼':'▲'};
-      lc.appendChild(item);
+      listDiv.appendChild(card);
     });
-    histDiv.appendChild(lc);
+    el2.appendChild(listDiv);
   }catch(e){
-    histDiv.innerHTML='<div style="background:var(--rdl);border:1px solid #f5b5b5;border-radius:var(--rs);padding:12px 14px;font-size:12px;color:var(--rd)">Could not load leave history. Make sure the database SQL has been run in Supabase.</div>';
+    el2.innerHTML+='<div class="empty"><div class="empty-ico">🌴</div>Error loading leave.</div>';
   }
 }
 
-function buildLeaveCal(apDates,pnDates){
-  const n=new Date(),y=n.getFullYear(),m=n.getMonth();
-  const first=new Date(y,m,1),last=new Date(y,m+1,0);
-  const cal=document.createElement('div');cal.className='lcal';
-  cal.innerHTML='<div class="lcnav"><button onclick="lvPrev()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8249;</button><div class="lcm">'+first.toLocaleDateString('en-AU',{month:'long',year:'numeric'})+'</div><button onclick="lvNext()" style="background:none;border:none;font-size:22px;font-weight:bold;cursor:pointer;color:var(--nv);padding:4px 12px">&#8250;</button></div>';
-  const g=document.createElement('div');g.style.padding='8px';
-  const hG=document.createElement('div');hG.className='lcg';['Mo','Tu','We','Th','Fr','Sa','Su'].forEach(d=>{const h=document.createElement('div');h.className='lcdh';h.textContent=d;hG.appendChild(h)});
-  const dG=document.createElement('div');dG.className='lcg';
-  const today=todayStr();const startDow=first.getDay()===0?6:first.getDay()-1;
-  for(let i=0;i<startDow;i++){const d=document.createElement('div');d.className='lcd om';dG.appendChild(d)}
-  for(let d=1;d<=last.getDate();d++){const ds=y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');let cls='lcd';if(ds===today)cls+=' td';if(apDates.includes(ds))cls+=' ap';else if(pnDates.includes(ds))cls+=' pn';const el2=document.createElement('div');el2.className=cls;el2.textContent=''+d;dG.appendChild(el2);}
-  g.appendChild(hG);g.appendChild(dG);cal.appendChild(g);return cal;
-}
 
-function openLeaveReq(){
-  lvY=new Date().getFullYear();lvM=new Date().getMonth();lvStart=null;lvEnd=null;lvPick=false;
-  q('lvTp').value='';q('lvS').value='';q('lvE').value='';q('lvCm').value='';q('lvAt').value='';
-  buildLvCal();openM('LeaveM');
-}
-
-function selectLvDate(ds){
-  if(!lvStart||!lvPick){lvStart=ds;lvEnd=null;lvPick=true;q('lvS').value=ds;q('lvE').value=''}
-  else{if(ds<lvStart){lvEnd=lvStart;lvStart=ds}else lvEnd=ds;lvPick=false;q('lvS').value=lvStart;q('lvE').value=lvEnd||lvStart}
-  buildLvCal();
-}
 async function submitLeave(){
   var tp=q('lvTp').value;
   if(!tp){toast('Please select a leave type first');return}
@@ -1236,6 +1215,19 @@ async function renderAdminLeave(el2){
     el2.appendChild(card);
     const revBtn=card.querySelector('#rev_'+l.id);if(revBtn){const lCopy=l;revBtn.onclick=()=>openLeaveAdmin(lCopy)}
     const emlBtn=card.querySelector('#eml_'+l.id);if(emlBtn&&s&&s.email)emlBtn.onclick=()=>window.location.href='mailto:'+s.email;
+    // Delete button
+    var delLvBtn=document.createElement('button');
+    delLvBtn.className='btn sc sm';
+    delLvBtn.style.cssText='margin:4px 0 0 0;padding:4px 10px;font-size:11px;color:#e53935;border-color:#e53935';
+    delLvBtn.textContent='Delete';
+    (function(lid){delLvBtn.onclick=function(){
+      if(confirm('Delete this leave request? This will also remove it from the staff portal.')){
+        db.from('rpc_leave').delete().eq('id',lid).then(function(){
+          toast('Leave deleted');renderAdminLeave(q('LeaveC'));
+        });
+      }
+    };})(l.id);
+    card.appendChild(delLvBtn);
   });
 }
 function openAddStaffLeave(){
