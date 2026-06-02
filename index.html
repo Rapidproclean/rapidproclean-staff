@@ -360,8 +360,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
     <div style="padding:8px"><div class="lcg" id="LvDH"></div><div class="lcg" id="LvDD"></div></div>
   </div>
   <div style="display:flex;gap:10px;margin-bottom:10px">
-    <div style="flex:1"><div class="mlbl">Start</div><input class="mi" id="lvS" type="text" readonly placeholder="Tap calendar" style="margin:0"></div>
-    <div style="flex:1"><div class="mlbl">End</div><input class="mi" id="lvE" type="text" readonly placeholder="Tap calendar" style="margin:0"></div>
+    <div style="flex:1"><div class="mlbl">Start Date</div><input class="mi" id="lvS" type="date" style="margin:0" onchange="lvStart=this.value;lvEnd=lvEnd&&lvEnd>=this.value?lvEnd:this.value;if(q('lvE'))q('lvE').value=lvEnd;buildLvCal();"></div>
+    <div style="flex:1"><div class="mlbl">End Date</div><input class="mi" id="lvE" type="date" style="margin:0" onchange="lvEnd=this.value;lvStart=lvStart&&lvStart<=this.value?lvStart:this.value;if(q('lvS'))q('lvS').value=lvStart;buildLvCal();"></div>
   </div>
   <div class="mlbl">Comments</div><textarea class="mta" id="lvCm" placeholder="Add any comments..."></textarea>
   <div class="mlbl">Attachment (medical cert, supporting docs)</div>
@@ -1184,7 +1184,10 @@ async function renderStaffLeave(el2){
 async function submitLeave(){
   var tp=q('lvTp').value;
   if(!tp){toast('Please select a leave type first');return}
-  if(!lvStart){toast('Tap a date on the calendar to select start date');return}
+  // Read from date inputs if not set via calendar tap
+  if(q('lvS')&&q('lvS').value)lvStart=q('lvS').value;
+  if(q('lvE')&&q('lvE').value)lvEnd=q('lvE').value;
+  if(!lvStart){toast('Please select a start date');return}
   var start=lvStart,end=lvEnd||lvStart,cm=q('lvCm').value.trim();
   var attUrl=null;
   var af=q('lvAt').files[0];
