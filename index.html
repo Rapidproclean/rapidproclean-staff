@@ -1061,13 +1061,8 @@ function lvNext(){
   if(now-lastLvNavTime<300)return;
   lastLvNavTime=now;
   if(lvM===11){lvM=0;lvY++}else lvM++;
-  alert('lvM now='+lvM+' lvY='+lvY+' lvCalDiv='+(lvCalDiv?'OK':'NULL')+' lvApDates='+lvApDates.length);
-  try{
-    var cal=buildLeaveCal(lvApDates,lvPnDates);
-    alert('cal built='+(cal?'OK':'NULL'));
-    if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}
-    else{alert('FAILED: cal='+cal+' lvCalDiv='+lvCalDiv);}
-  }catch(e){alert('ERROR: '+e.message);}
+  if(lvCalDiv){try{var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}catch(e){}}
+  else{buildLvCal();}
 }
 
 
