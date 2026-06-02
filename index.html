@@ -1053,7 +1053,9 @@ async function renderLeave(){
 
 var lastLvNavTime=0;
 var lvApDates=[],lvPnDates=[],lvCalDiv=null;
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;
+  if(lvCalDiv){var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+  else{buildLvCal();}}
 function lvNext(){
   var now=Date.now();
   if(now-lastLvNavTime<300)return;
@@ -1063,7 +1065,7 @@ function lvNext(){
   try{
     var cal=buildLeaveCal(lvApDates,lvPnDates);
     alert('cal built='+(cal?'OK':'NULL'));
-    if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);alert('Done!');}
+    if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}
     else{alert('FAILED: cal='+cal+' lvCalDiv='+lvCalDiv);}
   }catch(e){alert('ERROR: '+e.message);}
 }
@@ -1084,6 +1086,24 @@ for(let d=1;d<=last.getDate();d++){
 }
 }
 
+
+function selectLvDate(ds){
+  if(!lvStart||!lvPick){
+    lvStart=ds;lvEnd=null;lvPick=true;
+    if(q('lvS'))q('lvS').value=ds;
+    if(q('lvE'))q('lvE').value='';
+  } else {
+    if(ds<lvStart){lvEnd=lvStart;lvStart=ds;}else{lvEnd=ds;}
+    lvPick=false;
+    if(q('lvS'))q('lvS').value=lvStart;
+    if(q('lvE'))q('lvE').value=lvEnd||lvStart;
+  }
+  if(lvCalDiv){
+    try{var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}catch(e){}
+  } else {
+    buildLvCal();
+  }
+}
 function buildLeaveCal(apDates,pnDates){
   const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0);
   const cal=document.createElement('div');cal.className='lcal';
