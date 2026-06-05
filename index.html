@@ -859,7 +859,7 @@ async function renderDay(el2){
   var bb=document.createElement('button');bb.className='pvb';bb.textContent='Blocks';
   var listEl=document.createElement('div');
   var qb=db.from('rpc_shifts').select('*').eq('shift_date',selDay).order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   var {data:shifts}=await qb;
   var sm={};allStaff.forEach(function(s){sm[s.id]=s;});
   lb.onclick=function(){lb.classList.add('on');bb.classList.remove('on');renderDayList(listEl,shifts,sm);};
@@ -875,6 +875,7 @@ async function renderDay(el2){
 function mkShiftItem(sh,sm){
   const s=sm[sh.staff_id],av=AV[s?s.color:'a']||AV.a;
   const card=document.createElement('div');card.className='rcard';
+  if(sh.status==='draft'||!sh.status){card.style.borderLeft='4px solid #e65100';card.style.opacity='0.85';}
   const top=document.createElement('div');top.className='ri';
   const topRow=document.createElement('div');topRow.className='ri-top';
   const avEl=document.createElement('div');avEl.className='av';avEl.style.cssText='background:'+av.bg+';color:'+av.c+';margin:0';
@@ -885,7 +886,16 @@ function mkShiftItem(sh,sm){
   const arr=document.createElement('span');arr.style.cssText='color:var(--t3);font-size:14px;flex-shrink:0';arr.textContent='▼';
   topRow.appendChild(avEl);topRow.appendChild(body);topRow.appendChild(arr);
   if(CU.is_admin){const rb=document.createElement('button');rb.className='dbtn';rb.style.flexShrink='0';rb.textContent='Remove';const shId=sh.id;rb.onclick=e=>{e.stopPropagation();delShift(shId)};topRow.appendChild(rb);
-  const eb=document.createElement('button');eb.className='ebtn';eb.style.cssText='flex-shrink:0;margin-left:4px;background:var(--nv);color:#fff;border-color:var(--nv)';eb.textContent='Edit';eb.onclick=e=>{e.stopPropagation();openEditShift(sh)};topRow.appendChild(eb)}
+  const eb=document.createElement('button');eb.className='ebtn';eb.style.cssText='flex-shrink:0;margin-left:4px;background:var(--nv);color:#fff;border-color:var(--nv)';eb.textContent='Edit';eb.onclick=e=>{e.stopPropagation();openEditShift(sh)};topRow.appendChild(eb);
+  // Publish/Unpublish button
+  var isDraft=(sh.status==='draft'||!sh.status);
+  var pubBtn=document.createElement('button');
+  pubBtn.style.cssText='flex-shrink:0;margin-left:4px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;padding:4px 8px;'+(isDraft?'background:#e65100;color:#fff;':'background:#1b5e20;color:#fff;');
+  pubBtn.textContent=isDraft?'Publish':'Published';
+  if(isDraft){(function(id){pubBtn.onclick=function(e){e.stopPropagation();publishShift(id);};})(sh.id);}
+  else{pubBtn.style.opacity='0.6';pubBtn.style.cursor='default';}
+  topRow.appendChild(pubBtn);
+  }
   top.appendChild(topRow);
   const det=document.createElement('div');det.className='ri-det';
   if(sh.description)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px">📋 '+esc(sh.description)+'</div>';
@@ -925,7 +935,7 @@ async function renderWeek(el2){
   const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'});
   const wl=q('WL');if(wl)wl.textContent=fmt(s)+' – '+fmt(e);
   let qb=db.from('rpc_shifts').select('*').gte('shift_date',s).lte('shift_date',e).order('shift_date').order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   const {data:shifts}=await qb;
   const sm={};allStaff.forEach(x=>sm[x.id]=x);
   el2.innerHTML='';
@@ -962,7 +972,7 @@ async function renderByStaff(el2){
   const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'});
   const wl=q('WL');if(wl)wl.textContent=fmt(s)+' – '+fmt(e);
   let qb=db.from('rpc_shifts').select('*').gte('shift_date',s).lte('shift_date',e).order('shift_date').order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   const {data:shifts}=await qb;
   const staffToShow=CU.is_admin?allStaff.filter(x=>!x.is_admin):[CU];
   el2.innerHTML='';
@@ -1001,7 +1011,7 @@ async function loadRange(){
   const res=q('rgRes');res.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
     let qb=db.from('rpc_shifts').select('*').gte('shift_date',f).lte('shift_date',t2).order('shift_date').order('start_time');
-    if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+    if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
     const {data:shifts}=await qb;res.innerHTML='';
     if(!shifts||!shifts.length){res.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts in this range.</div>';return}
     const grouped={};(shifts||[]).forEach(sh=>{if(!grouped[sh.shift_date])grouped[sh.shift_date]=[];grouped[sh.shift_date].push(sh)});
@@ -1031,7 +1041,7 @@ async function saveShift(){
   const photos=q('shPh').files;
   if(!site||!date){toast('Select site and date');return}
   try{
-    const inserts=sel.map(id=>({staff_id:id,site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeTrv}));
+    const inserts=sel.map(id=>({staff_id:id,site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeTrv,status:'draft'}));
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
     if(error){toast('Error: '+error.message);return}
     for(const staffId of sel){const s=allStaff.find(x=>x.id===staffId);const others=sel.filter(id=>id!==staffId).map(id=>allStaff.find(x=>x.id===id)).filter(Boolean).map(x=>x.name);let msg='Shift: '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'');if(others.length)msg+='. Also: '+others.join(', ');try{await db.from('rpc_notifications').insert({staff_id:staffId,title:'Shift Assigned',message:msg,icon:'📍',is_read:false})}catch{}}
@@ -2359,7 +2369,8 @@ async function saveEditShift(){
       start_time:start||null,
       end_time:end||null,
       description:desc||null,
-      access_notes:access||null
+      access_notes:access||null,
+      status:'draft'
     }).eq('id',currentEditShift.id);
 
     if(error)throw error;
@@ -2384,6 +2395,25 @@ async function saveEditShift(){
   }catch(e){
     err.textContent='Error: '+(e.message||'Please try again');
   }
+}
+
+async function publishShift(id){
+  try{
+    var {data:sh,error}=await db.from('rpc_shifts').update({status:'published'}).eq('id',id).select().single();
+    if(error)throw error;
+    // Notify staff
+    var staffMember=allStaff.find(function(s){return s.id===sh.staff_id;});
+    var msg='Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' is now confirmed.';
+    await db.from('rpc_notifications').insert({
+      staff_id:sh.staff_id,
+      title:'Shift Confirmed ✅',
+      message:msg,
+      icon:'roster',
+      is_read:false
+    });
+    toast('Shift published — staff notified ✅');
+    if(q('p-roster').classList.contains('on'))renderRoster();
+  }catch(e){toast('Error: '+(e.message||'Try again'));}
 }
 </script>
 
