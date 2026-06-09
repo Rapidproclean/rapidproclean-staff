@@ -663,7 +663,7 @@ async function renderHome(){
     el2.innerHTML='';
     if(CU.is_admin)await renderAdminHome(el2,sm,tm);
     else await renderStaffHome(el2,sm,tm);
-  }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error loading home page. Check internet connection.</div>'}
+  }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error: '+esc(e.message||String(e))+'</div>';console.error('renderHome error:',e)}
 }
 
 async function renderAdminHome(el2,sm,tm){
