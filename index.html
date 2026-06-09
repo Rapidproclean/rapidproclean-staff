@@ -762,11 +762,15 @@ async function renderStaffHome(el2,sm,tm){
     const nextSh=todayShifts[si+1]||null;
 
     // Determine sign-in/out state for THIS specific shift
-    // We match attendance records by shift_id if present, else by site+date
+    // Priority 1: match by shift_id on attendance record
+    // Priority 2: match by site + date
+    // Priority 3: fallback — if global status shows ON SHIFT at this site, treat as signed in
     const shAtt=att.filter(a=>a.shift_id===sh.id||(a.shift_date===today&&a.site===sh.site));
     const signedInRec=shAtt.find(a=>a.action==='Signed in');
     const signedOutRec=shAtt.find(a=>a.action==='Signed out');
-    const shSignedIn=!!signedInRec;
+    // Also check global status — if ON SHIFT and current site matches this shift, count as signed in
+    const globallySignedInHere=isIn&&(st.site===sh.site||(!st.site&&si===0));
+    const shSignedIn=!!signedInRec||(!signedOutRec&&globallySignedInHere);
     const shSignedOut=!!signedOutRec;
     const shComplete=shSignedIn&&shSignedOut;
 
@@ -843,8 +847,8 @@ async function renderStaffHome(el2,sm,tm){
         siBtn.textContent='Sign In — '+esc(sh.site);
         siBtn.onclick=()=>doTog(CU.id,CU.name,false,sh.id,sh.site);
         bg.appendChild(siBtn);
-      } else if(isIn){
-        // Already signed into another shift
+      } else if(isIn&&!shSignedIn){
+        // Signed into a DIFFERENT shift — block this one
         const notice=document.createElement('div');notice.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';notice.textContent='Sign out of current shift first';bg.appendChild(notice);
       }
     }
