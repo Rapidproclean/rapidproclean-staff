@@ -973,23 +973,24 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
 
 // BREAKS
 async function startBreak(shiftId){
-  alert('startBreak called — shiftId: '+shiftId);
   toast('☕ Starting break...');
   try{
     const now=new Date().toISOString();
-    const {error}=await db.from('rpc_breaks').insert({
+    const {data,error}=await db.from('rpc_breaks').insert({
       staff_id:CU.id,
       staff_name:CU.name,
       shift_id:shiftId||null,
       start_time:now,
       is_auto:false
-    });
-    if(error){toast('Break error: '+error.message);return;}
-    // Mark is_on_break in rpc_status — same pattern as is_in
-    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
+    }).select();
+    if(error){alert('Insert error: '+error.message+' | code: '+error.code);toast('Break error: '+error.message);return;}
+    alert('Insert OK — id: '+(data&&data[0]?data[0].id:'?'));
+    // Mark is_on_break in rpc_status
+    const {error:e2}=await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
+    if(e2){alert('Status error: '+e2.message);return;}
     toast('☕ Break started');
     await goHome();
-  }catch(e){toast('Error: '+e.message)}
+  }catch(e){alert('Exception: '+e.message);toast('Error: '+e.message)}
 }
 async function endBreak(){
   toast('✅ Ending break...');
