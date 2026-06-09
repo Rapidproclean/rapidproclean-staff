@@ -491,7 +491,27 @@ const closeLB=()=>q('LB').classList.remove('on');
 const calcDays=(s,e)=>{if(!s)return 1;return Math.max(1,Math.round((new Date((e||s)+'T00:00:00')-new Date(s+'T00:00:00'))/86400000)+1)};
 const dlCSV=(rows,name)=>{const csv=rows.map(r=>r.map(x=>'"'+String(x||'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=name+'.csv';a.click()};
 const compressImg=(file,maxW=800,q2=0.75)=>new Promise(res=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{const sc=Math.min(1,maxW/img.width),cv=document.createElement('canvas');cv.width=img.width*sc;cv.height=img.height*sc;cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);cv.toBlob(b=>res(b),'image/jpeg',q2);URL.revokeObjectURL(url)};img.src=url});
-const getGPS=()=>new Promise(res=>{if(!navigator.geolocation){res({lat:null,lng:null,addr:'GPS unavailable'});return}navigator.geolocation.getCurrentPosition(async pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude;let addr=lat.toFixed(5)+','+lng.toFixed(5);try{const r=await fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json');const j=await r.json();if(j.display_name)addr=j.display_name.split(',').slice(0,3).join(',');}catch{}res({lat,lng,addr})},()=>res({lat:null,lng:null,addr:'Location unavailable'}),{timeout:8000,enableHighAccuracy:true})});
+const getGPS=()=>new Promise(res=>{
+  const done=(v)=>res(v);
+  const fail=()=>done({lat:null,lng:null,addr:'Location unavailable'});
+  // Hard outer timeout — GPS never blocks more than 6 seconds total
+  const outerTimer=setTimeout(fail,6000);
+  if(!navigator.geolocation){clearTimeout(outerTimer);fail();return}
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    clearTimeout(outerTimer);
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    let addr=lat.toFixed(5)+','+lng.toFixed(5);
+    try{
+      const r=await Promise.race([
+        fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json'),
+        new Promise((_,rej)=>setTimeout(()=>rej('timeout'),3000))
+      ]);
+      const j=await r.json();
+      if(j.display_name)addr=j.display_name.split(',').slice(0,3).join(',');
+    }catch{}
+    done({lat,lng,addr});
+  },()=>{clearTimeout(outerTimer);fail();},{timeout:5000,enableHighAccuracy:false});
+});
 const haversine=(a,b,c,d)=>{const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))};
 const getWeekDates=(off=0)=>{const n=new Date(),dy=n.getDay(),mon=new Date(n);mon.setDate(n.getDate()-(dy===0?6:dy-1)+off*7);return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().slice(0,10)})};
 const parseMin=s=>{if(!s)return 0;const hm=String(s).match(/(\d+)h\s*(\d+)?m?/);if(hm)return parseInt(hm[1]||0)*60+parseInt(hm[2]||0);const m=String(s).match(/(\d+)m/);if(m)return parseInt(m[1]);return parseFloat(s)*60||0};
@@ -948,25 +968,29 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
 
 // BREAKS
 async function startBreak(shiftId){
-  toast('📍 Getting location...');
-  const gps=await getGPS();
+  toast('☕ Starting break...');
   try{
-    const {error}=await db.from('rpc_breaks').insert({staff_id:CU.id,staff_name:CU.name,shift_id:shiftId||null,start_time:new Date().toISOString(),start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,is_auto:false});
+    const {error}=await db.from('rpc_breaks').insert({
+      staff_id:CU.id,
+      staff_name:CU.name,
+      shift_id:shiftId||null,
+      start_time:new Date().toISOString(),
+      is_auto:false
+    });
     if(error){toast('Break error: '+error.message);console.error('Break insert error:',error);return;}
     toast('☕ Break started');
     await goHome();
   }catch(e){toast('Error: '+e.message);console.error('startBreak exception:',e)}
 }
 async function endBreak(){
-  toast('📍 Getting location...');const gps=await getGPS();
+  toast('✅ Ending break...');
   try{
     const {data:ab}=await db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1);
     if(!ab||!ab.length){toast('No active break found');return}
     const b=ab[0],now=new Date().toISOString(),dur=Math.round((new Date(now)-new Date(b.start_time))/60000);
     let note='';
-    try{const {data:a2}=await db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',todayStr()).order('created_at').limit(10);const fi=(a2||[]).find(a=>a.action==='Signed in');if(fi&&(new Date(b.start_time)-new Date(fi.created_at))/60000<30)note='Early break';const {data:sh}=await db.from('rpc_shifts').select('end_time').eq('staff_id',CU.id).eq('shift_date',todayStr()).limit(1);if(sh&&sh.length&&sh[0].end_time&&!note){const e2=new Date(todayStr()+'T'+sh[0].end_time);if((e2-new Date(b.start_time))/60000<30)note='Late break'}}catch{}
-    if(dur>45&&!note)note='Extended break (>45min)';
-    await db.from('rpc_breaks').update({end_time:now,end_lat:gps.lat,end_lng:gps.lng,end_address:gps.addr,duration_min:dur,note:note||null}).eq('id',b.id);
+    if(dur>45)note='Extended break (>45min)';
+    await db.from('rpc_breaks').update({end_time:now,duration_min:dur,note:note||null}).eq('id',b.id);
     toast('✅ Break ended — '+fmtHrs(dur)+(note?' ⚠️ '+note:''));
     await goHome();
   }catch(e){toast('Error: '+e.message)}
