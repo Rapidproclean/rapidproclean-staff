@@ -711,22 +711,17 @@ async function loadFlags(sm){
 
 async function renderStaffHome(el2,sm,tm){
   const today=todayStr();
-  let att=[],trvs=[],brks=[],activeBrk=null,activeTrv=null,notifs=[],todayShifts=[];
+  let att=[],trvs=[],brks=[],activeTrv=null,notifs=[],todayShifts=[];
   try{
-    const [aR,tvR,bkR,abR,atR,nR,shR]=await Promise.all([
+    const [aR,tvR,bkR,atR,nR,shR]=await Promise.all([
       db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',today).order('created_at'),
       db.from('rpc_travel').select('*').eq('staff_id',CU.id).eq('shift_date',today),
       db.from('rpc_breaks').select('*').eq('staff_id',CU.id).order('start_time',{ascending:false}).limit(10),
-      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
       db.from('rpc_travel').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
       db.from('rpc_notifications').select('*').eq('staff_id',CU.id).eq('is_read',false).order('created_at',{ascending:false}).limit(3),
       db.from('rpc_shifts').select('*').eq('staff_id',CU.id).eq('shift_date',today).eq('status','published').order('start_time')
     ]);
     att=aR.data||[];trvs=tvR.data||[];brks=bkR.data||[];
-    // Double detection: dedicated null query + scan today's breaks for unclosed record
-    const fromDedicatedQuery=(abR.data||[])[0]||null;
-    const fromTodayScan=(bkR.data||[]).find(b=>!b.end_time&&b.end_time!=='')||null;
-    activeBrk=fromDedicatedQuery||fromTodayScan||null;
     activeTrv=(atR.data||[])[0]||null;
     notifs=nR.data||[];
     todayShifts=shR.data||[];
@@ -734,8 +729,10 @@ async function renderStaffHome(el2,sm,tm){
 
   const st=sm[CU.id]||{};
   const av=AV[CU.color||'a']||AV.a;
-
-  // Calculate today totals
+  // Read break state directly from rpc_status — same as is_in, fully reliable
+  const isIn=!!st.is_in;
+  const isOnBrk=!!st.is_on_break;
+  const isTrv=!!activeTrv;
   let workMin=0;
   for(let i=0;i<att.length;i++){if(att[i].action==='Signed in'){const out=att.slice(i+1).find(a=>a.action==='Signed out');if(out)workMin+=(new Date(out.created_at)-new Date(att[i].created_at))/60000;else if(st.is_in)workMin+=(Date.now()-new Date(att[i].created_at))/60000;}}
   const trvMin=trvs.reduce((a,t)=>a+(t.duration_min||0),0)+(activeTrv?(Date.now()-new Date(activeTrv.start_time))/60000:0);
@@ -755,7 +752,6 @@ async function renderStaffHome(el2,sm,tm){
   }
 
   // Staff identity card (status overview only — no action buttons here)
-  const isIn=!!st.is_in,isOnBrk=!!activeBrk,isTrv=!!activeTrv;
   const card=document.createElement('div');card.className='mycard'+(isOnBrk?' br':isIn?' in':isTrv?' tr':'');
   const top=document.createElement('div');top.className='mct';
   const avEl=document.createElement('div');avEl.style.cssText='width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;cursor:pointer;flex-shrink:0;background:'+av.bg+';color:'+av.c+';overflow:hidden';
@@ -959,7 +955,7 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
       // SIGN OUT — always today, use the site passed from the card
       const curSite=site||'';
       await Promise.all([
-        db.from('rpc_status').upsert({staff_id:staffId,is_in:false,since:null,site:''},{onConflict:'staff_id'}),
+        db.from('rpc_status').upsert({staff_id:staffId,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'}),
         db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed out',site:curSite,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false})
       ]);
       // Auto break if >5hrs and no break recorded
@@ -976,17 +972,20 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
 async function startBreak(shiftId){
   toast('☕ Starting break...');
   try{
+    const now=new Date().toISOString();
     const {error}=await db.from('rpc_breaks').insert({
       staff_id:CU.id,
       staff_name:CU.name,
       shift_id:shiftId||null,
-      start_time:new Date().toISOString(),
+      start_time:now,
       is_auto:false
     });
-    if(error){toast('Break error: '+error.message);console.error('Break insert error:',error);return;}
+    if(error){toast('Break error: '+error.message);return;}
+    // Mark is_on_break in rpc_status — same pattern as is_in
+    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
     toast('☕ Break started');
     await goHome();
-  }catch(e){toast('Error: '+e.message);console.error('startBreak exception:',e)}
+  }catch(e){toast('Error: '+e.message)}
 }
 async function endBreak(){
   toast('✅ Ending break...');
@@ -994,9 +993,10 @@ async function endBreak(){
     const {data:ab}=await db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1);
     if(!ab||!ab.length){toast('No active break found');return}
     const b=ab[0],now=new Date().toISOString(),dur=Math.round((new Date(now)-new Date(b.start_time))/60000);
-    let note='';
-    if(dur>45)note='Extended break (>45min)';
+    let note='';if(dur>45)note='Extended break (>45min)';
     await db.from('rpc_breaks').update({end_time:now,duration_min:dur,note:note||null}).eq('id',b.id);
+    // Clear is_on_break in rpc_status
+    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:false},{onConflict:'staff_id'});
     toast('✅ Break ended — '+fmtHrs(dur)+(note?' ⚠️ '+note:''));
     await goHome();
   }catch(e){toast('Error: '+e.message)}
