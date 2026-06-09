@@ -863,7 +863,13 @@ async function renderStaffHome(el2,sm,tm){
         ebBtn.textContent='✅ End Break — Tap When Break Is Over';
         ebBtn.onclick=endBreak;
         bg.appendChild(ebBtn);
-      } else if(!isTrv){
+      } else if(isTrv){
+        // TRAVELLING — show End Travel
+        const etBtn=document.createElement('button');etBtn.className='btn or full';
+        etBtn.textContent='📍 End Travel — Tap When You Arrive';
+        etBtn.onclick=()=>openTrv(CU.id,'end',null,null);
+        bg.appendChild(etBtn);
+      } else {
         // ON SHIFT — show Sign Out, Break, Travel
         const soBtn=document.createElement('button');soBtn.className='btn rd';
         soBtn.textContent='Sign Out';
@@ -1020,36 +1026,44 @@ function openTrv(staffId,action,shiftId,travelType,nextShiftId){
 }
 async function saveTrv(){
   const note=q('trvNt').value.trim();
-  // If missed-travel type selector exists, read it
   const typeEl=q('trvType');
   const travelType=typeEl?typeEl.value:(pTrvType||'inter_site');
-  toast('📍 Getting location...');const gps=await getGPS();
   const now=new Date().toISOString(),today=todayStr();
+  toast('🚗 Recording travel...');
   try{
     if(pTrvAct==='end'){
       const {data:tr}=await db.from('rpc_travel').select('*').eq('staff_id',pTrvId).is('end_time',null).limit(1);
       if(!tr||!tr.length){toast('No active travel to end.');return}
       const dur=Math.round((new Date(now)-new Date(tr[0].start_time))/60000);
-      await db.from('rpc_travel').update({end_time:now,end_lat:gps.lat,end_lng:gps.lng,end_address:gps.addr,duration_min:dur}).eq('id',tr[0].id);
+      const {error}=await db.from('rpc_travel').update({end_time:now,duration_min:dur}).eq('id',tr[0].id);
+      if(error){toast('Travel error: '+error.message);return;}
       toast('📍 Travel ended — '+fmtHrs(dur));
     } else {
-      // start or missed
-      await db.from('rpc_travel').insert({
-        staff_id:pTrvId,staff_name:pTrvNm,
-        start_time:now,start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,
-        note:note||null,shift_date:today,
+      // start or missed — insert travel record
+      const {error}=await db.from('rpc_travel').insert({
+        staff_id:pTrvId,
+        staff_name:pTrvNm,
+        start_time:now,
+        note:note||null,
+        shift_date:today,
         shift_id:pTrvShiftId||null,
         next_shift_id:pTrvNextShiftId||null,
         travel_type:travelType,
-        // For missed travel, mark immediately as ended with zero duration placeholder
         end_time:pTrvAct==='missed'?now:null,
         duration_min:pTrvAct==='missed'?0:null
       });
+      if(error){toast('Travel error: '+error.message);return;}
+      // If inter-site travel, auto sign out of current shift
+      if(travelType==='inter_site'&&pTrvId===CU.id){
+        await db.from('rpc_status').upsert({staff_id:CU.id,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'});
+        await db.from('rpc_attendance').insert({staff_id:CU.id,staff_name:CU.name,action:'Signed out',site:pTrvSite||'',shift_date:today,shift_id:pTrvShiftId||null,is_manual:false});
+      }
       if(pTrvAct==='missed')toast('✅ Missed travel recorded');
       else toast('🚗 Travel started');
     }
     if(typeEl)typeEl.remove();
-    closeM('TrvM');goHome();
+    closeM('TrvM');
+    await goHome();
   }catch(e){toast('Error: '+e.message)}
 }
 
