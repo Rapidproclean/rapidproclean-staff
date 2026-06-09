@@ -973,6 +973,7 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
 
 // BREAKS
 async function startBreak(shiftId){
+  alert('startBreak called — shiftId: '+shiftId);
   toast('☕ Starting break...');
   try{
     const now=new Date().toISOString();
