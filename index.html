@@ -814,6 +814,12 @@ async function renderStaffHome(el2,sm,tm){
     const returnTrvDone=shTrvs.some(t=>t.travel_type==='site_to_home'&&t.end_time);
     const interTrvDone=shTrvs.some(t=>t.travel_type==='inter_site'&&t.end_time);
 
+    // Is this the active shift?
+    const isActiveShift=isIn&&(
+      (st.site&&sh.site&&st.site.trim()===sh.site.trim())||
+      (!st.site&&si===0)
+    );
+
     const shCard=document.createElement('div');shCard.className='mycard'+(shComplete?' out':isActiveShift?(isOnBrk?' br':' in'):'');
     shCard.style.marginBottom='12px';
 
@@ -835,12 +841,6 @@ async function renderStaffHome(el2,sm,tm){
 
     // Action buttons for this shift
     const bg=document.createElement('div');bg.className='bg';
-
-    // Is this the active shift? — staff is signed in AND current site matches this shift
-    const isActiveShift=isIn&&(
-      (st.site&&sh.site&&st.site.trim()===sh.site.trim())||
-      (!st.site&&si===0)
-    );
 
     if(shComplete){
       // Shift fully done
