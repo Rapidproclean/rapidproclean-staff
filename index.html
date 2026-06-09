@@ -663,7 +663,7 @@ async function renderHome(){
     el2.innerHTML='';
     if(CU.is_admin)await renderAdminHome(el2,sm,tm);
     else await renderStaffHome(el2,sm,tm);
-  }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error: '+esc(e.message||String(e))+'</div>';console.error('renderHome error:',e)}
+  }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error loading home page. Check internet connection.</div>'}
 }
 
 async function renderAdminHome(el2,sm,tm){
@@ -976,21 +976,18 @@ async function startBreak(shiftId){
   toast('☕ Starting break...');
   try{
     const now=new Date().toISOString();
-    const {data,error}=await db.from('rpc_breaks').insert({
+    const {error}=await db.from('rpc_breaks').insert({
       staff_id:CU.id,
       staff_name:CU.name,
       shift_id:shiftId||null,
       start_time:now,
       is_auto:false
-    }).select();
-    if(error){alert('Insert error: '+error.message+' | code: '+error.code);toast('Break error: '+error.message);return;}
-    alert('Insert OK — id: '+(data&&data[0]?data[0].id:'?'));
-    // Mark is_on_break in rpc_status
-    const {error:e2}=await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
-    if(e2){alert('Status error: '+e2.message);return;}
+    });
+    if(error){toast('Break error: '+error.message);return;}
+    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
     toast('☕ Break started');
     await goHome();
-  }catch(e){alert('Exception: '+e.message);toast('Error: '+e.message)}
+  }catch(e){toast('Error: '+e.message)}
 }
 async function endBreak(){
   toast('✅ Ending break...');
