@@ -696,7 +696,7 @@ async function renderStaffHome(el2,sm,tm){
     const [aR,tvR,bkR,abR,atR,nR,shR]=await Promise.all([
       db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',today).order('created_at'),
       db.from('rpc_travel').select('*').eq('staff_id',CU.id).eq('shift_date',today),
-      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).eq('shift_date',today),
+      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).order('start_time',{ascending:false}).limit(10),
       db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
       db.from('rpc_travel').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
       db.from('rpc_notifications').select('*').eq('staff_id',CU.id).eq('is_read',false).order('created_at',{ascending:false}).limit(3),
@@ -951,10 +951,11 @@ async function startBreak(shiftId){
   toast('📍 Getting location...');
   const gps=await getGPS();
   try{
-    await db.from('rpc_breaks').insert({staff_id:CU.id,staff_name:CU.name,shift_date:todayStr(),shift_id:shiftId||null,start_time:new Date().toISOString(),start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,is_auto:false});
+    const {error}=await db.from('rpc_breaks').insert({staff_id:CU.id,staff_name:CU.name,shift_id:shiftId||null,start_time:new Date().toISOString(),start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,is_auto:false});
+    if(error){toast('Break error: '+error.message);console.error('Break insert error:',error);return;}
     toast('☕ Break started');
     await goHome();
-  }catch(e){toast('Error: '+e.message)}
+  }catch(e){toast('Error: '+e.message);console.error('startBreak exception:',e)}
 }
 async function endBreak(){
   toast('📍 Getting location...');const gps=await getGPS();
