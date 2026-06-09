@@ -1548,17 +1548,19 @@ async function submitStaffLeave(){
   const s=allStaff.find(x=>x.id===staffId);
   if(!s){toast('Staff not found');return}
   try{
-    await db.from('rpc_leave').insert({
+    const {error:e1}=await db.from('rpc_leave').insert({
       staff_id:staffId,staff_name:s.name,leave_type:leaveType,
       start_date:start,end_date:end,status:'approved',
       comment:note||'Added by admin from paper form',
       created_at:new Date().toISOString()
     });
-    await db.from('rpc_notifications').insert({
+    if(e1){toast('Leave error: '+e1.message);return}
+    const {error:e2}=await db.from('rpc_notifications').insert({
       staff_id:staffId,title:'Leave Approved',
       message:'Your '+leaveType+' ('+fmtDate(start)+' – '+fmtDate(end)+') has been approved.'+(note?' Note: '+note:''),
       icon:'✅',is_read:false
     });
+    if(e2){toast('Notification error: '+e2.message);return}
     closeM('AddLvM');toast('Leave added and approved ✅');renderLeave();
   }catch(e){toast('Error: '+e.message)}
 }
