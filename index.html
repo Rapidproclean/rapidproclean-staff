@@ -1397,12 +1397,13 @@ async function renderStaffLeave(el2){
     buildLvCal();
     openM('LeaveM');
   };
-  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📄 Leave Form';
+  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📄 Download Form';
   dlb.onclick=function(){
-    const url='https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf';
-    window.open(url,'_blank');
-    // Also trigger download
-    const a=document.createElement('a');a.href=url;a.download='RapidProClean_LeaveForm.pdf';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);
+    const a=document.createElement('a');
+    a.href='https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf';
+    a.download='RapidProClean_LeaveForm.pdf';
+    a.target='_blank';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
   };
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
 
