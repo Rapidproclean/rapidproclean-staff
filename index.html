@@ -878,7 +878,7 @@ async function renderStaffHome(el2,sm,tm){
         brkBtn.textContent=brkNeeded?'⚠️ Break Due':'☕ Start Break';
         brkBtn.onclick=()=>startBreak(sh.id);
         bg.appendChild(soBtn);bg.appendChild(brkBtn);
-        if(nextSh&&!interTrvDone){
+        if(nextSh&&!isTrv){
           const tvBtn=document.createElement('button');tvBtn.className='btn am full';
           tvBtn.textContent='🚗 Travel to '+esc(nextSh.site);
           tvBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'inter_site',nextSh.id);
@@ -1018,8 +1018,10 @@ function openTrv(staffId,action,shiftId,travelType,nextShiftId){
   const labels={home_to_site:'🏠 Travel from Home',inter_site:'🚗 Travel to Next Site',site_to_home:'🏠 Travel Home After Work'};
   const label=labels[travelType]||'Travel';
   q('TrvMT').textContent=action==='end'?'End Travel':label;
-  q('TrvMS').textContent=action==='end'?'Tap to record arrival':'Add a note (optional)';
+  q('TrvMS').textContent=action==='end'?'Tap to record your arrival':'Add a note (optional)';
   q('trvNt').value='';
+  q('trvNt').style.display=action==='end'?'none':'block';
+  const ntLbl=q('trvNt').previousElementSibling;if(ntLbl)ntLbl.style.display=action==='end'?'none':'block';
   // Remove any missed-travel type selector if it was added previously
   const existing=q('trvType');if(existing)existing.remove();
   openM('TrvM');
