@@ -573,8 +573,6 @@ async function goHome(){
   const pg=q('p-home'),nb=q('n-home');
   if(pg)pg.classList.add('on');if(nb)nb.classList.add('on');
   q('NP').classList.remove('on');
-  // Small delay to ensure Supabase has committed the record before re-fetching
-  await new Promise(r=>setTimeout(r,600));
   await renderHome();
 }
 function tick(){const n=new Date();q('CT').textContent=n.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});q('CD').textContent=n.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}
@@ -816,7 +814,7 @@ async function renderStaffHome(el2,sm,tm){
     const returnTrvDone=shTrvs.some(t=>t.travel_type==='site_to_home'&&t.end_time);
     const interTrvDone=shTrvs.some(t=>t.travel_type==='inter_site'&&t.end_time);
 
-    const shCard=document.createElement('div');shCard.className='mycard'+(shComplete?' out':shSignedIn?' in':'');
+    const shCard=document.createElement('div');shCard.className='mycard'+(shComplete?' out':isActiveShift?(isOnBrk?' br':' in'):'');
     shCard.style.marginBottom='12px';
 
     // Shift header
@@ -829,8 +827,8 @@ async function renderStaffHome(el2,sm,tm){
     // Shift status pill
     const spill=document.createElement('div');
     if(shComplete){spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Shift Complete';}
-    else if(shSignedIn&&isOnBrk){spill.className='pill br';spill.innerHTML='<div class="dot br"></div>On Break';}
-    else if(shSignedIn){spill.className='pill in';spill.innerHTML='<div class="dot in"></div>Signed In';}
+    else if(isActiveShift&&isOnBrk){spill.className='pill br';spill.innerHTML='<div class="dot br"></div>On Break';}
+    else if(isActiveShift){spill.className='pill in';spill.innerHTML='<div class="dot in"></div>Signed In';}
     else{spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Not Started';}
     shHdr.appendChild(spill);
     shCard.appendChild(shHdr);
@@ -838,8 +836,14 @@ async function renderStaffHome(el2,sm,tm){
     // Action buttons for this shift
     const bg=document.createElement('div');bg.className='bg';
 
+    // Is this the active shift? — staff is signed in AND current site matches this shift
+    const isActiveShift=isIn&&(
+      (st.site&&sh.site&&st.site.trim()===sh.site.trim())||
+      (!st.site&&si===0)
+    );
+
     if(shComplete){
-      // Shift is done — show return travel if approved and not yet done
+      // Shift fully done
       if(sh.home_return_travel_pay&&!returnTrvDone&&!activeTrv){
         const rtBtn=document.createElement('button');rtBtn.className='btn am full';
         rtBtn.textContent='🏠 Start Travel Home';
@@ -851,15 +855,16 @@ async function renderStaffHome(el2,sm,tm){
         const done=document.createElement('div');done.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';done.textContent='Shift finished';bg.appendChild(done);
       }
 
-    } else if(shSignedIn&&!shSignedOut){
-      // Currently on this shift
+    } else if(isActiveShift){
+      // Staff is currently on this shift — show action buttons
       if(isOnBrk){
-        // ON BREAK — show End Break prominently on the shift card too
+        // ON BREAK — show End Break
         const ebBtn=document.createElement('button');ebBtn.className='btn gn full';
         ebBtn.textContent='✅ End Break — Tap When Break Is Over';
         ebBtn.onclick=endBreak;
         bg.appendChild(ebBtn);
       } else if(!isTrv){
+        // ON SHIFT — show Sign Out, Break, Travel
         const soBtn=document.createElement('button');soBtn.className='btn rd';
         soBtn.textContent='Sign Out';
         soBtn.onclick=()=>doTog(CU.id,CU.name,true,sh.id,sh.site);
@@ -867,7 +872,6 @@ async function renderStaffHome(el2,sm,tm){
         brkBtn.textContent=brkNeeded?'⚠️ Break Due':'☕ Start Break';
         brkBtn.onclick=()=>startBreak(sh.id);
         bg.appendChild(soBtn);bg.appendChild(brkBtn);
-        // Inter-site travel — only if next shift exists today
         if(nextSh&&!interTrvDone){
           const tvBtn=document.createElement('button');tvBtn.className='btn am full';
           tvBtn.textContent='🚗 Travel to '+esc(nextSh.site);
@@ -876,24 +880,23 @@ async function renderStaffHome(el2,sm,tm){
         }
       }
 
-    } else {
-      // Not yet signed in to this shift
-      if(!isIn&&!isOnBrk&&!isTrv){
-        // Home travel button — only if approved and not yet done
-        if(sh.home_travel_pay&&!homeTrvDone){
-          const htBtn=document.createElement('button');htBtn.className='btn am full';
-          htBtn.textContent='🏠 Start Travel from Home';
-          htBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'home_to_site');
-          bg.appendChild(htBtn);
-        }
-        const siBtn=document.createElement('button');siBtn.className='btn nv full';
-        siBtn.textContent='Sign In — '+esc(sh.site);
-        siBtn.onclick=()=>doTog(CU.id,CU.name,false,sh.id,sh.site);
-        bg.appendChild(siBtn);
-      } else if(isIn&&!shSignedIn){
-        // Signed into a DIFFERENT shift — block this one
-        const notice=document.createElement('div');notice.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';notice.textContent='Sign out of current shift first';bg.appendChild(notice);
+    } else if(!isIn&&!isOnBrk&&!isTrv){
+      // Not signed into any shift — show Sign In
+      if(sh.home_travel_pay&&!homeTrvDone){
+        const htBtn=document.createElement('button');htBtn.className='btn am full';
+        htBtn.textContent='🏠 Start Travel from Home';
+        htBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'home_to_site');
+        bg.appendChild(htBtn);
       }
+      const siBtn=document.createElement('button');siBtn.className='btn nv full';
+      siBtn.textContent='Sign In — '+esc(sh.site);
+      siBtn.onclick=()=>doTog(CU.id,CU.name,false,sh.id,sh.site);
+      bg.appendChild(siBtn);
+
+    } else if(isIn&&!isActiveShift){
+      // Signed into a different shift
+      const notice=document.createElement('div');notice.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';
+      notice.textContent='Sign out of current shift first';bg.appendChild(notice);
     }
 
     shCard.appendChild(bg);
