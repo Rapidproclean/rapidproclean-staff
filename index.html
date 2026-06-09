@@ -52,7 +52,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .ni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:7px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--t3);border:none;background:none;padding-bottom:4px}
 .ni.on{color:var(--nv)}
 .ni svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.pg{display:none;padding:16px 14px calc(var(--nav)+20px)}.pg.on{display:block}
+.pg{display:none;padding:16px 14px calc(var(--nav)+16px)}.pg.on{display:block}
 .sl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);margin-bottom:10px;padding-left:2px}
 .np{display:none;position:fixed;top:var(--hdr);right:0;left:0;z-index:85;background:var(--cd);border-bottom:1px solid var(--bd);box-shadow:var(--shl);max-height:60vh;overflow-y:auto}
 .np.on{display:block}
@@ -344,8 +344,10 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mrow"><input class="mi" id="shS" type="time"><input class="mi" id="shE" type="time"></div>
   <div class="mlbl">Duties / Description</div><textarea class="mta" id="shDs" placeholder="Describe tasks..."></textarea>
   <div class="mlbl">Access Notes (keys, codes, parking)</div><textarea class="mta" id="shAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
-  <div class="mlbl">Pay Home Travel for This Shift?</div>
+  <div class="mlbl">Pay Travel: Home to Site?</div>
   <select class="msel" id="shHT"><option value="no">No — no home travel pay</option><option value="yes">Yes — pay travel from home to site</option></select>
+  <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
+  <select class="msel" id="shHR"><option value="no">No — no return travel pay</option><option value="yes">Yes — pay travel from site to home after work</option></select>
   <div class="mlbl">Attach Instruction Photos (optional)</div><input type="file" id="shPh" accept="image/*" multiple style="margin-bottom:12px;font-size:13px">
   <button class="btn tl" onclick="saveShift()">Assign Shift</button>
   <button class="btn sc" onclick="closeM('ShiftM')">Cancel</button>
@@ -360,13 +362,13 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
     <div style="padding:8px"><div class="lcg" id="LvDH"></div><div class="lcg" id="LvDD"></div></div>
   </div>
   <div style="display:flex;gap:10px;margin-bottom:10px">
-    <div style="flex:1"><div class="mlbl">Start</div><input class="mi" id="lvS" type="text" readonly placeholder="Tap calendar" style="margin:0"></div>
-    <div style="flex:1"><div class="mlbl">End</div><input class="mi" id="lvE" type="text" readonly placeholder="Tap calendar" style="margin:0"></div>
+    <div style="flex:1"><div class="mlbl">Start Date</div><input class="mi" id="lvS" type="date" style="margin:0" onchange="lvStart=this.value;lvEnd=lvEnd&&lvEnd>=this.value?lvEnd:this.value;if(q('lvE'))q('lvE').value=lvEnd;buildLvCal();"></div>
+    <div style="flex:1"><div class="mlbl">End Date</div><input class="mi" id="lvE" type="date" style="margin:0" onchange="lvEnd=this.value;lvStart=lvStart&&lvStart<=this.value?lvStart:this.value;if(q('lvS'))q('lvS').value=lvStart;buildLvCal();"></div>
   </div>
   <div class="mlbl">Comments</div><textarea class="mta" id="lvCm" placeholder="Add any comments..."></textarea>
   <div class="mlbl">Attachment (medical cert, supporting docs)</div>
   <input type="file" id="lvAt" accept="image/*,.pdf" style="margin-bottom:12px;font-size:13px">
-  <button class="btn tl" onclick="submitLeave()">Submit Request</button>
+  <button class="btn tl" style="touch-action:manipulation" onclick="submitLeave()">Submit Request</button>
   <button class="btn sc" onclick="closeM('LeaveM')">Cancel</button>
 </div></div>
 
@@ -466,7 +468,7 @@ const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZ
 const db=supabase.createClient(SB_URL,SB_KEY);
 const AV={a:{bg:'#E1F5EE',c:'#085041'},b:{bg:'#E6F1FB',c:'#0C447C'},c:{bg:'#FAEEDA',c:'#633806'},d:{bg:'#FBEAF0',c:'#72243E'},e:{bg:'#EEEDFE',c:'#3C3489'},f:{bg:'#EAF3DE',c:'#27500A'}};
 let CU=null,allStaff=[],allSites=[],wkOff=0,rV='day';
-let pPhSh=null,pPhSite=null,pTrvId=null,pTrvAct=null,pTrvNm=null;
+let pPhSh=null,pPhSite=null,pTrvId=null,pTrvAct=null,pTrvNm=null,pTrvShiftId=null,pTrvType=null,pTrvNextShiftId=null,pTrvSite=null;
 let lvY=new Date().getFullYear(),lvM=new Date().getMonth(),lvStart=null,lvEnd=null,lvPick=false;
 let sigCtx=null,sigDrw=false,pSignId=null;
 let selMode=false,selPh=[],shOpts={N:true,T:true,Nt:true,C:true};
@@ -489,7 +491,27 @@ const closeLB=()=>q('LB').classList.remove('on');
 const calcDays=(s,e)=>{if(!s)return 1;return Math.max(1,Math.round((new Date((e||s)+'T00:00:00')-new Date(s+'T00:00:00'))/86400000)+1)};
 const dlCSV=(rows,name)=>{const csv=rows.map(r=>r.map(x=>'"'+String(x||'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=name+'.csv';a.click()};
 const compressImg=(file,maxW=800,q2=0.75)=>new Promise(res=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{const sc=Math.min(1,maxW/img.width),cv=document.createElement('canvas');cv.width=img.width*sc;cv.height=img.height*sc;cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);cv.toBlob(b=>res(b),'image/jpeg',q2);URL.revokeObjectURL(url)};img.src=url});
-const getGPS=()=>new Promise(res=>{if(!navigator.geolocation){res({lat:null,lng:null,addr:'GPS unavailable'});return}navigator.geolocation.getCurrentPosition(async pos=>{const lat=pos.coords.latitude,lng=pos.coords.longitude;let addr=lat.toFixed(5)+','+lng.toFixed(5);try{const r=await fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json');const j=await r.json();if(j.display_name)addr=j.display_name.split(',').slice(0,3).join(',');}catch{}res({lat,lng,addr})},()=>res({lat:null,lng:null,addr:'Location unavailable'}),{timeout:8000,enableHighAccuracy:true})});
+const getGPS=()=>new Promise(res=>{
+  const done=(v)=>res(v);
+  const fail=()=>done({lat:null,lng:null,addr:'Location unavailable'});
+  // Hard outer timeout — GPS never blocks more than 6 seconds total
+  const outerTimer=setTimeout(fail,6000);
+  if(!navigator.geolocation){clearTimeout(outerTimer);fail();return}
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    clearTimeout(outerTimer);
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    let addr=lat.toFixed(5)+','+lng.toFixed(5);
+    try{
+      const r=await Promise.race([
+        fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json'),
+        new Promise((_,rej)=>setTimeout(()=>rej('timeout'),3000))
+      ]);
+      const j=await r.json();
+      if(j.display_name)addr=j.display_name.split(',').slice(0,3).join(',');
+    }catch{}
+    done({lat,lng,addr});
+  },()=>{clearTimeout(outerTimer);fail();},{timeout:5000,enableHighAccuracy:false});
+});
 const haversine=(a,b,c,d)=>{const R=6371000,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))};
 const getWeekDates=(off=0)=>{const n=new Date(),dy=n.getDay(),mon=new Date(n);mon.setDate(n.getDate()-(dy===0?6:dy-1)+off*7);return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d.toISOString().slice(0,10)})};
 const parseMin=s=>{if(!s)return 0;const hm=String(s).match(/(\d+)h\s*(\d+)?m?/);if(hm)return parseInt(hm[1]||0)*60+parseInt(hm[2]||0);const m=String(s).match(/(\d+)m/);if(m)return parseInt(m[1]);return parseFloat(s)*60||0};
@@ -517,7 +539,7 @@ async function startApp(){
   buildNav();tick();setInterval(tick,1000);
   setInterval(()=>{if(q('p-home').classList.contains('on'))renderHome()},30000);
   if(!CU.is_admin)checkTraining();
-  loadNotifs();goPage('home');
+  loadNotifs();goHome();
 }
 async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[]}catch{}}
 async function loadSites(){try{const {data}=await db.from('rpc_sites').select('*').order('name');allSites=data||[]}catch{}}
@@ -543,6 +565,15 @@ function goPage(p){
   else if(p==='payroll')initPayroll();
   else if(p==='admin')renderAdmin();
   else if(p==='incidents')renderIncidents();
+}
+// Force home re-render — used after sign in/out, break, travel actions
+async function goHome(){
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
+  const pg=q('p-home'),nb=q('n-home');
+  if(pg)pg.classList.add('on');if(nb)nb.classList.add('on');
+  q('NP').classList.remove('on');
+  await renderHome();
 }
 function tick(){const n=new Date();q('CT').textContent=n.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});q('CD').textContent=n.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}
 
@@ -655,7 +686,7 @@ async function renderAdminHome(el2,sm,tm){
     const btn=document.createElement('button');
     btn.style.cssText='width:100%;padding:7px;border-radius:var(--rs);font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer;border:'+(isIn?'1.5px solid #f5b5b5':'none')+';background:'+(isIn?'var(--rdl)':'var(--nv)')+';color:'+(isIn?'var(--rd)':'#fff');
     btn.textContent=isIn?'Sign Out':'Sign In';
-    const sid=s.id,snm=s.name,sin=isIn;btn.onclick=()=>doTog(sid,snm,sin);
+    const sid=s.id,snm=s.name,sin=isIn,ssite=st.site||'';btn.onclick=()=>doTog(sid,snm,sin,null,ssite);
     card.appendChild(btn);sg.appendChild(card);
   });
 }
@@ -678,27 +709,34 @@ async function loadFlags(sm){
 
 async function renderStaffHome(el2,sm,tm){
   const today=todayStr();
-  let att=[],trvs=[],brks=[],activeBrk=null,notifs=[],todayShift=null;
+  let att=[],trvs=[],brks=[],activeTrv=null,notifs=[],todayShifts=[];
   try{
-    const [aR,tvR,bkR,abR,nR,shR]=await Promise.all([
-      db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',today),
+    const [aR,tvR,bkR,atR,nR,shR]=await Promise.all([
+      db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',today).order('created_at'),
       db.from('rpc_travel').select('*').eq('staff_id',CU.id).eq('shift_date',today),
-      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).eq('shift_date',today),
-      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
+      db.from('rpc_breaks').select('*').eq('staff_id',CU.id).order('start_time',{ascending:false}).limit(10),
+      db.from('rpc_travel').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1),
       db.from('rpc_notifications').select('*').eq('staff_id',CU.id).eq('is_read',false).order('created_at',{ascending:false}).limit(3),
-      db.from('rpc_shifts').select('*').eq('staff_id',CU.id).eq('shift_date',today).limit(1)
+      db.from('rpc_shifts').select('*').eq('staff_id',CU.id).eq('shift_date',today).eq('status','published').order('start_time')
     ]);
     att=aR.data||[];trvs=tvR.data||[];brks=bkR.data||[];
-    activeBrk=(abR.data||[])[0]||null;notifs=nR.data||[];todayShift=(shR.data||[])[0]||null;
-  }catch{}
-  const st=sm[CU.id]||{},isIn=!!st.is_in,isTrv=!!tm[CU.id],isOnBrk=!!activeBrk;
+    activeTrv=(atR.data||[])[0]||null;
+    notifs=nR.data||[];
+    todayShifts=shR.data||[];
+  }catch(e){console.error('renderStaffHome query error:',e)}
+
+  const st=sm[CU.id]||{};
   const av=AV[CU.color||'a']||AV.a;
+  // Read break state directly from rpc_status — same as is_in, fully reliable
+  const isIn=!!st.is_in;
+  const isOnBrk=!!st.is_on_break;
+  const isTrv=!!activeTrv;
   let workMin=0;
-  for(let i=0;i<att.length;i++){if(att[i].action==='Signed in'){const out=att.slice(i+1).find(a=>a.action==='Signed out');if(out)workMin+=(new Date(out.created_at)-new Date(att[i].created_at))/60000;else if(isIn)workMin+=(Date.now()-new Date(att[i].created_at))/60000;}}
-  const trvMin=trvs.reduce((a,t)=>a+(t.duration_min||0),0)+(isTrv&&tm[CU.id]?(Date.now()-new Date(tm[CU.id].start_time))/60000:0);
+  for(let i=0;i<att.length;i++){if(att[i].action==='Signed in'){const out=att.slice(i+1).find(a=>a.action==='Signed out');if(out)workMin+=(new Date(out.created_at)-new Date(att[i].created_at))/60000;else if(st.is_in)workMin+=(Date.now()-new Date(att[i].created_at))/60000;}}
+  const trvMin=trvs.reduce((a,t)=>a+(t.duration_min||0),0)+(activeTrv?(Date.now()-new Date(activeTrv.start_time))/60000:0);
   const brkMin=brks.reduce((a,b)=>a+(b.duration_min||0),0);
   const brkNeeded=(workMin+trvMin)>=300&&brkMin<30;
-  const homeTrv=todayShift&&todayShift.home_travel_pay;
+
   // Notification banner
   if(notifs.length){
     const nb=document.createElement('div');nb.style.cssText='background:var(--nvl);border:1.5px solid var(--nv2);border-radius:var(--rs);padding:12px 14px;margin-bottom:14px';
@@ -710,7 +748,8 @@ async function renderStaffHome(el2,sm,tm){
     });
     el2.appendChild(nb);
   }
-  // My card
+
+  // Staff identity card (status overview only — no action buttons here)
   const card=document.createElement('div');card.className='mycard'+(isOnBrk?' br':isIn?' in':isTrv?' tr':'');
   const top=document.createElement('div');top.className='mct';
   const avEl=document.createElement('div');avEl.style.cssText='width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;cursor:pointer;flex-shrink:0;background:'+av.bg+';color:'+av.c+';overflow:hidden';
@@ -718,97 +757,319 @@ async function renderStaffHome(el2,sm,tm){
   avEl.onclick=uploadProfilePic;
   const info=document.createElement('div');info.innerHTML='<div style="font-size:17px;font-weight:800;color:var(--tx)">'+esc(CU.name)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px">'+esc(CU.role)+'</div>'+(st.site?'<div style="font-size:12px;color:var(--nv2);font-weight:600;margin-top:3px">📍 '+esc(st.site)+'</div>':'');
   top.appendChild(avEl);top.appendChild(info);card.appendChild(top);
-  const status=isOnBrk?'br':isIn?'in':isTrv?'tr':'out';
+  const statusKey=isOnBrk?'br':isIn?'in':isTrv?'tr':'out';
   const statusLabel=isOnBrk?'On Break':isIn?'On Shift':isTrv?'Travelling':'Off Shift';
-  card.innerHTML+='<div class="pill '+status+'"><div class="dot '+status+'"></div>'+statusLabel+'</div>';
-  if(isIn&&st.since)card.innerHTML+='<div style="font-family:var(--mn);font-size:11px;color:var(--t3);margin-bottom:6px">Since '+fmtT(st.since)+'</div>';
+  const pill=document.createElement('div');pill.className='pill '+statusKey;pill.innerHTML='<div class="dot '+statusKey+'"></div>'+statusLabel;card.appendChild(pill);
+  if(isIn&&st.since){const sd=document.createElement('div');sd.style.cssText='font-family:var(--mn);font-size:11px;color:var(--t3);margin-bottom:6px';sd.textContent='Since '+fmtT(st.since);card.appendChild(sd);}
   if(workMin>0||trvMin>0){const hd=document.createElement('div');hd.style.cssText='font-size:11px;color:var(--t3);margin-bottom:8px';hd.innerHTML='Today: <span style="color:var(--nv2);font-weight:600">'+fmtHrs(Math.round(workMin))+' work</span>'+(trvMin>0?' + <span style="color:var(--am);font-weight:600">'+fmtHrs(Math.round(trvMin))+' travel</span>':'')+(brkNeeded?' · <span style="color:var(--or);font-weight:700">⚠️ Break due</span>':'');card.appendChild(hd);}
-  // Buttons
-  const bg=document.createElement('div');bg.className='bg';
-  if(isOnBrk){const eb=document.createElement('button');eb.className='btn gn full';eb.textContent='✅ End Break';eb.onclick=endBreak;bg.appendChild(eb);}
-  else if(isTrv){const et=document.createElement('button');et.className='btn or full';et.textContent='📍 End Travel — Tap When You Arrive';et.onclick=()=>openTrv(CU.id,'end');bg.appendChild(et);}
-  else if(isIn){
-    const so=document.createElement('button');so.className='btn rd';so.textContent='Sign Out';so.onclick=()=>doTog(CU.id,CU.name,true);
-    const brk=document.createElement('button');brk.className='btn '+(brkNeeded?'or':'am');brk.textContent=brkNeeded?'⚠️ Break Due':'☕ Start Break';brk.onclick=startBreak;
-    const tv=document.createElement('button');tv.className='btn am full';tv.textContent='🚗 Start Travel to Next Site';tv.onclick=()=>openTrv(CU.id,'start');
-    bg.appendChild(so);bg.appendChild(brk);bg.appendChild(tv);
-  }else{
-    const si=document.createElement('button');si.className='btn nv full';si.textContent='Sign In';si.onclick=()=>doTog(CU.id,CU.name,false);bg.appendChild(si);
-    const tv=document.createElement('button');tv.className='btn am full';tv.textContent=homeTrv?'🏠 Start Travel from Home':'🚗 Start Travel to Site';tv.onclick=()=>openTrv(CU.id,'start');bg.appendChild(tv);
+
+  // Global active-state buttons (break end / travel end) — these float above shifts
+  if(isOnBrk){
+    const bg=document.createElement('div');bg.className='bg';
+    const eb=document.createElement('button');eb.className='btn gn full';eb.textContent='✅ End Break — Tap When Break Is Over';eb.onclick=endBreak;bg.appendChild(eb);
+    card.appendChild(bg);
+  } else if(isTrv){
+    const bg=document.createElement('div');bg.className='bg';
+    const et=document.createElement('button');et.className='btn or full';et.textContent='📍 End Travel — Tap When You Arrive';et.onclick=()=>openTrv(CU.id,'end',null,null);bg.appendChild(et);
+    card.appendChild(bg);
   }
-  card.appendChild(bg);el2.appendChild(card);
-  const slEl=document.createElement('div');slEl.className='sl';slEl.textContent="Today's Shift";el2.appendChild(slEl);
-  const shCard=document.createElement('div');shCard.className='card';
-  if(todayShift){shCard.innerHTML='<div class="cr"><div><div class="cl">📍 '+esc(todayShift.site)+'</div><div class="cs">'+(todayShift.start_time&&todayShift.end_time?fmt12(todayShift.start_time)+' – '+fmt12(todayShift.end_time):'Time TBC')+'</div>'+(todayShift.description?'<div class="cs" style="color:var(--t2);margin-top:4px">📋 '+esc(todayShift.description)+'</div>':'')+(todayShift.access_notes?'<div class="cs" style="color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(todayShift.access_notes)+'</div>':'')+'</div></div>';}
-  else shCard.innerHTML='<div class="cr"><div class="cs">No shift assigned today</div></div>';
-  el2.appendChild(shCard);
+  el2.appendChild(card);
+
+  // No shifts today
+  if(!todayShifts.length){
+    const slEl=document.createElement('div');slEl.className='sl';slEl.textContent="Today's Shifts";el2.appendChild(slEl);
+    const empty=document.createElement('div');empty.className='card';empty.innerHTML='<div class="cr"><div class="cs">No shifts assigned for today</div></div>';el2.appendChild(empty);
+    return;
+  }
+
+  // ── Per-shift cards ──────────────────────────────────────────────
+  const slEl=document.createElement('div');slEl.className='sl';slEl.textContent="Today's Shifts";el2.appendChild(slEl);
+
+  for(let si=0;si<todayShifts.length;si++){
+    const sh=todayShifts[si];
+    const nextSh=todayShifts[si+1]||null;
+
+    // Determine sign-in/out state for THIS specific shift
+    // Use == not === for shift_id to handle string/int mismatch from Supabase
+    const shAtt=att.filter(a=>
+      // eslint-disable-next-line eqeqeq
+      a.shift_id==sh.id||
+      (a.shift_date===today&&a.site&&sh.site&&a.site.trim()===sh.site.trim())
+    );
+    const signedInRec=shAtt.find(a=>a.action==='Signed in');
+    const signedOutRec=shAtt.find(a=>a.action==='Signed out');
+    // Global status is the most reliable source — check it first
+    const globallySignedInHere=isIn&&(
+      (st.site&&sh.site&&st.site.trim()===sh.site.trim())||
+      (!st.site&&si===0)
+    );
+    // Signed in = attendance record found OR global status says on shift here
+    const shSignedIn=!!signedInRec||(!signedOutRec&&globallySignedInHere);
+    const shSignedOut=!!signedOutRec&&!globallySignedInHere;
+    const shComplete=!!signedInRec&&!!signedOutRec&&!globallySignedInHere;
+
+    // Travel for this shift
+    const shTrvs=trvs.filter(t=>t.shift_id===sh.id);
+    const homeTrvDone=shTrvs.some(t=>t.travel_type==='home_to_site'&&t.end_time);
+    const returnTrvDone=shTrvs.some(t=>t.travel_type==='site_to_home'&&t.end_time);
+    const interTrvDone=shTrvs.some(t=>t.travel_type==='inter_site'&&t.end_time);
+
+    // Is this the active shift?
+    const isActiveShift=isIn&&(
+      (st.site&&sh.site&&st.site.trim()===sh.site.trim())||
+      (!st.site&&si===0)
+    );
+
+    const shCard=document.createElement('div');shCard.className='mycard'+(shComplete?' out':isActiveShift?(isOnBrk?' br':' in'):'');
+    shCard.style.marginBottom='12px';
+
+    // Shift header
+    const shHdr=document.createElement('div');shHdr.style.cssText='margin-bottom:10px';
+    shHdr.innerHTML='<div style="font-size:15px;font-weight:800;color:var(--nv)">📍 '+esc(sh.site)+'</div>'
+      +'<div style="font-family:var(--mn);font-size:12px;color:var(--t3);margin-top:2px">'+(sh.start_time&&sh.end_time?fmt12(sh.start_time)+' – '+fmt12(sh.end_time):'Time TBC')+'</div>'
+      +(sh.description?'<div style="font-size:12px;color:var(--t2);margin-top:4px">📋 '+esc(sh.description)+'</div>':'')
+      +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(sh.access_notes)+'</div>':'');
+
+    // Shift status pill
+    const spill=document.createElement('div');
+    if(shComplete){spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Shift Complete';}
+    else if(isActiveShift&&isOnBrk){spill.className='pill br';spill.innerHTML='<div class="dot br"></div>On Break';}
+    else if(isActiveShift){spill.className='pill in';spill.innerHTML='<div class="dot in"></div>Signed In';}
+    else{spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Not Started';}
+    shHdr.appendChild(spill);
+    shCard.appendChild(shHdr);
+
+    // Action buttons for this shift
+    const bg=document.createElement('div');bg.className='bg';
+
+    if(shComplete){
+      // Shift fully done
+      if(sh.home_return_travel_pay&&!returnTrvDone&&!activeTrv){
+        const rtBtn=document.createElement('button');rtBtn.className='btn am full';
+        rtBtn.textContent='🏠 Start Travel Home';
+        rtBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'site_to_home');
+        bg.appendChild(rtBtn);
+      } else if(returnTrvDone){
+        const done=document.createElement('div');done.style.cssText='font-size:11px;color:var(--tl);font-weight:700;padding:6px 0;text-align:center';done.textContent='✅ Return travel recorded';bg.appendChild(done);
+      } else {
+        const done=document.createElement('div');done.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';done.textContent='Shift finished';bg.appendChild(done);
+      }
+
+    } else if(isActiveShift){
+      // Staff is currently on this shift — show action buttons
+      if(isOnBrk){
+        // ON BREAK — show End Break
+        const ebBtn=document.createElement('button');ebBtn.className='btn gn full';
+        ebBtn.textContent='✅ End Break — Tap When Break Is Over';
+        ebBtn.onclick=endBreak;
+        bg.appendChild(ebBtn);
+      } else if(isTrv){
+        // TRAVELLING — show End Travel
+        const etBtn=document.createElement('button');etBtn.className='btn or full';
+        etBtn.textContent='📍 End Travel — Tap When You Arrive';
+        etBtn.onclick=()=>openTrv(CU.id,'end',null,null);
+        bg.appendChild(etBtn);
+      } else {
+        // ON SHIFT — show Sign Out, Break, Travel
+        const soBtn=document.createElement('button');soBtn.className='btn rd';
+        soBtn.textContent='Sign Out';
+        soBtn.onclick=()=>doTog(CU.id,CU.name,true,sh.id,sh.site);
+        const brkBtn=document.createElement('button');brkBtn.className='btn '+(brkNeeded?'or':'am');
+        brkBtn.textContent=brkNeeded?'⚠️ Break Due':'☕ Start Break';
+        brkBtn.onclick=()=>startBreak(sh.id);
+        bg.appendChild(soBtn);bg.appendChild(brkBtn);
+        if(nextSh&&!isTrv){
+          const tvBtn=document.createElement('button');tvBtn.className='btn am full';
+          tvBtn.textContent='🚗 Travel to '+esc(nextSh.site);
+          tvBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'inter_site',nextSh.id);
+          bg.appendChild(tvBtn);
+        }
+      }
+
+    } else if(!isIn&&!isOnBrk&&!isTrv){
+      // Not signed into any shift — show Sign In
+      if(sh.home_travel_pay&&!homeTrvDone){
+        const htBtn=document.createElement('button');htBtn.className='btn am full';
+        htBtn.textContent='🏠 Start Travel from Home';
+        htBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'home_to_site');
+        bg.appendChild(htBtn);
+      }
+      const siBtn=document.createElement('button');siBtn.className='btn nv full';
+      siBtn.textContent='Sign In — '+esc(sh.site);
+      siBtn.onclick=()=>doTog(CU.id,CU.name,false,sh.id,sh.site);
+      bg.appendChild(siBtn);
+
+    } else if(isIn&&!isActiveShift){
+      // Signed into a different shift
+      const notice=document.createElement('div');notice.style.cssText='font-size:11px;color:var(--t3);padding:6px 0;text-align:center';
+      notice.textContent='Sign out of current shift first';bg.appendChild(notice);
+    }
+
+    shCard.appendChild(bg);
+
+    // Missed travel self-correction (today only, shift complete, no active travel)
+    if(shComplete&&!activeTrv){
+      const mtDiv=document.createElement('div');mtDiv.style.cssText='margin-top:8px;border-top:1px solid var(--bd);padding-top:8px';
+      const mtBtn=document.createElement('button');mtBtn.style.cssText='font-size:11px;color:var(--nv2);background:none;border:none;cursor:pointer;font-family:var(--fn);font-weight:600;padding:0';
+      mtBtn.textContent='+ Add missed travel for this shift';
+      mtBtn.onclick=()=>openMissedTravel(sh.id,sh.site);
+      mtDiv.appendChild(mtBtn);shCard.appendChild(mtDiv);
+    }
+
+    el2.appendChild(shCard);
+  }
+  // Bottom spacer so last shift card is never hidden behind nav bar
+  const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
 }
 
-// SIGN IN / OUT
-async function doTog(staffId,staffName,isIn){
+// ── Missed travel modal (today only, self-correction) ────────────────
+function openMissedTravel(shiftId,site){
+  pTrvId=CU.id;pTrvAct='missed';pTrvNm=CU.name;pTrvShiftId=shiftId;pTrvSite=site;
+  q('TrvMT').textContent='Add Missed Travel';
+  q('TrvMS').textContent='Record travel you forgot to log for: '+site;
+  q('trvNt').value='';
+  // Show travel type selector
+  if(!q('trvType')){
+    const sel=document.createElement('select');sel.id='trvType';sel.className='msel';sel.style.marginBottom='10px';
+    [['home_to_site','🏠 Home to Site'],['inter_site','🚗 Site to Site'],['site_to_home','🏠 Site to Home']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;sel.appendChild(o)});
+    const trvModal=q('TrvM').querySelector('.msh');
+    trvModal.insertBefore(sel,q('trvNt'));
+  }
+  openM('TrvM');
+}
+
+
+
+// SIGN IN / OUT — shiftId and site are now passed from the shift card button
+async function doTog(staffId,staffName,isIn,shiftId,site){
+  // SAFETY: always enforce today's date — never allow signing in/out against a past shift
+  const today=todayStr();
   if(!isIn&&staffId===CU.id){const t=await checkTraining();if(t){toast('⚠️ Complete training before signing in');return}}
   toast('📍 Getting location...');
   const gps=await getGPS();
-  const today=todayStr(),now=new Date().toISOString();
-  let site='',gpsOk=null;
-  try{const {data:sh}=await db.from('rpc_shifts').select('site').eq('staff_id',staffId).eq('shift_date',today).limit(1);if(sh&&sh.length){site=sh[0].site;if(gps.lat){const sd=allSites.find(s=>s.name===site);if(sd&&sd.lat&&sd.lng)gpsOk=haversine(gps.lat,gps.lng,sd.lat,sd.lng)<=300}}}catch{}
+  const now=new Date().toISOString();
+  let gpsOk=null;
+  // GPS check against the known site
+  if(gps.lat&&site){const sd=allSites.find(s=>s.name===site);if(sd&&sd.lat&&sd.lng)gpsOk=haversine(gps.lat,gps.lng,sd.lat,sd.lng)<=300;}
   try{
     if(!isIn){
+      // SIGN IN — always today, always against the specific shift passed in
       await Promise.all([
-        db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:now,site},{onConflict:'staff_id'}),
-        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed in',site,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,is_manual:false})
+        db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:now,site:site||''},{onConflict:'staff_id'}),
+        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed in',site:site||'',lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false})
       ]);
       if(gpsOk===false){const admins=allStaff.filter(s=>s.is_admin);try{await db.from('rpc_notifications').insert(admins.map(a=>({staff_id:a.id,title:'GPS Alert',message:staffName+' signed in NOT at '+site,icon:'📍',is_read:false})))}catch{}}
       toast('✅ '+staffName+' signed in'+(gpsOk===false?' ⚠️ Not at site':''));
     }else{
-      let curSite=site;try{const {data:st}=await db.from('rpc_status').select('site').eq('staff_id',staffId).limit(1);if(st&&st.length)curSite=st[0].site||site}catch{}
+      // SIGN OUT — always today, use the site passed from the card
+      const curSite=site||'';
       await Promise.all([
-        db.from('rpc_status').upsert({staff_id:staffId,is_in:false,since:null,site:''},{onConflict:'staff_id'}),
-        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed out',site:curSite,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,is_manual:false})
+        db.from('rpc_status').upsert({staff_id:staffId,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'}),
+        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed out',site:curSite,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false})
       ]);
-      try{const {data:attT}=await db.from('rpc_attendance').select('*').eq('staff_id',staffId).eq('shift_date',today).order('created_at');const {data:brksT}=await db.from('rpc_breaks').select('duration_min').eq('staff_id',staffId).eq('shift_date',today);let wm=0;(attT||[]).forEach((a,i)=>{if(a.action==='Signed in'){const out=(attT||[]).slice(i+1).find(x=>x.action==='Signed out');if(out)wm+=(new Date(out.created_at)-new Date(a.created_at))/60000}});const bm=(brksT||[]).reduce((a,b)=>a+(b.duration_min||0),0);if(wm>300&&bm<30)await db.from('rpc_breaks').insert({staff_id:staffId,staff_name:staffName,shift_date:today,duration_min:30,is_auto:true,note:'Auto 30min — shift >5hrs'});}catch{}
+      // Auto break if >5hrs and no break recorded
+      try{const {data:attT}=await db.from('rpc_attendance').select('*').eq('staff_id',staffId).eq('shift_date',today).order('created_at');const {data:brksT}=await db.from('rpc_breaks').select('duration_min').eq('staff_id',staffId).eq('shift_date',today);let wm=0;(attT||[]).forEach((a,i)=>{if(a.action==='Signed in'){const out=(attT||[]).slice(i+1).find(x=>x.action==='Signed out');if(out)wm+=(new Date(out.created_at)-new Date(a.created_at))/60000}});const bm=(brksT||[]).reduce((a,b)=>a+(b.duration_min||0),0);if(wm>300&&bm<30)await db.from('rpc_breaks').insert({staff_id:staffId,staff_name:staffName,shift_date:today,shift_id:shiftId||null,duration_min:30,is_auto:true,note:'Auto 30min — shift >5hrs'});}catch{}
       toast('👋 '+staffName+' signed out'+(gpsOk===false?' ⚠️ Not at site':''));
     }
-    renderHome();
+    goHome();
   }catch(e){toast('Error: '+e.message)}
 }
 
+
+
 // BREAKS
-async function startBreak(){
-  toast('📍 Getting location...');const gps=await getGPS();
-  try{await db.from('rpc_breaks').insert({staff_id:CU.id,staff_name:CU.name,shift_date:todayStr(),start_time:new Date().toISOString(),start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,is_auto:false});toast('☕ Break started');renderHome()}
-  catch(e){toast('Error: '+e.message)}
+async function startBreak(shiftId){
+  toast('☕ Starting break...');
+  try{
+    const now=new Date().toISOString();
+    const {error}=await db.from('rpc_breaks').insert({
+      staff_id:CU.id,
+      staff_name:CU.name,
+      shift_id:shiftId||null,
+      start_time:now,
+      is_auto:false
+    });
+    if(error){toast('Break error: '+error.message);return;}
+    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:true},{onConflict:'staff_id'});
+    toast('☕ Break started');
+    await goHome();
+  }catch(e){toast('Error: '+e.message)}
 }
 async function endBreak(){
-  toast('📍 Getting location...');const gps=await getGPS();
+  toast('✅ Ending break...');
   try{
     const {data:ab}=await db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1);
     if(!ab||!ab.length){toast('No active break found');return}
     const b=ab[0],now=new Date().toISOString(),dur=Math.round((new Date(now)-new Date(b.start_time))/60000);
-    let note='';
-    try{const {data:a2}=await db.from('rpc_attendance').select('*').eq('staff_id',CU.id).eq('shift_date',todayStr()).order('created_at').limit(10);const fi=(a2||[]).find(a=>a.action==='Signed in');if(fi&&(new Date(b.start_time)-new Date(fi.created_at))/60000<30)note='Early break';const {data:sh}=await db.from('rpc_shifts').select('end_time').eq('staff_id',CU.id).eq('shift_date',todayStr()).limit(1);if(sh&&sh.length&&sh[0].end_time&&!note){const e2=new Date(todayStr()+'T'+sh[0].end_time);if((e2-new Date(b.start_time))/60000<30)note='Late break'}}catch{}
-    if(dur>45&&!note)note='Extended break (>45min)';
-    await db.from('rpc_breaks').update({end_time:now,end_lat:gps.lat,end_lng:gps.lng,end_address:gps.addr,duration_min:dur,note:note||null}).eq('id',b.id);
-    toast('✅ Break ended — '+fmtHrs(dur)+(note?' ⚠️ '+note:''));renderHome();
+    let note='';if(dur>45)note='Extended break (>45min)';
+    await db.from('rpc_breaks').update({end_time:now,duration_min:dur,note:note||null}).eq('id',b.id);
+    // Clear is_on_break in rpc_status
+    await db.from('rpc_status').upsert({staff_id:CU.id,is_on_break:false},{onConflict:'staff_id'});
+    toast('✅ Break ended — '+fmtHrs(dur)+(note?' ⚠️ '+note:''));
+    await goHome();
   }catch(e){toast('Error: '+e.message)}
 }
 
 // TRAVEL
-function openTrv(staffId,action){
-  pTrvId=staffId;pTrvAct=action;const s=allStaff.find(x=>x.id===staffId)||CU;pTrvNm=s.name;
-  q('TrvMT').textContent=action==='start'?'Start Travel':'End Travel';
-  q('TrvMS').textContent=action==='start'?'Record travel start for '+s.name:'Record travel end for '+s.name;
-  q('trvNt').value='';openM('TrvM');
+// openTrv: action='start'|'end'|'missed', travelType='home_to_site'|'inter_site'|'site_to_home'
+function openTrv(staffId,action,shiftId,travelType,nextShiftId){
+  pTrvId=staffId;pTrvAct=action;pTrvShiftId=shiftId||null;pTrvType=travelType||null;pTrvNextShiftId=nextShiftId||null;
+  const s=allStaff.find(x=>x.id===staffId)||CU;pTrvNm=s.name;
+  const labels={home_to_site:'🏠 Travel from Home',inter_site:'🚗 Travel to Next Site',site_to_home:'🏠 Travel Home After Work'};
+  const label=labels[travelType]||'Travel';
+  q('TrvMT').textContent=action==='end'?'End Travel':label;
+  q('TrvMS').textContent=action==='end'?'Tap to record your arrival':'Add a note (optional)';
+  q('trvNt').value='';
+  q('trvNt').style.display=action==='end'?'none':'block';
+  const ntLbl=q('trvNt').previousElementSibling;if(ntLbl)ntLbl.style.display=action==='end'?'none':'block';
+  // Remove any missed-travel type selector if it was added previously
+  const existing=q('trvType');if(existing)existing.remove();
+  openM('TrvM');
 }
 async function saveTrv(){
-  const note=q('trvNt').value.trim();toast('📍 Getting location...');const gps=await getGPS();
+  const note=q('trvNt').value.trim();
+  const typeEl=q('trvType');
+  const travelType=typeEl?typeEl.value:(pTrvType||'inter_site');
   const now=new Date().toISOString(),today=todayStr();
+  toast('🚗 Recording travel...');
   try{
-    if(pTrvAct==='start'){await db.from('rpc_travel').insert({staff_id:pTrvId,staff_name:pTrvNm,start_time:now,start_lat:gps.lat,start_lng:gps.lng,start_address:gps.addr,note:note||null,shift_date:today});toast('🚗 Travel started');}
-    else{const {data:tr}=await db.from('rpc_travel').select('*').eq('staff_id',pTrvId).is('end_time',null).limit(1);if(!tr||!tr.length){toast('No active travel. Tap Start Travel first.');return}const dur=Math.round((new Date(now)-new Date(tr[0].start_time))/60000);await db.from('rpc_travel').update({end_time:now,end_lat:gps.lat,end_lng:gps.lng,end_address:gps.addr,duration_min:dur}).eq('id',tr[0].id);toast('📍 Travel ended — '+fmtHrs(dur));}
-    closeM('TrvM');renderHome();
+    if(pTrvAct==='end'){
+      const {data:tr}=await db.from('rpc_travel').select('*').eq('staff_id',pTrvId).is('end_time',null).limit(1);
+      if(!tr||!tr.length){toast('No active travel to end.');return}
+      const dur=Math.round((new Date(now)-new Date(tr[0].start_time))/60000);
+      const {error}=await db.from('rpc_travel').update({end_time:now,duration_min:dur}).eq('id',tr[0].id);
+      if(error){toast('Travel error: '+error.message);return;}
+      toast('📍 Travel ended — '+fmtHrs(dur));
+    } else {
+      // start or missed — insert travel record
+      const {error}=await db.from('rpc_travel').insert({
+        staff_id:pTrvId,
+        staff_name:pTrvNm,
+        start_time:now,
+        note:note||null,
+        shift_date:today,
+        shift_id:pTrvShiftId||null,
+        next_shift_id:pTrvNextShiftId||null,
+        travel_type:travelType,
+        end_time:pTrvAct==='missed'?now:null,
+        duration_min:pTrvAct==='missed'?0:null
+      });
+      if(error){toast('Travel error: '+error.message);return;}
+      // If inter-site travel, auto sign out of current shift
+      if(travelType==='inter_site'&&pTrvId===CU.id){
+        await db.from('rpc_status').upsert({staff_id:CU.id,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'});
+        await db.from('rpc_attendance').insert({staff_id:CU.id,staff_name:CU.name,action:'Signed out',site:pTrvSite||'',shift_date:today,shift_id:pTrvShiftId||null,is_manual:false});
+      }
+      if(pTrvAct==='missed')toast('✅ Missed travel recorded');
+      else toast('🚗 Travel started');
+    }
+    if(typeEl)typeEl.remove();
+    closeM('TrvM');
+    await goHome();
   }catch(e){toast('Error: '+e.message)}
 }
+
+
 
 // ROSTER
 function buildRTabs(){
@@ -859,7 +1120,7 @@ async function renderDay(el2){
   var bb=document.createElement('button');bb.className='pvb';bb.textContent='Blocks';
   var listEl=document.createElement('div');
   var qb=db.from('rpc_shifts').select('*').eq('shift_date',selDay).order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   var {data:shifts}=await qb;
   var sm={};allStaff.forEach(function(s){sm[s.id]=s;});
   lb.onclick=function(){lb.classList.add('on');bb.classList.remove('on');renderDayList(listEl,shifts,sm);};
@@ -875,6 +1136,7 @@ async function renderDay(el2){
 function mkShiftItem(sh,sm){
   const s=sm[sh.staff_id],av=AV[s?s.color:'a']||AV.a;
   const card=document.createElement('div');card.className='rcard';
+  if(sh.status==='draft'||!sh.status){card.style.borderLeft='4px solid #e65100';card.style.opacity='0.85';}
   const top=document.createElement('div');top.className='ri';
   const topRow=document.createElement('div');topRow.className='ri-top';
   const avEl=document.createElement('div');avEl.className='av';avEl.style.cssText='background:'+av.bg+';color:'+av.c+';margin:0';
@@ -885,7 +1147,16 @@ function mkShiftItem(sh,sm){
   const arr=document.createElement('span');arr.style.cssText='color:var(--t3);font-size:14px;flex-shrink:0';arr.textContent='▼';
   topRow.appendChild(avEl);topRow.appendChild(body);topRow.appendChild(arr);
   if(CU.is_admin){const rb=document.createElement('button');rb.className='dbtn';rb.style.flexShrink='0';rb.textContent='Remove';const shId=sh.id;rb.onclick=e=>{e.stopPropagation();delShift(shId)};topRow.appendChild(rb);
-  const eb=document.createElement('button');eb.className='ebtn';eb.style.cssText='flex-shrink:0;margin-left:4px;background:var(--nv);color:#fff;border-color:var(--nv)';eb.textContent='Edit';eb.onclick=e=>{e.stopPropagation();openEditShift(sh)};topRow.appendChild(eb)}
+  const eb=document.createElement('button');eb.className='ebtn';eb.style.cssText='flex-shrink:0;margin-left:4px;background:var(--nv);color:#fff;border-color:var(--nv)';eb.textContent='Edit';eb.onclick=e=>{e.stopPropagation();openEditShift(sh)};topRow.appendChild(eb);
+  // Publish/Unpublish button
+  var isDraft=(sh.status==='draft'||!sh.status);
+  var pubBtn=document.createElement('button');
+  pubBtn.style.cssText='flex-shrink:0;margin-left:4px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;padding:4px 8px;'+(isDraft?'background:#e65100;color:#fff;':'background:#1b5e20;color:#fff;');
+  pubBtn.textContent=isDraft?'Publish':'Published';
+  if(isDraft){(function(id){pubBtn.onclick=function(e){e.stopPropagation();publishShift(id);};})(sh.id);}
+  else{pubBtn.style.opacity='0.6';pubBtn.style.cursor='default';}
+  topRow.appendChild(pubBtn);
+  }
   top.appendChild(topRow);
   const det=document.createElement('div');det.className='ri-det';
   if(sh.description)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px">📋 '+esc(sh.description)+'</div>';
@@ -925,7 +1196,7 @@ async function renderWeek(el2){
   const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'});
   const wl=q('WL');if(wl)wl.textContent=fmt(s)+' – '+fmt(e);
   let qb=db.from('rpc_shifts').select('*').gte('shift_date',s).lte('shift_date',e).order('shift_date').order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   const {data:shifts}=await qb;
   const sm={};allStaff.forEach(x=>sm[x.id]=x);
   el2.innerHTML='';
@@ -962,7 +1233,7 @@ async function renderByStaff(el2){
   const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short'});
   const wl=q('WL');if(wl)wl.textContent=fmt(s)+' – '+fmt(e);
   let qb=db.from('rpc_shifts').select('*').gte('shift_date',s).lte('shift_date',e).order('shift_date').order('start_time');
-  if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+  if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   const {data:shifts}=await qb;
   const staffToShow=CU.is_admin?allStaff.filter(x=>!x.is_admin):[CU];
   el2.innerHTML='';
@@ -1001,7 +1272,7 @@ async function loadRange(){
   const res=q('rgRes');res.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
     let qb=db.from('rpc_shifts').select('*').gte('shift_date',f).lte('shift_date',t2).order('shift_date').order('start_time');
-    if(!CU.is_admin)qb=qb.eq('staff_id',CU.id);
+    if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
     const {data:shifts}=await qb;res.innerHTML='';
     if(!shifts||!shifts.length){res.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts in this range.</div>';return}
     const grouped={};(shifts||[]).forEach(sh=>{if(!grouped[sh.shift_date])grouped[sh.shift_date]=[];grouped[sh.shift_date].push(sh)});
@@ -1019,7 +1290,7 @@ async function loadRange(){
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
   q('shSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');
-  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shPh').value='';q('DBW').innerHTML='';
+  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;openM('ShiftM');
 }
@@ -1027,11 +1298,11 @@ async function saveShift(){
   const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));
   if(!sel.length){toast('Select at least one staff member');return}
   const site=q('shSi').value,date=q('shDt').value,start=q('shS').value,end=q('shE').value;
-  const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes';
+  const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes',homeReturn=q('shHR').value==='yes';
   const photos=q('shPh').files;
   if(!site||!date){toast('Select site and date');return}
   try{
-    const inserts=sel.map(id=>({staff_id:id,site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeTrv}));
+    const inserts=sel.map(id=>({staff_id:id,site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeTrv,home_return_travel_pay:homeReturn,status:'draft'}));
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
     if(error){toast('Error: '+error.message);return}
     for(const staffId of sel){const s=allStaff.find(x=>x.id===staffId);const others=sel.filter(id=>id!==staffId).map(id=>allStaff.find(x=>x.id===id)).filter(Boolean).map(x=>x.name);let msg='Shift: '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'');if(others.length)msg+='. Also: '+others.join(', ');try{await db.from('rpc_notifications').insert({staff_id:staffId,title:'Shift Assigned',message:msg,icon:'📍',is_read:false})}catch{}}
@@ -1053,19 +1324,16 @@ async function renderLeave(){
 
 var lastLvNavTime=0;
 var lvApDates=[],lvPnDates=[],lvCalDiv=null;
-function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+function lvPrev(){var now=Date.now();if(now-lastLvNavTime<300)return;lastLvNavTime=now;if(lvM===0){lvM=11;lvY--}else lvM--;
+  if(lvCalDiv){var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}
+  else{buildLvCal();}}
 function lvNext(){
   var now=Date.now();
   if(now-lastLvNavTime<300)return;
   lastLvNavTime=now;
   if(lvM===11){lvM=0;lvY++}else lvM++;
-  alert('lvM now='+lvM+' lvY='+lvY+' lvCalDiv='+(lvCalDiv?'OK':'NULL')+' lvApDates='+lvApDates.length);
-  try{
-    var cal=buildLeaveCal(lvApDates,lvPnDates);
-    alert('cal built='+(cal?'OK':'NULL'));
-    if(cal&&lvCalDiv){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);alert('Done!');}
-    else{alert('FAILED: cal='+cal+' lvCalDiv='+lvCalDiv);}
-  }catch(e){alert('ERROR: '+e.message);}
+  if(lvCalDiv){try{var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}catch(e){}}
+  else{buildLvCal();}
 }
 
 
@@ -1084,6 +1352,24 @@ for(let d=1;d<=last.getDate();d++){
 }
 }
 
+
+function selectLvDate(ds){
+  if(!lvStart||!lvPick){
+    lvStart=ds;lvEnd=null;lvPick=true;
+    if(q('lvS'))q('lvS').value=ds;
+    if(q('lvE'))q('lvE').value='';
+  } else {
+    if(ds<lvStart){lvEnd=lvStart;lvStart=ds;}else{lvEnd=ds;}
+    lvPick=false;
+    if(q('lvS'))q('lvS').value=lvStart;
+    if(q('lvE'))q('lvE').value=lvEnd||lvStart;
+  }
+  if(lvCalDiv){
+    try{var cal=buildLeaveCal(lvApDates,lvPnDates);if(cal){lvCalDiv.innerHTML='';lvCalDiv.appendChild(cal);}}catch(e){}
+  } else {
+    buildLvCal();
+  }
+}
 function buildLeaveCal(apDates,pnDates){
   const first=new Date(lvY,lvM,1),last=new Date(lvY,lvM+1,0);
   const cal=document.createElement('div');cal.className='lcal';
@@ -1102,7 +1388,7 @@ async function renderStaffLeave(el2){
   // Buttons
   var topDiv=document.createElement('div');topDiv.style.cssText='display:flex;gap:8px;margin-bottom:14px';
   var nb2=document.createElement('button');nb2.className='btn tl sm';nb2.style.cssText='margin:0;flex:1';nb2.textContent='+ New Request';
-  nb2.onclick=function(){
+  nb2.addEventListener('click',function(){
     lvStart=null;lvEnd=null;lvPick=false;
     lvY=new Date().getFullYear();lvM=new Date().getMonth();
     if(q('lvTp'))q('lvTp').value='';
@@ -1110,9 +1396,15 @@ async function renderStaffLeave(el2){
     if(q('lvAt'))q('lvAt').value='';
     buildLvCal();
     openM('LeaveM');
-  };
-  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='Download Form';
-  dlb.onclick=function(){const a=document.createElement('a');a.href='https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf';a.download='RapidProClean_LeaveForm.pdf';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);};
+  });
+  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📄 Download Form';
+  dlb.addEventListener('click',function(){
+    var a=document.createElement('a');
+    a.href='https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf';
+    a.download='RapidProClean_LeaveForm.pdf';
+    a.target='_blank';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  });
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
 
   // Load leave data
@@ -1169,7 +1461,10 @@ async function renderStaffLeave(el2){
 async function submitLeave(){
   var tp=q('lvTp').value;
   if(!tp){toast('Please select a leave type first');return}
-  if(!lvStart){toast('Tap a date on the calendar to select start date');return}
+  // Read from date inputs if not set via calendar tap
+  if(q('lvS')&&q('lvS').value)lvStart=q('lvS').value;
+  if(q('lvE')&&q('lvE').value)lvEnd=q('lvE').value;
+  if(!lvStart){toast('Please select a start date');return}
   var start=lvStart,end=lvEnd||lvStart,cm=q('lvCm').value.trim();
   var attUrl=null;
   var af=q('lvAt').files[0];
@@ -1213,11 +1508,19 @@ async function renderAdminLeave(el2){
   el2.innerHTML='';
   const pending=(leaves||[]).filter(l=>l.status==='pending').length;
   const slEl=document.createElement('div');slEl.className='sl';slEl.innerHTML='Leave Requests'+(pending>0?' <span style="background:var(--rd);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px">'+pending+' pending</span>':'');el2.appendChild(slEl);
-  const addBtn=document.createElement('button');addBtn.className='btn tl';addBtn.style.cssText='margin:0 0 14px 0;width:100%';addBtn.innerHTML='+ Add Leave for Staff Member';addBtn.onclick=openAddStaffLeave;el2.appendChild(addBtn);
+  const addBtn=document.createElement('button');addBtn.className='btn tl';addBtn.style.cssText='margin:0 0 14px 0;width:100%';addBtn.innerHTML='+ Add Leave for Staff Member';
+  addBtn.addEventListener('click',function(){openAddStaffLeave();});
+  el2.appendChild(addBtn);
   const tabs=document.createElement('div');tabs.className='vtabs';tabs.style.marginBottom='14px';
   ['all','pending','approved','rejected'].forEach((st,i)=>{const t=document.createElement('button');t.className='vtab'+(i===0?' on':'');t.textContent=st.charAt(0).toUpperCase()+st.slice(1);t.onclick=()=>{tabs.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));t.classList.add('on');el2.querySelectorAll('.lv-item').forEach(x=>{x.style.display=(st==='all'||x.dataset.status===st)?'block':'none'})};tabs.appendChild(t)});
   el2.appendChild(tabs);
-  if(!leaves||!leaves.length){el2.innerHTML+='<div class="empty"><div class="empty-ico">🌴</div>No leave requests yet.</div>';return}
+  if(!leaves||!leaves.length){
+    const empty=document.createElement('div');
+    empty.className='empty';
+    empty.innerHTML='<div class="empty-ico">🌴</div>No leave requests yet.';
+    el2.appendChild(empty);
+    return;
+  }
   (leaves||[]).forEach(l=>{
     const card=document.createElement('div');card.className='card lv-item';card.dataset.status=l.status;card.style.marginBottom='10px';
     const s=allStaff.find(x=>x.id===l.staff_id);
@@ -1241,10 +1544,11 @@ async function renderAdminLeave(el2){
   });
 }
 function openAddStaffLeave(){
-  // Build staff dropdown
-  const sel=q('AddLvStaff');sel.innerHTML='<option value="">-- Select staff member --</option>';
-  (allStaff||[]).filter(s=>!s.is_admin).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textName=s.name;o.textContent=s.name;sel.appendChild(o)});
-  q('AddLvType').value='Annual Leave';
+  const sel=q('AddLvStaff');
+  if(!sel){alert('AddLvStaff not found');return}
+  sel.innerHTML='<option value="">-- Select staff member --</option>';
+  (allStaff||[]).filter(s=>!s.is_admin).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o)});
+  q('AddLvType').selectedIndex=0;
   q('AddLvStart').value='';q('AddLvEnd').value='';q('AddLvNote').value='';
   openM('AddLvM');
 }
@@ -1259,17 +1563,19 @@ async function submitStaffLeave(){
   const s=allStaff.find(x=>x.id===staffId);
   if(!s){toast('Staff not found');return}
   try{
-    await db.from('rpc_leave').insert({
+    const {error:e1}=await db.from('rpc_leave').insert({
       staff_id:staffId,staff_name:s.name,leave_type:leaveType,
       start_date:start,end_date:end,status:'approved',
       comment:note||'Added by admin from paper form',
       created_at:new Date().toISOString()
     });
-    await db.from('rpc_notifications').insert({
+    if(e1){toast('Leave error: '+e1.message);return}
+    const {error:e2}=await db.from('rpc_notifications').insert({
       staff_id:staffId,title:'Leave Approved',
       message:'Your '+leaveType+' ('+fmtDate(start)+' – '+fmtDate(end)+') has been approved.'+(note?' Note: '+note:''),
       icon:'✅',is_read:false
     });
+    if(e2){toast('Notification error: '+e2.message);return}
     closeM('AddLvM');toast('Leave added and approved ✅');renderLeave();
   }catch(e){toast('Error: '+e.message)}
 }
@@ -2011,7 +2317,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v7',
+      app_version: 'RapidProClean_v26',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -2163,7 +2469,12 @@ async function renderIncidents(){
       var acts=document.createElement('div');acts.style.cssText='display:flex;gap:6px;margin-top:8px;flex-wrap:wrap';
       var pdfB=document.createElement('button');pdfB.className='btn sc sm';pdfB.style.margin='0';pdfB.textContent='Download PDF';
       (function(i){pdfB.onclick=function(){downloadIncidentPDF(i)};})(inc);acts.appendChild(pdfB);
-      if(CU.is_admin&&inc.status!=='Reviewed'){var rvB=document.createElement('button');rvB.className='btn tl sm';rvB.style.margin='0';rvB.textContent='Mark Reviewed';(function(id){rvB.onclick=function(){markIncidentReviewed(id)};})(inc.id);acts.appendChild(rvB);}
+      if(CU.is_admin){
+        if(inc.status!=='Reviewed'){var rvB=document.createElement('button');rvB.className='btn tl sm';rvB.style.margin='0';rvB.textContent='Mark Reviewed';(function(id){rvB.onclick=function(){markIncidentReviewed(id)};})(inc.id);acts.appendChild(rvB);}
+        var delIncBtn=document.createElement('button');delIncBtn.className='btn sc sm';delIncBtn.style.cssText='margin:0;color:#e53935;border-color:#e53935';delIncBtn.textContent='Delete';
+        (function(id,num){delIncBtn.onclick=function(){if(confirm('Delete incident report '+(num||id)+'? This cannot be undone.')){db.from('rpc_incidents').delete().eq('id',id).then(function(){toast('Incident deleted');renderIncidents();});}};})(inc.id,inc.incident_number);
+        acts.appendChild(delIncBtn);
+      }
       card.appendChild(acts);el2.appendChild(card);
     });
   }catch(e){el2.innerHTML='<div class="empty">Error loading. Run SQL in Supabase first.</div>';}
@@ -2312,6 +2623,8 @@ function openEditShift(sh){
   q('esEt').value=sh.end_time||'';
   q('esDs').value=sh.description||'';
   q('esAc').value=sh.access_notes||'';
+  q('esHT').value=sh.home_travel_pay?'yes':'no';
+  q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
   openM('EditShiftM');
 }
@@ -2336,7 +2649,10 @@ async function saveEditShift(){
       start_time:start||null,
       end_time:end||null,
       description:desc||null,
-      access_notes:access||null
+      access_notes:access||null,
+      home_travel_pay:q('esHT').value==='yes',
+      home_return_travel_pay:q('esHR').value==='yes',
+      status:'draft'
     }).eq('id',currentEditShift.id);
 
     if(error)throw error;
@@ -2361,6 +2677,25 @@ async function saveEditShift(){
   }catch(e){
     err.textContent='Error: '+(e.message||'Please try again');
   }
+}
+
+async function publishShift(id){
+  try{
+    var {data:sh,error}=await db.from('rpc_shifts').update({status:'published'}).eq('id',id).select().single();
+    if(error)throw error;
+    // Notify staff
+    var staffMember=allStaff.find(function(s){return s.id===sh.staff_id;});
+    var msg='Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' is now confirmed.';
+    await db.from('rpc_notifications').insert({
+      staff_id:sh.staff_id,
+      title:'Shift Confirmed ✅',
+      message:msg,
+      icon:'roster',
+      is_read:false
+    });
+    toast('Shift published — staff notified ✅');
+    if(q('p-roster').classList.contains('on'))renderRoster();
+  }catch(e){toast('Error: '+(e.message||'Try again'));}
 }
 </script>
 
@@ -2396,8 +2731,8 @@ async function saveEditShift(){
   <div style="background:#fff8e1;border-left:3px solid #f0a500;padding:10px 12px;border-radius:8px;margin-top:12px;font-size:12px;color:#8a5e00">
     ⚠️ This adds the leave as <b>Approved</b> immediately and notifies the staff member.
   </div>
-  <button class="btn tl" style="margin-top:14px;width:100%" onclick="submitStaffLeave()">✅ Add and Approve Leave</button>
-  <button class="btn ol" style="margin-top:8px;width:100%" onclick="closeM('AddLvM')">Cancel</button>
+  <button class="btn tl" style="margin-top:14px;width:100%;touch-action:manipulation" onclick="submitStaffLeave()">✅ Add and Approve Leave</button>
+  <button class="btn ol" style="margin-top:8px;width:100%;touch-action:manipulation" onclick="closeM('AddLvM')">Cancel</button>
 </div></div>
 
 <div class="mov" id="IncidentM"><div class="msh"><div class="mh"></div><div class="mt">Report Incident</div>
@@ -2449,6 +2784,10 @@ async function saveEditShift(){
   <textarea class="mta" id="esDs" placeholder="Describe tasks..."></textarea>
   <div class="mlbl">Access Notes (keys, codes, parking)</div>
   <textarea class="mta" id="esAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  <div class="mlbl">Pay Travel: Home to Site?</div>
+  <select class="msel" id="esHT"><option value="no">No</option><option value="yes">Yes — pay travel from home to site</option></select>
+  <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
+  <select class="msel" id="esHR"><option value="no">No</option><option value="yes">Yes — pay travel from site to home after work</option></select>
   <div id="esErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
   <button class="btn nv" onclick="saveEditShift()">Save Changes</button>
   <button class="btn sc" onclick="closeM('EditShiftM')">Cancel</button>
