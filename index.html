@@ -1397,8 +1397,13 @@ async function renderStaffLeave(el2){
     buildLvCal();
     openM('LeaveM');
   };
-  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='Download Form';
-  dlb.onclick=function(){window.open('https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf','_blank');};
+  var dlb=document.createElement('button');dlb.className='btn sc sm';dlb.style.cssText='margin:0;flex:1';dlb.textContent='📄 Leave Form';
+  dlb.onclick=function(){
+    const url='https://dhcgsdxgxqqlczifqxyq.supabase.co/storage/v1/object/public/rpc-photos/docs/RapidProClean%20LeaveForm.pdf';
+    window.open(url,'_blank');
+    // Also trigger download
+    const a=document.createElement('a');a.href=url;a.download='RapidProClean_LeaveForm.pdf';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);
+  };
   topDiv.appendChild(nb2);topDiv.appendChild(dlb);el2.appendChild(topDiv);
 
   // Load leave data
@@ -1506,7 +1511,13 @@ async function renderAdminLeave(el2){
   const tabs=document.createElement('div');tabs.className='vtabs';tabs.style.marginBottom='14px';
   ['all','pending','approved','rejected'].forEach((st,i)=>{const t=document.createElement('button');t.className='vtab'+(i===0?' on':'');t.textContent=st.charAt(0).toUpperCase()+st.slice(1);t.onclick=()=>{tabs.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));t.classList.add('on');el2.querySelectorAll('.lv-item').forEach(x=>{x.style.display=(st==='all'||x.dataset.status===st)?'block':'none'})};tabs.appendChild(t)});
   el2.appendChild(tabs);
-  if(!leaves||!leaves.length){el2.innerHTML+='<div class="empty"><div class="empty-ico">🌴</div>No leave requests yet.</div>';return}
+  if(!leaves||!leaves.length){
+    const empty=document.createElement('div');
+    empty.className='empty';
+    empty.innerHTML='<div class="empty-ico">🌴</div>No leave requests yet.';
+    el2.appendChild(empty);
+    return;
+  }
   (leaves||[]).forEach(l=>{
     const card=document.createElement('div');card.className='card lv-item';card.dataset.status=l.status;card.style.marginBottom='10px';
     const s=allStaff.find(x=>x.id===l.staff_id);
@@ -1530,10 +1541,11 @@ async function renderAdminLeave(el2){
   });
 }
 function openAddStaffLeave(){
-  // Build staff dropdown
-  const sel=q('AddLvStaff');sel.innerHTML='<option value="">-- Select staff member --</option>';
-  (allStaff||[]).filter(s=>!s.is_admin).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textName=s.name;o.textContent=s.name;sel.appendChild(o)});
-  q('AddLvType').value='Annual Leave';
+  const sel=q('AddLvStaff');
+  if(!sel){alert('AddLvStaff not found');return}
+  sel.innerHTML='<option value="">-- Select staff member --</option>';
+  (allStaff||[]).filter(s=>!s.is_admin).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o)});
+  q('AddLvType').selectedIndex=0;
   q('AddLvStart').value='';q('AddLvEnd').value='';q('AddLvNote').value='';
   openM('AddLvM');
 }
