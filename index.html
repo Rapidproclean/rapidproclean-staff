@@ -703,13 +703,14 @@ async function renderStaffHome(el2,sm,tm){
       db.from('rpc_shifts').select('*').eq('staff_id',CU.id).eq('shift_date',today).eq('status','published').order('start_time')
     ]);
     att=aR.data||[];trvs=tvR.data||[];brks=bkR.data||[];
-    // Primary: dedicated query for open break (no date filter)
-    // Fallback: check today's breaks array for any unclosed record
-    activeBrk=(abR.data||[])[0]||brks.find(b=>!b.end_time)||null;
+    // Double detection: dedicated null query + scan today's breaks for unclosed record
+    const fromDedicatedQuery=(abR.data||[])[0]||null;
+    const fromTodayScan=(bkR.data||[]).find(b=>!b.end_time&&b.end_time!=='')||null;
+    activeBrk=fromDedicatedQuery||fromTodayScan||null;
     activeTrv=(atR.data||[])[0]||null;
     notifs=nR.data||[];
     todayShifts=shR.data||[];
-  }catch{}
+  }catch(e){console.error('renderStaffHome query error:',e)}
 
   const st=sm[CU.id]||{};
   const av=AV[CU.color||'a']||AV.a;
@@ -806,6 +807,7 @@ async function renderStaffHome(el2,sm,tm){
     // Shift status pill
     const spill=document.createElement('div');
     if(shComplete){spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Shift Complete';}
+    else if(shSignedIn&&isOnBrk){spill.className='pill br';spill.innerHTML='<div class="dot br"></div>On Break';}
     else if(shSignedIn){spill.className='pill in';spill.innerHTML='<div class="dot in"></div>Signed In';}
     else{spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Not Started';}
     shHdr.appendChild(spill);
@@ -829,7 +831,13 @@ async function renderStaffHome(el2,sm,tm){
 
     } else if(shSignedIn&&!shSignedOut){
       // Currently on this shift
-      if(!isOnBrk&&!isTrv){
+      if(isOnBrk){
+        // ON BREAK — show End Break prominently on the shift card too
+        const ebBtn=document.createElement('button');ebBtn.className='btn gn full';
+        ebBtn.textContent='✅ End Break — Tap When Break Is Over';
+        ebBtn.onclick=endBreak;
+        bg.appendChild(ebBtn);
+      } else if(!isTrv){
         const soBtn=document.createElement('button');soBtn.className='btn rd';
         soBtn.textContent='Sign Out';
         soBtn.onclick=()=>doTog(CU.id,CU.name,true,sh.id,sh.site);
