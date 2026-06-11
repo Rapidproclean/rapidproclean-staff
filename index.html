@@ -1155,6 +1155,7 @@ async function renderDay(el2){
   el2.appendChild(dateRow);el2.appendChild(tog);el2.appendChild(listEl);
   if(!shifts||!shifts.length){listEl.innerHTML='<div class="empty"><div class="empty-ico">📅</div>No shifts on this day.</div>';return;}
   renderDayList(listEl,shifts,sm);
+  const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
 }
 
 
@@ -1250,6 +1251,7 @@ async function renderWeek(el2){
     });
     el2.appendChild(dc);
   });
+  const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
 }
 
 // BY STAFF VIEW
