@@ -1933,6 +1933,16 @@ async function renderAdminDocs(el2){
         }
         row.appendChild(rowBtns);
         if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
+        // Delete signed record — admin only, removes record but keeps original doc
+        var delBtn=document.createElement('button');delBtn.className='dbtn';delBtn.textContent='Delete';delBtn.style.cssText='touch-action:manipulation';
+        (function(sid,sname,dname){delBtn.onclick=function(){
+          if(!confirm('Delete signed copy of "'+dname+'" for '+sname+'?\n\nThis removes it from your admin view only. The staff member keeps their own copy.'))return;
+          db.from('rpc_signed_docs').delete().eq('id',sid).then(function(res){
+            if(res.error){toast('Error: '+res.error.message);return;}
+            toast('Deleted signed record for '+sname);renderDocs();
+          });
+        };})(s.id,s.staff_name,docNames[s.doc_id]||'Document');
+        row.appendChild(delBtn);
         body2.appendChild(row);
       });
 
