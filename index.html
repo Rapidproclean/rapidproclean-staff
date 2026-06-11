@@ -2128,8 +2128,24 @@ async function genPayroll(){
   const from=q('PrF').value,to=q('PrT').value;if(!from||!to){toast('Select date range');return}
   const el2=q('PayC');el2.innerHTML='<div class="loader"><div class="spin"></div>Generating...</div>';
   try{
-    const [aR,shR,tvR,bkR]=await Promise.all([db.from('rpc_attendance').select('*').gte('shift_date',from).lte('shift_date',to).order('staff_name').order('created_at'),db.from('rpc_shifts').select('*').gte('shift_date',from).lte('shift_date',to),db.from('rpc_travel').select('*').gte('shift_date',from).lte('shift_date',to).not('end_time','is',null),db.from('rpc_breaks').select('*').gte('shift_date',from).lte('shift_date',to)]);
-    const att=aR.data||[],shifts=shR.data||[],travels=tvR.data||[],breaks=bkR.data||[];
+    // Query attendance by shift_date OR by created_at (for records where shift_date is null)
+    // This ensures all staff appear regardless of whether shift_date was stored
+    const fromTs=from+'T00:00:00+00:00',toTs=to+'T23:59:59+00:00';
+    const [aR,aR2,shR,tvR,tvR2,bkR,bkR2]=await Promise.all([
+      db.from('rpc_attendance').select('*').gte('shift_date',from).lte('shift_date',to).order('staff_name').order('created_at'),
+      db.from('rpc_attendance').select('*').is('shift_date',null).gte('created_at',fromTs).lte('created_at',toTs).order('staff_name').order('created_at'),
+      db.from('rpc_shifts').select('*').gte('shift_date',from).lte('shift_date',to),
+      db.from('rpc_travel').select('*').gte('shift_date',from).lte('shift_date',to).not('end_time','is',null),
+      db.from('rpc_travel').select('*').is('shift_date',null).gte('created_at',fromTs).lte('created_at',toTs).not('end_time','is',null),
+      db.from('rpc_breaks').select('*').gte('shift_date',from).lte('shift_date',to),
+      db.from('rpc_breaks').select('*').is('shift_date',null).gte('created_at',fromTs).lte('created_at',toTs)
+    ]);
+    // Merge results — for null shift_date records, derive shift_date from created_at (Perth = UTC+8)
+    const fixDate=r=>{if(!r.shift_date&&r.created_at){const d=new Date(new Date(r.created_at).getTime()+8*3600000);r.shift_date=d.toISOString().slice(0,10);}return r;};
+    const att=[...(aR.data||[]),...(aR2.data||[]).map(fixDate)];
+    const travels=[...(tvR.data||[]),...(tvR2.data||[]).map(fixDate)].filter(t=>t.end_time);
+    const breaks=[...(bkR.data||[]),...(bkR2.data||[]).map(fixDate)];
+    const shifts=shR.data||[];
     if(!att.length){el2.innerHTML='<div class="empty"><div class="empty-ico">📊</div>No attendance data for this period.</div>';return}
     const sessions=buildSessions(att,shifts);
     const trvBy={};travels.forEach(t=>{if(!trvBy[t.staff_name])trvBy[t.staff_name]=0;trvBy[t.staff_name]+=(t.duration_min||0)});
