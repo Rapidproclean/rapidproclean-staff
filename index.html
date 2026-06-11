@@ -1343,6 +1343,7 @@ async function renderLeave(){
   const el2=q('LeaveC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading leave...</div>';
   try{if(CU.is_admin)await renderAdminLeave(el2);else await renderStaffLeave(el2)}
   catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">🌴</div>Error loading leave portal.<br><small>Run the database SQL setup first.</small></div>'}
+  const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
 }
 
 
@@ -1568,6 +1569,7 @@ async function renderAdminLeave(el2){
     };})(l.id);
     card.appendChild(delLvBtn);
   });
+  const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
 }
 function openAddStaffLeave(){
   const sel=q('AddLvStaff');
@@ -1686,6 +1688,7 @@ async function renderDocs(){
   const el2=q('DocsC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading documents...</div>';
   try{if(CU.is_admin)await renderAdminDocs(el2);else await renderStaffDocs(el2)}
   catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">📄</div>Error loading documents.<br><small>Run the database SQL setup first.</small></div>'}
+  const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
 }
 async function renderStaffDocs(el2){
   el2.innerHTML='<div class="sl">Company Documents</div><div class="loader"><div class="spin"></div>Loading documents...</div>';
@@ -2130,8 +2133,8 @@ function buildPhotos(el2,bySite,shiftMap,view){
     if(CU.is_admin){const allPs=Object.values(cats).flat();const dab=document.createElement('button');dab.className='btn rd sm';dab.style.margin='8px 0 0';dab.textContent='🗑 Delete All '+site+' Photos';dab.onclick=()=>delSitePhotos(site,allPs);sfb.appendChild(dab)}
     sf.appendChild(sfh);sf.appendChild(sfb);el2.appendChild(sf);
   });
-}
-function toggleSel(){selMode=!selMode;selPh=[];q('SelBtn').textContent=selMode?'✕ Cancel':'☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
+  const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
+}{selMode=!selMode;selPh=[];q('SelBtn').textContent=selMode?'✕ Cancel':'☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
 function clearSel(){selMode=false;selPh=[];q('SelBtn').textContent='☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
 function tgSh(k){shOpts[k]=!shOpts[k];const b=q('tg'+k);if(b)b.classList.toggle('on',shOpts[k])}
 function doShareLink(){if(!selPh.length){toast('Select photos first');return}const payload={photos:selPh,opts:shOpts,company:'Rapid Pro Clean',generated:new Date().toISOString()};const link=window.location.href.split('?')[0]+'?share='+btoa(unescape(encodeURIComponent(JSON.stringify(payload))));navigator.clipboard.writeText(link).catch(()=>{});toast('Share link copied ✅')}
@@ -2198,6 +2201,7 @@ async function genPayroll(){
     sessions.forEach(s=>{const bm=brkBy[s.name]||0;const flags=[];if(s.lateMin>10)flags.push('⏰'+s.lateMin+'m late');if(s.earlyMin>10)flags.push('⚡early');if(s.otMin>0)flags.push('⏱+'+fmtHrs(s.otMin));if(s.gpsIn===false)flags.push('📍in⚠️');if(s.gpsOut===false)flags.push('📍out⚠️');const row=document.createElement('tr');if(flags.length)row.className='fl';row.innerHTML='<td>'+esc(s.name)+'</td><td>'+fmtDate(s.date)+'</td><td>'+esc(s.site||'')+'</td><td>'+esc(s.schIn)+'</td><td>'+esc(s.schOut)+'</td><td>'+esc(s.actIn)+(s.inMan?' ✏️':'')+'</td><td>'+esc(s.actOut)+(s.outMan?' ✏️':'')+'</td><td>'+esc(s.hrs)+'</td><td style="color:var(--or)">'+(bm>0?'-'+fmtHrs(bm):'—')+'</td><td style="color:var(--or)">'+(s.otMin>0?'+'+fmtHrs(s.otMin):'—')+'</td><td>'+(s.isMan?'✏️':'—')+'</td><td style="font-size:10px">'+(flags.length?flags.join(' '):'✅')+'</td>';tbody.appendChild(row)});
     tbl.appendChild(tbody);wrap.appendChild(tbl);el2.appendChild(wrap);
     if(travels.length){const slT=document.createElement('div');slT.className='sl';slT.textContent='Travel Hours';el2.appendChild(slT);const tw=document.createElement('div');tw.className='prs';const tt=document.createElement('table');tt.className='prt';tt.innerHTML='<thead><tr><th>Staff</th><th>Date</th><th>Note</th><th>Start</th><th>End</th><th>Duration</th><th>From</th><th>To</th></tr></thead>';const tb2=document.createElement('tbody');travels.forEach(t=>{const row=document.createElement('tr');row.style.background='var(--aml)';row.innerHTML='<td>'+esc(t.staff_name)+'</td><td>'+fmtDate(t.shift_date)+'</td><td>'+esc(t.note||'')+'</td><td>'+fmtT(t.start_time)+'</td><td>'+fmtT(t.end_time)+'</td><td style="font-weight:700;color:var(--am)">'+fmtHrs(t.duration_min||0)+'</td><td style="font-size:10px">'+esc((t.start_address||'').slice(0,40))+'</td><td style="font-size:10px">'+esc((t.end_address||'').slice(0,40))+'</td>';tb2.appendChild(row)});tt.appendChild(tb2);tw.appendChild(tt);el2.appendChild(tw)}
+    const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
   }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error: '+esc(e.message)+'</div>'}
 }
 function buildSessions(att,shifts){
@@ -2217,6 +2221,8 @@ async function renderAdmin(){
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div></div><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   q('ntTg').innerHTML='<option value="all">All Staff</option>'+allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+  // Bottom spacer
+  const adminPage=q('p-admin');if(adminPage){const sp=document.createElement('div');sp.style.height='200px';adminPage.appendChild(sp);}
 }
 async function saveStaff(){
   var nm=q('nNm').value.trim(),pin=q('nPn').value.trim();
@@ -2530,6 +2536,7 @@ async function renderIncidents(){
       }
       card.appendChild(acts);el2.appendChild(card);
     });
+    const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
   }catch(e){el2.innerHTML='<div class="empty">Error loading. Run SQL in Supabase first.</div>';}
 }
 var incSigCtx=null,incSigDrawing=false;
