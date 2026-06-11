@@ -1283,9 +1283,8 @@ async function renderByStaff(el2){
     });
     el2.appendChild(card);
   });
+  const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
 }
-
-// RANGE VIEW
 async function renderRange(el2){
   el2.innerHTML='';
   const wrap=document.createElement('div');wrap.className='card';wrap.style.marginBottom='14px';
@@ -1873,7 +1872,8 @@ async function renderAdminDocs(el2){
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(d.url);
         var db2=document.createElement('button');db2.className='dbtn';db2.textContent='Delete';
         (function(id,name,path){db2.onclick=function(){delDoc(id,name,path)};})(d.id,d.name,d.storage_path);
-        dacts.appendChild(vb);dacts.appendChild(db2);
+        dacts.appendChild(vb);
+        if(CU.is_admin){dacts.appendChild(db2);}
         ditem.appendChild(dic);ditem.appendChild(dinf);ditem.appendChild(dacts);
         body.appendChild(ditem);
       });
