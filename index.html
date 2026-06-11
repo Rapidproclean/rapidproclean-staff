@@ -2186,7 +2186,14 @@ async function genPayroll(){
     if(!att.length){el2.innerHTML='<div class="empty"><div class="empty-ico">📊</div>No attendance data for this period.</div>';return}
     const sessions=buildSessions(att,shifts);
     const trvBy={};travels.forEach(t=>{if(!trvBy[t.staff_name])trvBy[t.staff_name]=0;trvBy[t.staff_name]+=(t.duration_min||0)});
-    const brkBy={};breaks.forEach(b=>{if(!brkBy[b.staff_name])brkBy[b.staff_name]=0;brkBy[b.staff_name]+=(b.duration_min||30)});
+    const brkBy={};breaks.forEach(b=>{
+      // Only count breaks that are properly closed and have a sensible duration
+      if(!b.end_time)return; // skip open/unclosed breaks
+      const dur=b.duration_min||0;
+      if(dur<=0||dur>240)return; // skip zero, negative, or absurdly long breaks (>4hrs)
+      if(!brkBy[b.staff_name])brkBy[b.staff_name]=0;
+      brkBy[b.staff_name]+=dur;
+    });
     const byStaff={};sessions.forEach(s=>{if(!byStaff[s.name])byStaff[s.name]=[];byStaff[s.name].push(s)});
     el2.innerHTML='<div class="sl">Period: '+fmtDate(from)+' – '+fmtDate(to)+'</div>';
     const eb=document.createElement('button');eb.className='btn am sm';eb.style.marginBottom='12px';eb.textContent='⬇ Export CSV';eb.onclick=()=>exportCSV(from,to,sessions,travels,brkBy,trvBy);el2.appendChild(eb);
