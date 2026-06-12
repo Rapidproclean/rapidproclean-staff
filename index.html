@@ -2167,7 +2167,8 @@ async function genPayroll(){
   try{
     // Query attendance by shift_date OR by created_at (for records where shift_date is null)
     // This ensures all staff appear regardless of whether shift_date was stored
-    const fromTs=from+'T00:00:00+00:00',toTs=to+'T23:59:59+00:00';
+    // Perth is UTC+8 — subtract 8hrs from start and add 8hrs to end to catch all Perth-time records
+    const fromTs=from+'T00:00:00+08:00',toTs=to+'T23:59:59+08:00';
     const [aR,aR2,shR,tvR,tvR2,bkR,bkR2]=await Promise.all([
       db.from('rpc_attendance').select('*').gte('shift_date',from).lte('shift_date',to).order('staff_name').order('created_at'),
       db.from('rpc_attendance').select('*').is('shift_date',null).gte('created_at',fromTs).lte('created_at',toTs).order('staff_name').order('created_at'),
@@ -2178,6 +2179,7 @@ async function genPayroll(){
       db.from('rpc_breaks').select('*').is('shift_date',null).gte('created_at',fromTs).lte('created_at',toTs)
     ]);
     // Merge results — for null shift_date records, derive shift_date from created_at (Perth = UTC+8)
+    // For null shift_date records, derive shift_date from created_at in Perth time (UTC+8)
     const fixDate=r=>{if(!r.shift_date&&r.created_at){const d=new Date(new Date(r.created_at).getTime()+8*3600000);r.shift_date=d.toISOString().slice(0,10);}return r;};
     const att=[...(aR.data||[]),...(aR2.data||[]).map(fixDate)];
     const travels=[...(tvR.data||[]),...(tvR2.data||[]).map(fixDate)].filter(t=>t.end_time);
