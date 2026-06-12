@@ -966,21 +966,19 @@ async function doTog(staffId,staffName,isIn,shiftId,site){
   if(gps.lat&&site){const sd=allSites.find(s=>s.name===site);if(sd&&sd.lat&&sd.lng)gpsOk=haversine(gps.lat,gps.lng,sd.lat,sd.lng)<=300;}
   try{
     if(!isIn){
-      // SIGN IN
-      await Promise.all([
-        db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:now,site:site||''},{onConflict:'staff_id'}),
-        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed in',site:site||'',lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false})
-      ]);
+      // SIGN IN — update status first, then insert attendance separately
+      await db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:now,site:site||''},{onConflict:'staff_id'});
+      const {error:attErr}=await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed in',site:site||'',lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false});
+      if(attErr){toast('⚠️ Sign in saved but attendance record failed: '+attErr.message);console.error('Attendance insert error:',attErr);}
       const signInTime=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:true});
       const gpsNote=gpsOk===false?' ⚠️ Not at site':'';
       notifyAdmins('🟢 '+staffName+' signed in',signInTime+' at '+esc(site||'Unknown site')+gpsNote,'✅');
       toast('✅ Signed in at '+signInTime+(gpsOk===false?' ⚠️ Not at site':''));
     }else{
       const curSite=site||'';
-      await Promise.all([
-        db.from('rpc_status').upsert({staff_id:staffId,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'}),
-        db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed out',site:curSite,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false})
-      ]);
+      await db.from('rpc_status').upsert({staff_id:staffId,is_in:false,is_on_break:false,since:null,site:''},{onConflict:'staff_id'});
+      const {error:attErr2}=await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:staffName,action:'Signed out',site:curSite,lat:gps.lat,lng:gps.lng,address:gps.addr,gps_ok:gpsOk,shift_date:today,shift_id:shiftId||null,is_manual:false});
+      if(attErr2){toast('⚠️ Sign out saved but attendance record failed: '+attErr2.message);console.error('Attendance insert error:',attErr2);}
       try{const {data:attT}=await db.from('rpc_attendance').select('*').eq('staff_id',staffId).eq('shift_date',today).order('created_at');const {data:brksT}=await db.from('rpc_breaks').select('duration_min').eq('staff_id',staffId).eq('shift_date',today);let wm=0;(attT||[]).forEach((a,i)=>{if(a.action==='Signed in'){const out=(attT||[]).slice(i+1).find(x=>x.action==='Signed out');if(out)wm+=(new Date(out.created_at)-new Date(a.created_at))/60000}});const bm=(brksT||[]).reduce((a,b)=>a+(b.duration_min||0),0);if(wm>300&&bm<30)await db.from('rpc_breaks').insert({staff_id:staffId,staff_name:staffName,shift_date:today,shift_id:shiftId||null,duration_min:30,is_auto:true,note:'Auto 30min — shift >5hrs'});}catch{}
       const signOutTime=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:true});
       notifyAdmins('🔴 '+staffName+' signed out',signOutTime+' from '+esc(curSite||'Unknown site'),'👋');
