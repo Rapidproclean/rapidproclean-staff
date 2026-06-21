@@ -2168,7 +2168,7 @@ async function genPayroll(){
     // This catches ALL records regardless of shift_date value
     const fromTs=from+'T00:00:00+08:00',toTs=to+'T23:59:59+08:00';
     const [aR,shR,tvR,bkR]=await Promise.all([
-      db.from('rpc_attendance').select('*').gte('created_at',fromTs).lte('created_at',toTs).order('staff_name').order('created_at'),
+      db.from('rpc_attendance').select('*').gte('created_at',fromTs).lte('created_at',toTs).order('created_at'),
       db.from('rpc_shifts').select('*').gte('shift_date',from).lte('shift_date',to),
       db.from('rpc_travel').select('*').gte('created_at',fromTs).lte('created_at',toTs).not('end_time','is',null),
       db.from('rpc_breaks').select('*').gte('created_at',fromTs).lte('created_at',toTs)
@@ -2209,7 +2209,15 @@ async function genPayroll(){
 }
 function buildSessions(att,shifts){
   const byKey={};att.forEach(a=>{const k=a.staff_id+'_'+a.shift_date;if(!byKey[k])byKey[k]={name:a.staff_name,staffId:a.staff_id,date:a.shift_date,site:a.site,inR:null,outR:null};if(a.action==='Signed in'&&!byKey[k].inR)byKey[k].inR=a;if(a.action==='Signed out')byKey[k].outR=a});
-  return Object.values(byKey).map(s=>{const sh=shifts.find(x=>x.staff_id===s.staffId&&x.shift_date===s.date);const inT=s.inR?new Date(s.inR.created_at):null,outT=s.outR?new Date(s.outR.created_at):null;const wMin=inT&&outT?(outT-inT)/60000:null;const shInT=sh&&sh.start_time?new Date(s.date+'T'+sh.start_time):null;const shOutT=sh&&sh.end_time?new Date(s.date+'T'+sh.end_time):null;const lateMin=shInT&&inT?Math.max(0,Math.round((inT-shInT)/60000)):0;const earlyMin=shOutT&&outT?Math.max(0,Math.round((shOutT-outT)/60000)):0;const otMin=shOutT&&outT?Math.max(0,Math.round((outT-shOutT)/60000)):0;return{name:s.name,staffId:s.staffId,date:s.date,site:s.site,schIn:sh&&sh.start_time?fmt12(sh.start_time):'',schOut:sh&&sh.end_time?fmt12(sh.end_time):'',actIn:inT?fmtT(inT.toISOString()):'',actOut:outT?fmtT(outT.toISOString()):'',hrs:wMin!==null?fmtHrs(wMin):'',otMin,lateMin,earlyMin,gpsIn:s.inR?s.inR.gps_ok:null,gpsOut:s.outR?s.outR.gps_ok:null,isMan:!!(s.inR?.is_manual||s.outR?.is_manual),inMan:!!s.inR?.is_manual,outMan:!!s.outR?.is_manual}});
+  const sessions=Object.values(byKey).map(s=>{const sh=shifts.find(x=>x.staff_id===s.staffId&&x.shift_date===s.date);const inT=s.inR?new Date(s.inR.created_at):null,outT=s.outR?new Date(s.outR.created_at):null;const wMin=inT&&outT?(outT-inT)/60000:null;const shInT=sh&&sh.start_time?new Date(s.date+'T'+sh.start_time):null;const shOutT=sh&&sh.end_time?new Date(s.date+'T'+sh.end_time):null;const lateMin=shInT&&inT?Math.max(0,Math.round((inT-shInT)/60000)):0;const earlyMin=shOutT&&outT?Math.max(0,Math.round((shOutT-outT)/60000)):0;const otMin=shOutT&&outT?Math.max(0,Math.round((outT-shOutT)/60000)):0;return{name:s.name,staffId:s.staffId,date:s.date,site:s.site,schIn:sh&&sh.start_time?fmt12(sh.start_time):'',schOut:sh&&sh.end_time?fmt12(sh.end_time):'',actIn:inT?fmtT(inT.toISOString()):'',actOut:outT?fmtT(outT.toISOString()):'',hrs:wMin!==null?fmtHrs(wMin):'',otMin,lateMin,earlyMin,gpsIn:s.inR?s.inR.gps_ok:null,gpsOut:s.outR?s.outR.gps_ok:null,isMan:!!(s.inR?.is_manual||s.outR?.is_manual),inMan:!!s.inR?.is_manual,outMan:!!s.outR?.is_manual,_sortTs:inT?inT.getTime():(outT?outT.getTime():new Date(s.date).getTime())}});
+  // Sort chronologically: by date first, then by actual sign-in time within each day,
+  // then by staff name as a tie-breaker if timestamps are identical
+  sessions.sort((a,b)=>{
+    if(a.date!==b.date)return a.date<b.date?-1:1;
+    if(a._sortTs!==b._sortTs)return a._sortTs-b._sortTs;
+    return a.name.localeCompare(b.name);
+  });
+  return sessions;
 }
 async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
   const rows=[['Type','Staff','Date','Site','Sched In','Sched Out','Actual In','Actual Out','Work Hrs','Break','Travel','OT','Manual','Flags']];
