@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v27.0 build 20260625 — fixed End Break closing wrong row; fixed payroll excluding auto-credit breaks -->
+<!-- v27.1 build 20260628 — fixed End Break closing wrong row; fixed payroll excluding auto-credit breaks; fixed desktop multi-staff shift assignment -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
@@ -341,7 +341,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="ShiftM"><div class="msh"><div class="mh"></div><div class="mt">Assign Shift</div>
   <div id="DBW"></div>
   <div class="mlbl">Staff (tap to select multiple)</div>
-  <select class="msel" id="shSt" multiple style="height:110px"></select>
+  <div class="msel" id="shSt" style="height:140px;overflow-y:auto"></div>
   <div class="mlbl">Job Site</div><select class="msel" id="shSi"></select>
   <div class="mlbl">Date</div><input class="mi" id="shDt" type="date">
   <div class="mlbl">Shift Times</div>
@@ -1315,14 +1315,14 @@ async function loadRange(){
 
 // SHIFT MANAGEMENT
 function openAssign(){
-  q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+  q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:19px;height:19px;flex:none">'+esc(s.name)+'</label>').join('');
   q('shSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');
   q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';
-  const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
+  const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;openM('ShiftM');
 }
 async function saveShift(){
-  const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));
+  const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));
   if(!sel.length){toast('Select at least one staff member');return}
   const site=q('shSi').value,date=q('shDt').value,start=q('shS').value,end=q('shE').value;
   const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes',homeReturn=q('shHR').value==='yes';
