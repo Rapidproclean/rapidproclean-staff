@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v27.1 build 20260628 — fixed End Break closing wrong row; fixed payroll excluding auto-credit breaks; fixed desktop multi-staff shift assignment -->
+<!-- v26.1 build 20260612 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
@@ -341,7 +341,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="ShiftM"><div class="msh"><div class="mh"></div><div class="mt">Assign Shift</div>
   <div id="DBW"></div>
   <div class="mlbl">Staff (tap to select multiple)</div>
-  <div class="msel" id="shSt" style="height:140px;overflow-y:auto"></div>
+  <select class="msel" id="shSt" multiple style="height:110px"></select>
   <div class="mlbl">Job Site</div><select class="msel" id="shSi"></select>
   <div class="mlbl">Date</div><input class="mi" id="shDt" type="date">
   <div class="mlbl">Shift Times</div>
@@ -782,7 +782,18 @@ async function renderStaffHome(el2,sm,tm){
   // No shifts today
   if(!todayShifts.length){
     const slEl=document.createElement('div');slEl.className='sl';slEl.textContent="Today's Shifts";el2.appendChild(slEl);
-    const empty=document.createElement('div');empty.className='card';empty.innerHTML='<div class="cr"><div class="cs">No shifts assigned for today</div></div>';el2.appendChild(empty);
+    // If staff is signed in but shift disappeared (e.g. admin edited it back to draft),
+    // always show a Sign Out button so they are never stranded.
+    if(isIn){
+      const soCard=document.createElement('div');soCard.className='card';
+      soCard.innerHTML='<div class="cr" style="flex-direction:column;gap:10px"><div class="cs" style="color:var(--or)">&#9888;&#65039; Your shift details are not visible right now — but you are still signed in.</div></div>';
+      const soBtn=document.createElement('button');soBtn.className='btn rd full';soBtn.textContent='Sign Out';
+      soBtn.onclick=()=>doTog(CU.id,CU.name,true,null,st.site||'');
+      soCard.querySelector('.cr').appendChild(soBtn);
+      el2.appendChild(soCard);
+    } else {
+      const empty=document.createElement('div');empty.className='card';empty.innerHTML='<div class="cr"><div class="cs">No shifts assigned for today</div></div>';el2.appendChild(empty);
+    }
     return;
   }
 
@@ -1013,11 +1024,9 @@ async function startBreak(shiftId){
 async function endBreak(){
   toast('✅ Ending break...');
   try{
-    const {data:ab}=await db.from('rpc_breaks').select('*').eq('staff_id',CU.id).eq('is_auto',false).is('end_time',null).not('start_time','is',null).order('start_time',{ascending:false}).limit(1);
+    const {data:ab}=await db.from('rpc_breaks').select('*').eq('staff_id',CU.id).is('end_time',null).limit(1);
     if(!ab||!ab.length){toast('No active break found');return}
-    const b=ab[0];
-    if(!b.start_time){toast('Break record error — tell your manager');return}
-    const now=new Date().toISOString(),dur=Math.round((new Date(now)-new Date(b.start_time))/60000);
+    const b=ab[0],now=new Date().toISOString(),dur=Math.round((new Date(now)-new Date(b.start_time))/60000);
     let note='';if(dur>45)note='Extended break (>45min)';
     await db.from('rpc_breaks').update({end_time:now,duration_min:dur,note:note||null}).eq('id',b.id);
     // Clear is_on_break in rpc_status
@@ -1315,14 +1324,14 @@ async function loadRange(){
 
 // SHIFT MANAGEMENT
 function openAssign(){
-  q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:19px;height:19px;flex:none">'+esc(s.name)+'</label>').join('');
+  q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
   q('shSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');
   q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';
-  const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
+  const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;openM('ShiftM');
 }
 async function saveShift(){
-  const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));
+  const sel=Array.from(q('shSt').selectedOptions).map(o=>parseInt(o.value));
   if(!sel.length){toast('Select at least one staff member');return}
   const site=q('shSi').value,date=q('shDt').value,start=q('shS').value,end=q('shE').value;
   const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes',homeReturn=q('shHR').value==='yes';
@@ -2185,31 +2194,25 @@ async function genPayroll(){
     const sessions=buildSessions(att,shifts);
     const trvBy={};travels.forEach(t=>{if(!trvBy[t.staff_name])trvBy[t.staff_name]=0;trvBy[t.staff_name]+=(t.duration_min||0)});
     const brkBy={};breaks.forEach(b=>{
-      // Auto 30-min credits never get an end_time (they're a flat credit, not a timed break) — count them on insert.
-      // Manual breaks must be properly closed with a sensible duration before counting.
+      // Only count breaks that are properly closed and have a sensible duration
+      if(!b.end_time)return; // skip open/unclosed breaks
       const dur=b.duration_min||0;
-      if(b.is_auto){
-        if(dur<=0||dur>240)return;
-      }else{
-        if(!b.end_time)return; // skip open/unclosed manual breaks
-        if(dur<=0||dur>240)return; // skip zero, negative, or absurdly long breaks (>4hrs)
-      }
-      const key=b.staff_name+'|'+b.shift_date; // attribute to the day it happened, not the whole period
-      if(!brkBy[key])brkBy[key]=0;
-      brkBy[key]+=dur;
+      if(dur<=0||dur>240)return; // skip zero, negative, or absurdly long breaks (>4hrs)
+      if(!brkBy[b.staff_name])brkBy[b.staff_name]=0;
+      brkBy[b.staff_name]+=dur;
     });
     const byStaff={};sessions.forEach(s=>{if(!byStaff[s.name])byStaff[s.name]=[];byStaff[s.name].push(s)});
     el2.innerHTML='<div class="sl">Period: '+fmtDate(from)+' – '+fmtDate(to)+'</div>';
     const eb=document.createElement('button');eb.className='btn am sm';eb.style.marginBottom='12px';eb.textContent='⬇ Export CSV';eb.onclick=()=>exportCSV(from,to,sessions,travels,brkBy,trvBy);el2.appendChild(eb);
     const slS=document.createElement('div');slS.className='sl';slS.textContent='Summary';el2.appendChild(slS);
     const sumCard=document.createElement('div');sumCard.className='card';
-    Object.entries(byStaff).forEach(([name,sess])=>{const workMin=sess.reduce((a,s)=>a+parseMin(s.hrs),0);const brkMin=sess.reduce((a,s)=>a+(brkBy[name+'|'+s.date]||0),0),trvMin=trvBy[name]||0;const paidMin=Math.max(0,workMin-brkMin)+trvMin;const row=document.createElement('div');row.className='cr';row.style.flexWrap='wrap';row.innerHTML='<div style="flex:1"><div class="cl">'+esc(name)+'</div><div class="cs">Work: '+fmtHrs(workMin)+' · Break: -'+fmtHrs(brkMin)+' · Travel: +'+fmtHrs(trvMin)+' · <strong>Total: '+fmtHrs(paidMin)+'</strong></div></div>';sumCard.appendChild(row)});
+    Object.entries(byStaff).forEach(([name,sess])=>{const workMin=sess.reduce((a,s)=>a+parseMin(s.hrs),0);const brkMin=brkBy[name]||0,trvMin=trvBy[name]||0;const paidMin=Math.max(0,workMin-brkMin)+trvMin;const row=document.createElement('div');row.className='cr';row.style.flexWrap='wrap';row.innerHTML='<div style="flex:1"><div class="cl">'+esc(name)+'</div><div class="cs">Work: '+fmtHrs(workMin)+' · Break: -'+fmtHrs(brkMin)+' · Travel: +'+fmtHrs(trvMin)+' · <strong>Total: '+fmtHrs(paidMin)+'</strong></div></div>';sumCard.appendChild(row)});
     el2.appendChild(sumCard);
     const slD=document.createElement('div');slD.className='sl';slD.textContent='Work Hours Detail';el2.appendChild(slD);
     const wrap=document.createElement('div');wrap.className='prs';const tbl=document.createElement('table');tbl.className='prt';
     tbl.innerHTML='<thead><tr><th>Staff</th><th>Date</th><th>Site</th><th>Sched In</th><th>Sched Out</th><th>Actual In</th><th>Actual Out</th><th>Hours</th><th>Break</th><th>OT</th><th>Manual</th><th>Flags</th></tr></thead>';
     const tbody=document.createElement('tbody');
-    sessions.forEach(s=>{const bm=brkBy[s.name+'|'+s.date]||0;const flags=[];if(s.lateMin>10)flags.push('⏰'+s.lateMin+'m late');if(s.earlyMin>10)flags.push('⚡early');if(s.otMin>0)flags.push('⏱+'+fmtHrs(s.otMin));if(s.gpsIn===false)flags.push('📍in⚠️');if(s.gpsOut===false)flags.push('📍out⚠️');const row=document.createElement('tr');if(flags.length)row.className='fl';row.innerHTML='<td>'+esc(s.name)+'</td><td>'+fmtDate(s.date)+'</td><td>'+esc(s.site||'')+'</td><td>'+esc(s.schIn)+'</td><td>'+esc(s.schOut)+'</td><td>'+esc(s.actIn)+(s.inMan?' ✏️':'')+'</td><td>'+esc(s.actOut)+(s.outMan?' ✏️':'')+'</td><td>'+esc(s.hrs)+'</td><td style="color:var(--or)">'+(bm>0?'-'+fmtHrs(bm):'—')+'</td><td style="color:var(--or)">'+(s.otMin>0?'+'+fmtHrs(s.otMin):'—')+'</td><td>'+(s.isMan?'✏️':'—')+'</td><td style="font-size:10px">'+(flags.length?flags.join(' '):'✅')+'</td>';tbody.appendChild(row)});
+    sessions.forEach(s=>{const bm=brkBy[s.name]||0;const flags=[];if(s.lateMin>10)flags.push('⏰'+s.lateMin+'m late');if(s.earlyMin>10)flags.push('⚡early');if(s.otMin>0)flags.push('⏱+'+fmtHrs(s.otMin));if(s.gpsIn===false)flags.push('📍in⚠️');if(s.gpsOut===false)flags.push('📍out⚠️');const row=document.createElement('tr');if(flags.length)row.className='fl';row.innerHTML='<td>'+esc(s.name)+'</td><td>'+fmtDate(s.date)+'</td><td>'+esc(s.site||'')+'</td><td>'+esc(s.schIn)+'</td><td>'+esc(s.schOut)+'</td><td>'+esc(s.actIn)+(s.inMan?' ✏️':'')+'</td><td>'+esc(s.actOut)+(s.outMan?' ✏️':'')+'</td><td>'+esc(s.hrs)+'</td><td style="color:var(--or)">'+(bm>0?'-'+fmtHrs(bm):'—')+'</td><td style="color:var(--or)">'+(s.otMin>0?'+'+fmtHrs(s.otMin):'—')+'</td><td>'+(s.isMan?'✏️':'—')+'</td><td style="font-size:10px">'+(flags.length?flags.join(' '):'✅')+'</td>';tbody.appendChild(row)});
     tbl.appendChild(tbody);wrap.appendChild(tbl);el2.appendChild(wrap);
     if(travels.length){const slT=document.createElement('div');slT.className='sl';slT.textContent='Travel Hours';el2.appendChild(slT);const tw=document.createElement('div');tw.className='prs';const tt=document.createElement('table');tt.className='prt';tt.innerHTML='<thead><tr><th>Staff</th><th>Date</th><th>Note</th><th>Start</th><th>End</th><th>Duration</th><th>From</th><th>To</th></tr></thead>';const tb2=document.createElement('tbody');travels.forEach(t=>{const row=document.createElement('tr');row.style.background='var(--aml)';row.innerHTML='<td>'+esc(t.staff_name)+'</td><td>'+fmtDate(t.shift_date)+'</td><td>'+esc(t.note||'')+'</td><td>'+fmtT(t.start_time)+'</td><td>'+fmtT(t.end_time)+'</td><td style="font-weight:700;color:var(--am)">'+fmtHrs(t.duration_min||0)+'</td><td style="font-size:10px">'+esc((t.start_address||'').slice(0,40))+'</td><td style="font-size:10px">'+esc((t.end_address||'').slice(0,40))+'</td>';tb2.appendChild(row)});tt.appendChild(tb2);tw.appendChild(tt);el2.appendChild(tw)}
     const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
@@ -2229,7 +2232,7 @@ function buildSessions(att,shifts){
 }
 async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
   const rows=[['Type','Staff','Date','Site','Sched In','Sched Out','Actual In','Actual Out','Work Hrs','Break','Travel','OT','Manual','Flags']];
-  sessions.forEach(s=>{const flags=[];if(s.lateMin>10)flags.push(s.lateMin+'min late');if(s.earlyMin>10)flags.push('Left early');if(s.otMin>0)flags.push('+'+fmtHrs(s.otMin)+' OT');if(s.gpsIn===false)flags.push('GPS in not at site');if(s.gpsOut===false)flags.push('GPS out not at site');const bm=brkBy[s.name+'|'+s.date]||0;rows.push(['Work',s.name,fmtDate(s.date),s.site,s.schIn,s.schOut,s.actIn+(s.inMan?' (manual)':''),s.actOut+(s.outMan?' (manual)':''),s.hrs,bm?'-'+fmtHrs(bm):'',fmtHrs(trvBy[s.name]||0),s.otMin>0?'+'+fmtHrs(s.otMin):'',s.isMan?'Yes':'',flags.join(';')])});
+  sessions.forEach(s=>{const flags=[];if(s.lateMin>10)flags.push(s.lateMin+'min late');if(s.earlyMin>10)flags.push('Left early');if(s.otMin>0)flags.push('+'+fmtHrs(s.otMin)+' OT');if(s.gpsIn===false)flags.push('GPS in not at site');if(s.gpsOut===false)flags.push('GPS out not at site');rows.push(['Work',s.name,fmtDate(s.date),s.site,s.schIn,s.schOut,s.actIn+(s.inMan?' (manual)':''),s.actOut+(s.outMan?' (manual)':''),s.hrs,brkBy[s.name]?'-'+fmtHrs(brkBy[s.name]):'',fmtHrs(trvBy[s.name]||0),s.otMin>0?'+'+fmtHrs(s.otMin):'',s.isMan?'Yes':'',flags.join(';')])});
   travels.forEach(t=>rows.push(['Travel',t.staff_name,fmtDate(t.shift_date),'','','','','','','',fmtHrs(t.duration_min||0),'','','']));
   dlCSV(rows,'RPC_Payroll_'+from+'_to_'+to);toast('CSV downloaded ⬇');
 }
@@ -2395,7 +2398,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v27',
+      app_version: 'RapidProClean_v26',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -2731,7 +2734,7 @@ async function saveEditShift(){
       access_notes:access||null,
       home_travel_pay:q('esHT').value==='yes',
       home_return_travel_pay:q('esHR').value==='yes',
-      status:'draft'
+      status:currentEditShift.status||'draft'
     }).eq('id',currentEditShift.id);
 
     if(error)throw error;
