@@ -1739,7 +1739,12 @@ async function renderStaffDocs(el2){
     el2.innerHTML='<div class="empty"><div class="empty-ico">📄</div>Error loading documents.<br><small>Run the database SQL setup in Supabase first.</small></div>';
     return;
   }
-  var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
+  var allFolders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
+  // Only show: (1) all-staff folders (no staff_folder_id) and (2) this staff member's own personal folder.
+  // Never show another staff member's personal folder.
+  var folders=allFolders.filter(function(f){
+    return f.staff_folder_id===null||f.staff_folder_id===CU.id;
+  });
   var signedIds=signed.map(function(s){return s.doc_id});
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   el2.innerHTML='<div class="sl">Company Documents</div>';
@@ -2127,7 +2132,7 @@ async function loadShiftPhotoStrip(shiftId){
   const strip=document.getElementById('ph-strip-'+shiftId);
   if(!strip)return;
   try{
-    const {data:ph}=await db.from('rpc_photos').select('id,url,label,created_at').eq('shift_id',shiftId).in('label',['Before','After']).order('created_at');
+    const {data:ph}=await db.from('rpc_photos').select('id,url,label,storage_path,staff_id,created_at').eq('shift_id',shiftId).in('label',['Before','After']).order('created_at');
     strip.innerHTML='';
     if(!ph||!ph.length){
       const hint=document.createElement('div');hint.style.cssText='font-size:10px;color:var(--t3);padding:2px 0';hint.textContent='No photos yet — tap a button above to upload';strip.appendChild(hint);return;
@@ -2138,6 +2143,25 @@ async function loadShiftPhotoStrip(shiftId){
       img.onclick=()=>openLB(p.url,p.label+' photo');
       const lbl=document.createElement('div');lbl.style.cssText='position:absolute;bottom:0;left:0;right:0;background:'+(p.label==='Before'?'rgba(10,80,160,.8)':'rgba(10,125,74,.8)')+';color:#fff;font-size:7px;font-weight:800;text-align:center;padding:2px 0;letter-spacing:.5px';
       lbl.textContent=p.label.toUpperCase();
+      // ✕ delete button — staff can delete their own photos only
+      if(p.staff_id===CU.id||CU.is_admin){
+        const xBtn=document.createElement('button');
+        xBtn.style.cssText='position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;font-size:10px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+        xBtn.textContent='✕';
+        xBtn.title='Delete this photo';
+        const pid=p.id,ppath=p.storage_path,sid=shiftId;
+        xBtn.onclick=async(e)=>{
+          e.stopPropagation();
+          if(!confirm('Delete this photo?'))return;
+          try{
+            if(ppath)await db.storage.from('rpc-photos').remove([ppath]);
+            await db.from('rpc_photos').delete().eq('id',pid);
+            toast('Photo deleted');
+            loadShiftPhotoStrip(sid);
+          }catch(err){toast('Error deleting photo')}
+        };
+        wrap.appendChild(xBtn);
+      }
       wrap.appendChild(img);wrap.appendChild(lbl);strip.appendChild(wrap);
     });
   }catch{}
