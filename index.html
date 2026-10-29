@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v27.2 build 20260719 — checkbox multi-staff; break fix; payroll break display; edit shift keeps status; fallback sign out -->
+<!-- v27.3 build 20261026 — all v27 fixes + Before/After photo upload on shift card + Admin PDF job report download -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
@@ -785,10 +785,9 @@ async function renderStaffHome(el2,sm,tm){
     if(isIn){
       const soCard=document.createElement('div');soCard.className='card';
       soCard.innerHTML='<div class="cr" style="flex-direction:column;gap:10px"><div class="cs" style="color:var(--or)">&#9888;&#65039; Your shift details are not visible right now — but you are still signed in.</div></div>';
-      const soBtn=document.createElement('button');soBtn.className='btn rd full';soBtn.textContent='Sign Out';
-      soBtn.onclick=()=>doTog(CU.id,CU.name,true,null,st.site||'');
-      soCard.querySelector('.cr').appendChild(soBtn);
-      el2.appendChild(soCard);
+      const soBtn2=document.createElement('button');soBtn2.className='btn rd full';soBtn2.textContent='Sign Out';
+      soBtn2.onclick=()=>doTog(CU.id,CU.name,true,null,st.site||'');
+      soCard.querySelector('.cr').appendChild(soBtn2);el2.appendChild(soCard);
     }else{
       const empty=document.createElement('div');empty.className='card';empty.innerHTML='<div class="cr"><div class="cs">No shifts assigned for today</div></div>';el2.appendChild(empty);
     }
@@ -920,6 +919,30 @@ async function renderStaffHome(el2,sm,tm){
 
     shCard.appendChild(bg);
 
+    // ── Before / After photo upload — always visible, not just when signed in ──
+    {
+      const phDiv=document.createElement('div');phDiv.style.cssText='margin-top:8px;padding:10px 12px;border-top:1px solid var(--bd)';
+      const phLabel=document.createElement('div');phLabel.style.cssText='font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--t3);margin-bottom:6px';phLabel.textContent='Shift Photos';
+      const phRow=document.createElement('div');phRow.style.cssText='display:flex;gap:6px;margin-bottom:8px';
+      const bfBtn=document.createElement('button');
+      bfBtn.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;padding:9px 6px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px solid var(--nv2);font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer';
+      bfBtn.textContent='📷 Before Photos';
+      const afBtn=document.createElement('button');
+      afBtn.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;padding:9px 6px;border-radius:var(--rs);background:#e6faf2;color:#0a7c4a;border:1.5px solid #0a7c4a;font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer';
+      afBtn.textContent='📷 After Photos';
+      const bfInp=document.createElement('input');bfInp.type='file';bfInp.accept='image/*';bfInp.multiple=true;bfInp.style.display='none';
+      const afInp=document.createElement('input');afInp.type='file';afInp.accept='image/*';afInp.multiple=true;afInp.style.display='none';
+      const _sid=sh.id,_ste=sh.site;
+      bfBtn.onclick=()=>bfInp.click();
+      afBtn.onclick=()=>afInp.click();
+      bfInp.onchange=async()=>{await uploadShiftPhotos(bfInp.files,_sid,_ste,'Before');bfInp.value='';loadShiftPhotoStrip(_sid)};
+      afInp.onchange=async()=>{await uploadShiftPhotos(afInp.files,_sid,_ste,'After');afInp.value='';loadShiftPhotoStrip(_sid)};
+      const phStrip=document.createElement('div');phStrip.id='ph-strip-'+sh.id;phStrip.style.cssText='display:flex;flex-wrap:wrap;gap:5px';
+      phRow.appendChild(bfBtn);phRow.appendChild(afBtn);
+      phDiv.appendChild(phLabel);phDiv.appendChild(phRow);phDiv.appendChild(bfInp);phDiv.appendChild(afInp);phDiv.appendChild(phStrip);
+      shCard.appendChild(phDiv);
+    }
+
     // Missed travel self-correction (today only, shift complete, no active travel)
     if(shComplete&&!activeTrv){
       const mtDiv=document.createElement('div');mtDiv.style.cssText='margin-top:8px;border-top:1px solid var(--bd);padding-top:8px';
@@ -930,6 +953,7 @@ async function renderStaffHome(el2,sm,tm){
     }
 
     el2.appendChild(shCard);
+    if(!CU.is_admin)loadShiftPhotoStrip(sh.id);
   }
   // Bottom spacer so last shift card is never hidden behind nav bar
   const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
@@ -2079,6 +2103,132 @@ async function saveSign(){
 }
 
 // PHOTOS
+// ── Before/After photo upload from shift card ────────────────────────────
+async function uploadShiftPhotos(files,shiftId,site,label){
+  if(!files||!files.length)return;
+  toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'…');
+  let cnt=0;
+  for(const file of files){
+    try{
+      const comp=await compressImg(file,1800,0.88);
+      const fn='shifts/'+(shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
+      const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
+      if(ue){toast('Upload error: '+ue.message);continue}
+      const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
+      await db.from('rpc_photos').insert({shift_id:shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:label,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:site||'General'});
+      cnt++;
+    }catch(e){toast('Error: '+e.message)}
+  }
+  if(cnt)toast(cnt+' photo'+(cnt>1?'s':'')+' uploaded ✅');
+}
+
+// Load thumbnail strip below Before/After buttons on shift card
+async function loadShiftPhotoStrip(shiftId){
+  const strip=document.getElementById('ph-strip-'+shiftId);
+  if(!strip)return;
+  try{
+    const {data:ph}=await db.from('rpc_photos').select('id,url,label,created_at').eq('shift_id',shiftId).in('label',['Before','After']).order('created_at');
+    strip.innerHTML='';
+    if(!ph||!ph.length){
+      const hint=document.createElement('div');hint.style.cssText='font-size:10px;color:var(--t3);padding:2px 0';hint.textContent='No photos yet — tap a button above to upload';strip.appendChild(hint);return;
+    }
+    (ph||[]).forEach(p=>{
+      const wrap=document.createElement('div');wrap.style.cssText='position:relative;width:64px;height:64px;border-radius:7px;overflow:hidden;border:2.5px solid '+(p.label==='Before'?'var(--nv2)':'#0a7c4a');
+      const img=document.createElement('img');img.src=p.url;img.style.cssText='width:100%;height:100%;object-fit:cover;display:block;cursor:pointer';
+      img.onclick=()=>openLB(p.url,p.label+' photo');
+      const lbl=document.createElement('div');lbl.style.cssText='position:absolute;bottom:0;left:0;right:0;background:'+(p.label==='Before'?'rgba(10,80,160,.8)':'rgba(10,125,74,.8)')+';color:#fff;font-size:7px;font-weight:800;text-align:center;padding:2px 0;letter-spacing:.5px';
+      lbl.textContent=p.label.toUpperCase();
+      wrap.appendChild(img);wrap.appendChild(lbl);strip.appendChild(wrap);
+    });
+  }catch{}
+}
+
+// ── Admin: Download Job Report PDF for a site ────────────────────────────
+async function downloadSitePDF(site,allPhotos,shiftMap){
+  const beforePhotos=allPhotos.filter(p=>p.label==='Before');
+  const afterPhotos=allPhotos.filter(p=>p.label==='After');
+  if(!beforePhotos.length&&!afterPhotos.length){toast('No Before/After photos found for this site');return}
+  toast('Building PDF… please wait');
+  if(!window.jspdf){
+    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});
+  }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const PW=210,PH=297,MG=15,CW=180;
+
+  async function imgToDataURL(url){
+    try{const r=await fetch(url);const b=await r.blob();return new Promise(res=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=()=>res(null);rd.readAsDataURL(b)})}catch{return null}
+  }
+  function imgDims(dataURL){return new Promise(res=>{const i=new Image();i.onload=()=>res({w:i.naturalWidth,h:i.naturalHeight});i.onerror=()=>res({w:4,h:3});i.src=dataURL})}
+
+  // ── Cover page ────────────────────────────────────────────────────────
+  doc.setFillColor(10,37,64);doc.rect(0,0,PW,58,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(26);doc.text('RAPID PRO CLEAN',MG,28);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(155,200,240);doc.text('CLEANING JUST GOT BETTER',MG,37);
+  doc.setDrawColor(255,255,255);doc.setLineWidth(0.4);doc.line(MG,41,PW-MG,41);
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(255,255,255);doc.text('JOB COMPLETION REPORT',MG,51);
+  // Info section
+  doc.setFillColor(243,247,252);doc.rect(0,58,PW,55,'F');
+  const dates=[...new Set(allPhotos.map(p=>{const sh=shiftMap[p.shift_id];return sh?new Date(sh.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}):''}).filter(Boolean))];
+  const infoRows=[['Site',site],['Date',dates.join(', ')||'—'],['Generated',new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})],['Before photos',''+beforePhotos.length+' photo'+(beforePhotos.length!==1?'s':'')],['After photos',''+afterPhotos.length+' photo'+(afterPhotos.length!==1?'s':'')]];
+  let ry=72;
+  infoRows.forEach(([lbl,val])=>{
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,37,64);doc.text(lbl+':',MG,ry);
+    doc.setFont('helvetica','normal');doc.setTextColor(40,60,90);doc.text(val,MG+36,ry);ry+=9;
+  });
+  doc.setFillColor(10,37,64);doc.rect(0,113,PW,2,'F');
+  // Footer on cover
+  doc.setFontSize(8);doc.setTextColor(150,165,180);doc.setFont('helvetica','normal');
+  doc.text('Rapid Pro Clean · Perth, Western Australia',PW/2,PH-12,{align:'center'});
+  doc.text('This report is prepared for the named client only.',PW/2,PH-6,{align:'center'});
+
+  // ── Photo section ─────────────────────────────────────────────────────
+  async function addSection(photos,label,r,g,b){
+    if(!photos.length)return;
+    doc.addPage();
+    doc.setFillColor(r,g,b);doc.rect(0,0,PW,20,'F');
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text(label+' PHOTOS',MG,14);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(200,225,245);doc.text('Rapid Pro Clean · '+site,PW-MG,14,{align:'right'});
+    let y=26;
+    for(let i=0;i<photos.length;i++){
+      const p=photos[i];
+      const dataURL=await imgToDataURL(p.url);if(!dataURL)continue;
+      const dims=await imgDims(dataURL);
+      const asp=dims.w/dims.h;
+      let iw=CW,ih=iw/asp;
+      if(ih>190){ih=190;iw=ih*asp;}
+      if(iw>CW){iw=CW;ih=iw/asp;}
+      if(y+ih+18>PH-15&&y>30){
+        doc.addPage();
+        doc.setFillColor(r,g,b);doc.rect(0,0,PW,14,'F');
+        doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(label+' PHOTOS (continued)',MG,10);
+        y=20;
+      }
+      const x=MG+(CW-iw)/2;
+      doc.setDrawColor(210,220,232);doc.setLineWidth(0.3);doc.rect(x-0.5,y-0.5,iw+1,ih+1);
+      doc.addImage(dataURL,'JPEG',x,y,iw,ih,undefined,'FAST');
+      y+=ih+3;
+      const sh2=shiftMap[p.shift_id];const dStr=sh2?new Date(sh2.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
+      doc.setFontSize(8);doc.setTextColor(90,110,130);doc.setFont('helvetica','normal');
+      let cap='Photo '+(i+1)+' of '+photos.length;if(dStr)cap+=' · '+dStr;if(p.staff_name)cap+=' · '+p.staff_name;if(p.note)cap+=' · '+p.note;
+      doc.text(cap,PW/2,y+4,{align:'center'});y+=14;
+    }
+  }
+
+  await addSection(beforePhotos,'BEFORE',10,80,160);
+  await addSection(afterPhotos,'AFTER',10,130,80);
+
+  // Page numbers (skip cover)
+  const np=doc.internal.getNumberOfPages();
+  for(let i=2;i<=np;i++){
+    doc.setPage(i);doc.setFontSize(8);doc.setTextColor(150,165,180);
+    doc.text('Page '+i+' of '+np+' · Rapid Pro Clean',PW-MG,PH-6,{align:'right'});
+  }
+
+  const fname='RapidProClean_'+site.replace(/[^a-z0-9]/gi,'_')+'_Report_'+new Date().toISOString().slice(0,10)+'.pdf';
+  doc.save(fname);toast('PDF downloaded ✅');
+}
+
 async function renderPhotos(){
   const el2=q('PhotosC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
@@ -2140,7 +2290,7 @@ function buildPhotos(el2,bySite,shiftMap,view){
       }
       cf.appendChild(cfh);cf.appendChild(cfb);sfb.appendChild(cf);
     });
-    if(CU.is_admin){const allPs=Object.values(cats).flat();const dab=document.createElement('button');dab.className='btn rd sm';dab.style.margin='8px 0 0';dab.textContent='🗑 Delete All '+site+' Photos';dab.onclick=()=>delSitePhotos(site,allPs);sfb.appendChild(dab)}
+    if(CU.is_admin){const allPs=Object.values(cats).flat();const dab=document.createElement('button');dab.className='btn rd sm';dab.style.margin='8px 0 0';dab.textContent='🗑 Delete All '+site+' Photos';dab.onclick=()=>delSitePhotos(site,allPs);sfb.appendChild(dab);const pdfBtn=document.createElement('button');pdfBtn.className='btn nv sm';pdfBtn.style.margin='8px 0 0 8px';pdfBtn.textContent='📄 Download Job Report PDF';pdfBtn.onclick=()=>downloadSitePDF(site,allPs,shiftMap);sfb.appendChild(pdfBtn);}
     sf.appendChild(sfh);sf.appendChild(sfb);el2.appendChild(sf);
   });
   const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
@@ -2398,7 +2548,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-       app_version: 'RapidProClean_v27',
+      app_version: 'RapidProClean_v27',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
