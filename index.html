@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v27.3 build 20261026 — all v27 fixes + Before/After photo upload on shift card + Admin PDF job report download -->
+<!-- v28.0 build 20261030 — v27 fixes + photo categories (staff + admin), per-job Photos tab, per-job PDF report -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
@@ -418,6 +418,12 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <button class="btn sc" onclick="closeM('PhotoM')">Cancel</button>
 </div></div>
 
+<div class="mov" id="PhCatM"><div class="msh"><div class="mh"></div><div class="mt">Before &amp; After Photos</div>
+  <div class="ms" id="PhCatS"></div>
+  <div id="PhCatBody"></div>
+  <button class="btn tl" onclick="phCatDone()">Done</button>
+</div></div>
+
 <div class="mov" id="DFM"><div class="msh"><div class="mh"></div><div class="mt">Create Document Folder</div>
   <div class="mlbl">Folder Name</div><input class="mi" id="dfNm" placeholder="e.g. Safety Training" type="text">
   <div class="mlbl">Description</div><input class="mi" id="dfDs" placeholder="Brief description" type="text">
@@ -541,7 +547,7 @@ async function startApp(){
   q('HU').textContent=CU.name+(CU.is_admin?' · Admin':'');
   await Promise.all([loadStaff(),loadSites()]);
   buildNav();tick();setInterval(tick,1000);
-  setInterval(()=>{if(q('p-home').classList.contains('on'))renderHome()},30000);
+  setInterval(()=>{if(q('p-home').classList.contains('on')&&Date.now()>phHold)renderHome()},30000);
   if(!CU.is_admin)checkTraining();
   loadNotifs();goHome();
 }
@@ -919,28 +925,13 @@ async function renderStaffHome(el2,sm,tm){
 
     shCard.appendChild(bg);
 
-    // ── Before / After photo upload — always visible, not just when signed in ──
+    // ── Before / After photos by category (v28) — always visible: before, during and after the shift ──
     {
       const phDiv=document.createElement('div');phDiv.style.cssText='margin-top:8px;padding:10px 12px;border-top:1px solid var(--bd)';
-      const phLabel=document.createElement('div');phLabel.style.cssText='font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--t3);margin-bottom:6px';phLabel.textContent='Shift Photos';
-      const phRow=document.createElement('div');phRow.style.cssText='display:flex;gap:6px;margin-bottom:8px';
-      const bfBtn=document.createElement('button');
-      bfBtn.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;padding:9px 6px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px solid var(--nv2);font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer';
-      bfBtn.textContent='📷 Before Photos';
-      const afBtn=document.createElement('button');
-      afBtn.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;padding:9px 6px;border-radius:var(--rs);background:#e6faf2;color:#0a7c4a;border:1.5px solid #0a7c4a;font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer';
-      afBtn.textContent='📷 After Photos';
-      const bfInp=document.createElement('input');bfInp.type='file';bfInp.accept='image/*';bfInp.multiple=true;bfInp.style.display='none';
-      const afInp=document.createElement('input');afInp.type='file';afInp.accept='image/*';afInp.multiple=true;afInp.style.display='none';
-      const _sid=sh.id,_ste=sh.site;
-      bfBtn.onclick=()=>bfInp.click();
-      afBtn.onclick=()=>afInp.click();
-      bfInp.onchange=async()=>{await uploadShiftPhotos(bfInp.files,_sid,_ste,'Before');bfInp.value='';loadShiftPhotoStrip(_sid)};
-      afInp.onchange=async()=>{await uploadShiftPhotos(afInp.files,_sid,_ste,'After');afInp.value='';loadShiftPhotoStrip(_sid)};
-      const phStrip=document.createElement('div');phStrip.id='ph-strip-'+sh.id;phStrip.style.cssText='display:flex;flex-wrap:wrap;gap:5px';
-      phRow.appendChild(bfBtn);phRow.appendChild(afBtn);
-      phDiv.appendChild(phLabel);phDiv.appendChild(phRow);phDiv.appendChild(bfInp);phDiv.appendChild(afInp);phDiv.appendChild(phStrip);
-      shCard.appendChild(phDiv);
+      const phLabel=document.createElement('div');phLabel.style.cssText='font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--t3);margin-bottom:8px';phLabel.textContent='Shift Photos — Before & After';
+      const phBox=document.createElement('div');
+      phDiv.appendChild(phLabel);phDiv.appendChild(phBox);shCard.appendChild(phDiv);
+      phRenderJob(phBox,{shiftId:sh.id,site:sh.site,canEdit:true});
     }
 
     // Missed travel self-correction (today only, shift complete, no active travel)
@@ -953,7 +944,6 @@ async function renderStaffHome(el2,sm,tm){
     }
 
     el2.appendChild(shCard);
-    if(!CU.is_admin)loadShiftPhotoStrip(sh.id);
   }
   // Bottom spacer so last shift card is never hidden behind nav bar
   const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
@@ -1221,7 +1211,7 @@ function mkShiftItem(sh,sm){
   const det=document.createElement('div');det.className='ri-det';
   if(sh.description)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px">📋 '+esc(sh.description)+'</div>';
   if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px">🔑 '+esc(sh.access_notes)+'</div>';
-  if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Upload Work Photos';const shId=sh.id,site=sh.site;ub.onclick=()=>openPhotoUpload(shId,site);det.appendChild(ub);}
+  if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Before & After Photos';const shId=sh.id,site=sh.site,shDate=sh.shift_date;ub.onclick=()=>openPhotoUpload(shId,site,shDate);det.appendChild(ub);}
   top.onclick=()=>{det.classList.toggle('on');arr.textContent=det.classList.contains('on')?'▲':'▼'};
   card.appendChild(top);card.appendChild(det);return card;
 }
@@ -2108,225 +2098,457 @@ async function saveSign(){
 }
 
 // PHOTOS
-// ── Before/After photo upload from shift card ────────────────────────────
-async function uploadShiftPhotos(files,shiftId,site,label){
-  if(!files||!files.length)return;
+// ═══════════════════════════════════════════════════════════════════
+// PHOTO CATEGORIES (v28)
+// Staff and admin both use the same screen. Each job (shift) can have any number of
+// custom categories (Kitchen, Carpet, Outdoor...). Each category has Before + After photos.
+// Uses existing rpc_photos columns only: shift_id, site, category, label, url, storage_path,
+// staff_id, staff_name, uploaded_by.  No database changes.
+// ═══════════════════════════════════════════════════════════════════
+let phHold=0;            // while phHold > Date.now(), the 30s Home auto-refresh is paused (protects uploads / file picker)
+const phDraft={};        // categories typed but not holding a photo yet: { shiftId: ['Kitchen', ...] }
+const phT=function(s){return String(s==null?'':s).replace(/[^\x20-\x7E\u00A0-\u00FF]/g,'?')};
+const phLong=function(d){return new Date(d+'T00:00:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})};
+const phShort=function(d){return new Date(d+'T00:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'})};
+
+// Group a flat list of photo rows into categories (case-insensitive), each with before / after / other
+function phGroup(photos){
+  const map={},order=[];
+  (photos||[]).forEach(function(p){
+    let nm=(p.category||'').trim();
+    if(!nm||nm==='Before'||nm==='After')nm='General';   // photos from earlier versions that had no real category
+    const k=nm.toLowerCase();
+    if(!map[k]){map[k]={name:nm,before:[],after:[],other:[]};order.push(k)}
+    if(p.label==='Before')map[k].before.push(p);
+    else if(p.label==='After')map[k].after.push(p);
+    else map[k].other.push(p);
+  });
+  return order.map(function(k){return map[k]});
+}
+
+// Delete photo files from storage AND their database rows
+async function phRemove(ps){
+  if(!ps||!ps.length)return true;
+  try{
+    const paths=ps.map(function(p){return p.storage_path}).filter(Boolean);
+    if(paths.length)await db.storage.from('rpc-photos').remove(paths);
+    const {error}=await db.from('rpc_photos').delete().in('id',ps.map(function(p){return p.id}));
+    if(error){toast('Could not delete: '+error.message);return false}
+    return true;
+  }catch(e){toast('Error deleting photos');return false}
+}
+
+// Upload one or many photos into a category as Before or After
+async function phUpload(files,ctx,category,label){
+  if(!files||!files.length)return 0;
+  phHold=Date.now()+180000;
   toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'…');
-  let cnt=0;
+  let cnt=0,fail=0;
   for(const file of files){
     try{
       const comp=await compressImg(file,1800,0.88);
-      const fn='shifts/'+(shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
+      const fn='shifts/'+(ctx.shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
       const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
-      if(ue){toast('Upload error: '+ue.message);continue}
+      if(ue){fail++;continue}
       const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
-      await db.from('rpc_photos').insert({shift_id:shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:label,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:site||'General'});
+      const {error:ie}=await db.from('rpc_photos').insert({shift_id:ctx.shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:category,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:ctx.site||'General'});
+      if(ie){try{await db.storage.from('rpc-photos').remove([fn])}catch(e2){}fail++;continue}
       cnt++;
-    }catch(e){toast('Error: '+e.message)}
+    }catch(e){fail++}
   }
-  if(cnt)toast(cnt+' photo'+(cnt>1?'s':'')+' uploaded ✅');
+  phHold=Date.now()+3000;
+  if(cnt&&!fail)toast(cnt+' photo'+(cnt>1?'s':'')+' uploaded ✅');
+  else if(cnt)toast(cnt+' uploaded, '+fail+' failed — please try the failed ones again');
+  else toast('Upload failed — check your connection and try again');
+  return cnt;
 }
 
-// Load thumbnail strip below Before/After buttons on shift card
-async function loadShiftPhotoStrip(shiftId){
-  const strip=document.getElementById('ph-strip-'+shiftId);
-  if(!strip)return;
-  try{
-    const {data:ph}=await db.from('rpc_photos').select('id,url,label,storage_path,staff_id,created_at').eq('shift_id',shiftId).in('label',['Before','After']).order('created_at');
-    strip.innerHTML='';
-    if(!ph||!ph.length){
-      const hint=document.createElement('div');hint.style.cssText='font-size:10px;color:var(--t3);padding:2px 0';hint.textContent='No photos yet — tap a button above to upload';strip.appendChild(hint);return;
+// Draw the whole category screen for one job into `box`
+//   ctx = { shiftId, site, canEdit, reload (optional) }
+function phDrawJob(box,ctx,photos){
+  const reload=function(){if(ctx.reload)ctx.reload();else phRenderJob(box,ctx)};
+  const dk=String(ctx.shiftId);
+  box.innerHTML='';
+  const groups=phGroup(photos);
+  const have={};groups.forEach(function(g){have[g.name.toLowerCase()]=1});
+  if(phDraft[dk]){
+    phDraft[dk]=phDraft[dk].filter(function(n){return !have[n.toLowerCase()]});
+    phDraft[dk].forEach(function(n){groups.push({name:n,before:[],after:[],other:[],draft:true})});
+  }
+
+  // ── Add category row ──
+  const addRow=document.createElement('div');addRow.style.cssText='display:flex;gap:6px;margin-bottom:10px';
+  const inp=document.createElement('input');inp.type='text';inp.maxLength=60;inp.placeholder='New category, e.g. Kitchen, Carpet, Outdoor';
+  inp.style.cssText='flex:1;min-width:0;padding:10px 12px;border:1.5px solid var(--bd);border-radius:var(--rs);font-family:var(--fn);font-size:16px;color:var(--tx);background:var(--cd);outline:none';
+  const addBtn=document.createElement('button');addBtn.textContent='➕ Add';
+  addBtn.style.cssText='flex-shrink:0;padding:10px 14px;border-radius:var(--rs);background:var(--nv);color:#fff;border:none;font-family:var(--fn);font-size:13px;font-weight:700;cursor:pointer';
+  const doAdd=function(){
+    const nm=inp.value.trim();
+    if(!nm){toast('Type a category name first');return}
+    if(groups.some(function(g){return g.name.toLowerCase()===nm.toLowerCase()})){toast('That category already exists');return}
+    if(!phDraft[dk])phDraft[dk]=[];
+    phDraft[dk].push(nm);
+    phDrawJob(box,ctx,photos);
+  };
+  addBtn.onclick=doAdd;
+  inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();doAdd()}};
+  addRow.appendChild(inp);addRow.appendChild(addBtn);box.appendChild(addRow);
+
+  if(!groups.length){
+    const h=document.createElement('div');h.style.cssText='font-size:12px;color:var(--t3);padding:6px 2px 10px;line-height:1.5';
+    h.textContent='No photos yet. Type a category name above (for example Kitchen), tap Add, then add Before and After photos.';
+    box.appendChild(h);
+  }
+
+  groups.forEach(function(g){
+    const card=document.createElement('div');card.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);margin-bottom:10px;overflow:hidden';
+
+    // header with Rename / Delete
+    const hd=document.createElement('div');hd.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:6px;padding:10px 12px;background:var(--cd)';
+    const tt=document.createElement('div');tt.style.cssText='font-size:14px;font-weight:800;color:var(--nv);min-width:0;word-break:break-word';tt.textContent='📂 '+g.name;
+    const acts=document.createElement('div');acts.style.cssText='display:flex;gap:4px;flex-shrink:0';
+    if(ctx.canEdit){
+      const rn=document.createElement('button');rn.className='ebtn';rn.textContent='Rename';
+      rn.onclick=async function(){
+        const nn=(prompt('Rename "'+g.name+'" to:',g.name)||'').trim().slice(0,60);
+        if(!nn||nn===g.name)return;
+        const all=g.before.concat(g.after,g.other);
+        if(all.length){
+          const {error}=await db.from('rpc_photos').update({category:nn}).in('id',all.map(function(p){return p.id}));
+          if(error){toast('Could not rename: '+error.message);return}
+        }
+        if(phDraft[dk]){const i=phDraft[dk].findIndex(function(x){return x.toLowerCase()===g.name.toLowerCase()});if(i>-1)phDraft[dk][i]=nn}
+        toast('Renamed ✅');reload();
+      };
+      const dl=document.createElement('button');dl.className='dbtn';dl.textContent='Delete';
+      dl.onclick=async function(){
+        const all=g.before.concat(g.after,g.other);
+        const msg=all.length?'Delete the category "'+g.name+'" and its '+all.length+' photo'+(all.length>1?'s':'')+'?':'Remove the category "'+g.name+'"?';
+        if(!confirm(msg))return;
+        if(all.length&&!(await phRemove(all)))return;
+        if(phDraft[dk])phDraft[dk]=phDraft[dk].filter(function(x){return x.toLowerCase()!==g.name.toLowerCase()});
+        toast('Category deleted');reload();
+      };
+      acts.appendChild(rn);acts.appendChild(dl);
     }
-    (ph||[]).forEach(p=>{
-      const wrap=document.createElement('div');wrap.style.cssText='position:relative;width:64px;height:64px;border-radius:7px;overflow:hidden;border:2.5px solid '+(p.label==='Before'?'var(--nv2)':'#0a7c4a');
-      const img=document.createElement('img');img.src=p.url;img.style.cssText='width:100%;height:100%;object-fit:cover;display:block;cursor:pointer';
-      img.onclick=()=>openLB(p.url,p.label+' photo');
-      const lbl=document.createElement('div');lbl.style.cssText='position:absolute;bottom:0;left:0;right:0;background:'+(p.label==='Before'?'rgba(10,80,160,.8)':'rgba(10,125,74,.8)')+';color:#fff;font-size:7px;font-weight:800;text-align:center;padding:2px 0;letter-spacing:.5px';
-      lbl.textContent=p.label.toUpperCase();
-      // ✕ delete button — staff can delete their own photos only
-      if(p.staff_id===CU.id||CU.is_admin){
-        const xBtn=document.createElement('button');
-        xBtn.style.cssText='position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;font-size:10px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
-        xBtn.textContent='✕';
-        xBtn.title='Delete this photo';
-        const pid=p.id,ppath=p.storage_path,sid=shiftId;
-        xBtn.onclick=async(e)=>{
-          e.stopPropagation();
-          if(!confirm('Delete this photo?'))return;
-          try{
-            if(ppath)await db.storage.from('rpc-photos').remove([ppath]);
-            await db.from('rpc_photos').delete().eq('id',pid);
-            toast('Photo deleted');
-            loadShiftPhotoStrip(sid);
-          }catch(err){toast('Error deleting photo')}
+    hd.appendChild(tt);hd.appendChild(acts);card.appendChild(hd);
+
+    // one Before / After section
+    const mkSec=function(label,list,col,bgc,allowAdd){
+      const s=document.createElement('div');s.style.cssText='padding:10px 12px;border-top:1px solid var(--bd)';
+      const top=document.createElement('div');top.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px';
+      const lb=document.createElement('div');lb.style.cssText='font-size:11px;font-weight:800;letter-spacing:.8px;color:'+col;lb.textContent=label.toUpperCase()+' ('+list.length+')';
+      top.appendChild(lb);
+      if(allowAdd&&ctx.canEdit){
+        const ab=document.createElement('button');ab.textContent='📷 Add '+label+' Photos';
+        ab.style.cssText='padding:8px 12px;border-radius:var(--rs);background:'+bgc+';color:'+col+';border:1.5px solid '+col+';font-family:var(--fn);font-size:11px;font-weight:700;cursor:pointer';
+        const fi=document.createElement('input');fi.type='file';fi.accept='image/*';fi.multiple=true;fi.style.display='none';
+        ab.onclick=function(){phHold=Date.now()+90000;fi.click()};
+        fi.onchange=async function(){
+          const files=Array.from(fi.files||[]);fi.value='';
+          if(!files.length)return;
+          ab.disabled=true;ab.style.opacity='.5';
+          await phUpload(files,ctx,g.name,label);
+          reload();
         };
-        wrap.appendChild(xBtn);
+        top.appendChild(ab);top.appendChild(fi);
       }
-      wrap.appendChild(img);wrap.appendChild(lbl);strip.appendChild(wrap);
-    });
-  }catch{}
-}
-
-// ── Admin: Download Job Report PDF for a site ────────────────────────────
-async function downloadSitePDF(site,allPhotos,shiftMap){
-  const beforePhotos=allPhotos.filter(p=>p.label==='Before');
-  const afterPhotos=allPhotos.filter(p=>p.label==='After');
-  if(!beforePhotos.length&&!afterPhotos.length){toast('No Before/After photos found for this site');return}
-  toast('Building PDF… please wait');
-  if(!window.jspdf){
-    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)});
-  }
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const PW=210,PH=297,MG=15,CW=180;
-
-  async function imgToDataURL(url){
-    try{const r=await fetch(url);const b=await r.blob();return new Promise(res=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=()=>res(null);rd.readAsDataURL(b)})}catch{return null}
-  }
-  function imgDims(dataURL){return new Promise(res=>{const i=new Image();i.onload=()=>res({w:i.naturalWidth,h:i.naturalHeight});i.onerror=()=>res({w:4,h:3});i.src=dataURL})}
-
-  // ── Cover page ────────────────────────────────────────────────────────
-  doc.setFillColor(10,37,64);doc.rect(0,0,PW,58,'F');
-  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(26);doc.text('RAPID PRO CLEAN',MG,28);
-  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(155,200,240);doc.text('CLEANING JUST GOT BETTER',MG,37);
-  doc.setDrawColor(255,255,255);doc.setLineWidth(0.4);doc.line(MG,41,PW-MG,41);
-  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(255,255,255);doc.text('JOB COMPLETION REPORT',MG,51);
-  // Info section
-  doc.setFillColor(243,247,252);doc.rect(0,58,PW,55,'F');
-  const dates=[...new Set(allPhotos.map(p=>{const sh=shiftMap[p.shift_id];return sh?new Date(sh.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}):''}).filter(Boolean))];
-  const infoRows=[['Site',site],['Date',dates.join(', ')||'—'],['Generated',new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})],['Before photos',''+beforePhotos.length+' photo'+(beforePhotos.length!==1?'s':'')],['After photos',''+afterPhotos.length+' photo'+(afterPhotos.length!==1?'s':'')]];
-  let ry=72;
-  infoRows.forEach(([lbl,val])=>{
-    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,37,64);doc.text(lbl+':',MG,ry);
-    doc.setFont('helvetica','normal');doc.setTextColor(40,60,90);doc.text(val,MG+36,ry);ry+=9;
+      s.appendChild(top);
+      const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:6px';
+      if(!list.length){
+        const em=document.createElement('div');em.style.cssText='grid-column:1/-1;font-size:11px;color:var(--t3)';
+        em.textContent='No '+label.toLowerCase()+' photos yet';grid.appendChild(em);
+      }
+      list.forEach(function(p){
+        const w=document.createElement('div');w.style.cssText='position:relative;border-radius:8px;overflow:hidden;border:2px solid '+col+';aspect-ratio:1/1;background:#000';
+        const im=document.createElement('img');im.src=p.url;im.loading='lazy';im.style.cssText='width:100%;height:100%;object-fit:cover;display:block;cursor:pointer';
+        im.onclick=function(){openLB(p.url,g.name+' · '+(p.label||label)+(p.staff_name?' · '+p.staff_name:''))};
+        w.appendChild(im);
+        if(ctx.canEdit){
+          const x=document.createElement('button');x.textContent='✕';x.title='Delete this photo';
+          x.style.cssText='position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0';
+          x.onclick=async function(e){
+            e.stopPropagation();
+            if(!confirm('Delete this photo?'))return;
+            if(await phRemove([p])){toast('Photo deleted');reload()}
+          };
+          w.appendChild(x);
+        }
+        grid.appendChild(w);
+      });
+      s.appendChild(grid);return s;
+    };
+    card.appendChild(mkSec('Before',g.before,'#0a5aa0','#eaf3fc',true));
+    card.appendChild(mkSec('After',g.after,'#0a7c4a','#e6faf2',true));
+    if(g.other.length)card.appendChild(mkSec('Other',g.other,'#6b7a8d','#f1f3f6',false));
+    box.appendChild(card);
   });
-  doc.setFillColor(10,37,64);doc.rect(0,113,PW,2,'F');
-  // Footer on cover
-  doc.setFontSize(8);doc.setTextColor(150,165,180);doc.setFont('helvetica','normal');
-  doc.text('Rapid Pro Clean · Perth, Western Australia',PW/2,PH-12,{align:'center'});
-  doc.text('This report is prepared for the named client only.',PW/2,PH-6,{align:'center'});
-
-  // ── Photo section ─────────────────────────────────────────────────────
-  async function addSection(photos,label,r,g,b){
-    if(!photos.length)return;
-    doc.addPage();
-    doc.setFillColor(r,g,b);doc.rect(0,0,PW,20,'F');
-    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(16);doc.text(label+' PHOTOS',MG,14);
-    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(200,225,245);doc.text('Rapid Pro Clean · '+site,PW-MG,14,{align:'right'});
-    let y=26;
-    for(let i=0;i<photos.length;i++){
-      const p=photos[i];
-      const dataURL=await imgToDataURL(p.url);if(!dataURL)continue;
-      const dims=await imgDims(dataURL);
-      const asp=dims.w/dims.h;
-      let iw=CW,ih=iw/asp;
-      if(ih>190){ih=190;iw=ih*asp;}
-      if(iw>CW){iw=CW;ih=iw/asp;}
-      if(y+ih+18>PH-15&&y>30){
-        doc.addPage();
-        doc.setFillColor(r,g,b);doc.rect(0,0,PW,14,'F');
-        doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(label+' PHOTOS (continued)',MG,10);
-        y=20;
-      }
-      const x=MG+(CW-iw)/2;
-      doc.setDrawColor(210,220,232);doc.setLineWidth(0.3);doc.rect(x-0.5,y-0.5,iw+1,ih+1);
-      doc.addImage(dataURL,'JPEG',x,y,iw,ih,undefined,'FAST');
-      y+=ih+3;
-      const sh2=shiftMap[p.shift_id];const dStr=sh2?new Date(sh2.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
-      doc.setFontSize(8);doc.setTextColor(90,110,130);doc.setFont('helvetica','normal');
-      let cap='Photo '+(i+1)+' of '+photos.length;if(dStr)cap+=' · '+dStr;if(p.staff_name)cap+=' · '+p.staff_name;if(p.note)cap+=' · '+p.note;
-      doc.text(cap,PW/2,y+4,{align:'center'});y+=14;
-    }
-  }
-
-  await addSection(beforePhotos,'BEFORE',10,80,160);
-  await addSection(afterPhotos,'AFTER',10,130,80);
-
-  // Page numbers (skip cover)
-  const np=doc.internal.getNumberOfPages();
-  for(let i=2;i<=np;i++){
-    doc.setPage(i);doc.setFontSize(8);doc.setTextColor(150,165,180);
-    doc.text('Page '+i+' of '+np+' · Rapid Pro Clean',PW-MG,PH-6,{align:'right'});
-  }
-
-  const fname='RapidProClean_'+site.replace(/[^a-z0-9]/gi,'_')+'_Report_'+new Date().toISOString().slice(0,10)+'.pdf';
-  doc.save(fname);toast('PDF downloaded ✅');
 }
+
+// Fetch one shift's photos, then draw them
+async function phRenderJob(box,ctx){
+  if(!box.children.length)box.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
+  let photos=[];
+  try{
+    const {data}=await db.from('rpc_photos').select('*').eq('shift_id',ctx.shiftId).order('created_at');
+    photos=(data||[]).filter(function(p){return p.uploaded_by!=='admin'});   // 'admin' rows are shift instruction photos
+  }catch(e){}
+  phDrawJob(box,ctx,photos);
+}
+
+// ── Admin: download the PDF report for ONE job (one site on one date) ──
+async function downloadJobPDF(site,dateKey,photos){
+  const groups=phGroup(photos).filter(function(g){return g.before.length||g.after.length||g.other.length});
+  if(!groups.length){toast('No photos to include');return}
+  toast('Building PDF… please wait');
+  try{
+    if(!window.jspdf){
+      await new Promise(function(res,rej){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=res;s.onerror=function(){rej(new Error('Could not load the PDF library — check your internet'))};document.head.appendChild(s)});
+    }
+    const jsPDF=window.jspdf.jsPDF;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const PW=210,PH=297,MG=15,CW=180,MAXH=150;
+    const hasDate=dateKey&&dateKey!=='none';
+    const dateLong=hasDate?phLong(dateKey):'Date not recorded';
+    const dateShort=hasDate?phShort(dateKey):'No date';
+    const siteTxt=phT(site);
+    const siteShort=siteTxt.length>46?siteTxt.slice(0,45)+'...':siteTxt;
+
+    const dataUrl=async function(url){
+      try{const r=await fetch(url);const b=await r.blob();return await new Promise(function(res){const rd=new FileReader();rd.onload=function(){res(rd.result)};rd.onerror=function(){res(null)};rd.readAsDataURL(b)})}catch(e){return null}
+    };
+    const dims=function(u){return new Promise(function(res){const i=new Image();i.onload=function(){res({w:i.naturalWidth,h:i.naturalHeight})};i.onerror=function(){res({w:4,h:3})};i.src=u})};
+
+    // ── Cover page with letterhead ──
+    doc.setFillColor(10,37,64);doc.rect(0,0,PW,62,'F');
+    let logoOk=false;
+    try{
+      const lu=await dataUrl('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');
+      if(lu){const ld=await dims(lu);const lh=20,lw=Math.min(70,lh*(ld.w/ld.h||1));doc.addImage(lu,'PNG',MG,10,lw,lh);logoOk=true}
+    }catch(e){}
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+    if(!logoOk){doc.setFontSize(24);doc.text('RAPID PRO CLEAN',MG,24)}
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(160,200,240);
+    doc.text('CLEANING JUST GOT BETTER',MG,logoOk?36:32);
+    doc.setDrawColor(255,255,255);doc.setLineWidth(0.4);doc.line(MG,41,PW-MG,41);
+    doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(255,255,255);doc.text('JOB COMPLETION REPORT',MG,53);
+
+    doc.setFillColor(243,247,252);doc.rect(0,62,PW,60,'F');
+    let ry=74;
+    const row=function(lbl,val){
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,37,64);doc.text(lbl,MG,ry);
+      doc.setFont('helvetica','normal');doc.setTextColor(40,60,90);
+      const lines=doc.splitTextToSize(val,CW-38).slice(0,2);
+      doc.text(lines,MG+38,ry);ry+=lines.length*5.5+4;
+    };
+    const nB=groups.reduce(function(a,g){return a+g.before.length},0),nA=groups.reduce(function(a,g){return a+g.after.length},0),nO=groups.reduce(function(a,g){return a+g.other.length},0);
+    row('Site',siteTxt);
+    row('Date',dateLong);
+    row('Report generated',new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}));
+    row('Photos',nB+' before, '+nA+' after'+(nO?', '+nO+' other':''));
+    doc.setFillColor(10,37,64);doc.rect(0,122,PW,2,'F');
+
+    let cy=134;
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(10,37,64);doc.text('Areas covered',MG,cy);cy+=7;
+    groups.forEach(function(g){
+      if(cy>PH-24)return;
+      doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(40,60,90);
+      doc.text(phT(g.name)+'  -  '+g.before.length+' before, '+g.after.length+' after'+(g.other.length?', '+g.other.length+' other':''),MG+3,cy);cy+=6.5;
+    });
+
+    // ── helpers for the photo pages ──
+    let y=0;
+    const band=function(title,cont){
+      doc.setFillColor(10,37,64);doc.rect(0,0,PW,cont?14:22,'F');
+      doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(cont?10:15);
+      doc.text(phT(title).toUpperCase()+(cont?' (continued)':''),MG,cont?9.5:14.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(190,210,235);
+      doc.text(siteShort+'  |  '+dateShort,PW-MG,cont?9.5:14.5,{align:'right'});
+    };
+    const sub=function(text,rgb){
+      doc.setFillColor(rgb[0],rgb[1],rgb[2]);doc.roundedRect(MG,y,CW,9,1.5,1.5,'F');
+      doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10.5);
+      doc.text(text,MG+4,y+6.2);y+=13;
+    };
+
+    for(let gi=0;gi<groups.length;gi++){
+      const g=groups[gi];
+      doc.addPage();band(g.name,false);y=30;
+      const block=async function(label,list,rgb){
+        if(!list.length)return;
+        if(y+50>PH-16){doc.addPage();band(g.name,true);y=22}
+        sub(label.toUpperCase()+'  ('+list.length+' photo'+(list.length>1?'s':'')+')',rgb);
+        for(let i=0;i<list.length;i++){
+          const p=list[i];
+          const u=await dataUrl(p.url);if(!u)continue;
+          const d=await dims(u);const asp=(d.w/d.h)||1.333;
+          let iw=CW,ih=iw/asp;if(ih>MAXH){ih=MAXH;iw=ih*asp}
+          if(y+ih+12>PH-16){doc.addPage();band(g.name,true);y=22;sub(label.toUpperCase()+'  (continued)',rgb)}
+          const x=MG+(CW-iw)/2;
+          doc.setDrawColor(205,215,228);doc.setLineWidth(0.3);doc.rect(x-0.5,y-0.5,iw+1,ih+1);
+          doc.addImage(u,u.indexOf('image/png')>-1?'PNG':'JPEG',x,y,iw,ih,undefined,'FAST');
+          y+=ih+4.5;
+          doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+          doc.text(label.toUpperCase()+'  -  '+phT(g.name)+'  -  Photo '+(i+1)+' of '+list.length,PW/2,y,{align:'center'});
+          y+=9;
+        }
+        y+=3;
+      };
+      await block('Before',g.before,[10,90,160]);
+      await block('After',g.after,[10,124,74]);
+      await block('Other',g.other,[107,122,141]);
+    }
+
+    // footer + page numbers on every page
+    const np=doc.internal.getNumberOfPages();
+    for(let i=1;i<=np;i++){
+      doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,165,180);
+      doc.text('Rapid Pro Clean  |  Perth, Western Australia',MG,PH-7);
+      doc.text('Page '+i+' of '+np,PW-MG,PH-7,{align:'right'});
+    }
+
+    const fname='RapidProClean_'+siteTxt.replace(/[^a-z0-9]+/gi,'_')+'_'+(hasDate?dateKey:'photos')+'.pdf';
+    doc.save(fname);toast('PDF downloaded ✅');
+  }catch(e){toast('Could not build PDF: '+(e&&e.message?e.message:'unknown error'))}
+}
+
+// ── Admin Photos tab (v28): Site → Job date → Categories → Before / After ──
+const phAdminOpen={};   // remembers which sites / jobs are expanded across refreshes: 'S|site' and 'J|site|date'
+let phAddJob=null;      // a job date chosen with "add photos to another date" that has no photos yet
 
 async function renderPhotos(){
-  const el2=q('PhotosC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
+  const el2=q('PhotosC');if(!el2)return;
+  if(!el2.children.length)el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
-    const {data:photos}=await db.from('rpc_photos').select('*').eq('uploaded_by','staff').order('created_at',{ascending:false});
-    if(!photos||!photos.length){el2.innerHTML='<div class="empty"><div class="empty-ico">📷</div>No photos yet.</div>';return}
-    const sIds=[...new Set((photos||[]).map(p=>p.shift_id).filter(Boolean))];
-    let shiftMap={};if(sIds.length){try{const {data:sh}=await db.from('rpc_shifts').select('id,shift_date').in('id',sIds);(sh||[]).forEach(s=>shiftMap[s.id]=s)}catch{}}
-    const bySite={};(photos||[]).forEach(p=>{const site=p.site||'Unknown';const cat=p.category||'General';if(!bySite[site])bySite[site]={};if(!bySite[site][cat])bySite[site][cat]=[];bySite[site][cat].push(p)});
-    el2.innerHTML='';
-    const pvt=document.createElement('div');pvt.className='pvt';
-    const gb=document.createElement('button');gb.className='pvb on';gb.textContent='⊞ Grid';
-    const lb=document.createElement('button');lb.className='pvb';lb.textContent='☰ List';
-    const pc=document.createElement('div');
-    gb.onclick=()=>{gb.classList.add('on');lb.classList.remove('on');buildPhotos(pc,bySite,shiftMap,'grid')};
-    lb.onclick=()=>{lb.classList.add('on');gb.classList.remove('on');buildPhotos(pc,bySite,shiftMap,'list')};
-    pvt.appendChild(gb);pvt.appendChild(lb);el2.appendChild(pvt);el2.appendChild(pc);
-    buildPhotos(pc,bySite,shiftMap,'grid');
+    if(!CU)return;
+    const {data:photos,error}=await db.from('rpc_photos').select('*').eq('uploaded_by','staff').order('created_at');
+    if(error)throw error;
+    const list=photos||[];
+    const sIds=[...new Set(list.map(function(p){return p.shift_id}).filter(Boolean))];
+    const shiftMap={};
+    if(sIds.length){try{const {data:sh}=await db.from('rpc_shifts').select('id,shift_date,site,staff_id').in('id',sIds);(sh||[]).forEach(function(s){shiftMap[s.id]=s})}catch(e){}}
+
+    // site -> date -> job (photos from every staff member on the same site + date are combined into one job)
+    const bySite={};
+    list.forEach(function(p){
+      const site=p.site||'Unknown';
+      const sh=shiftMap[p.shift_id];
+      const dk=sh&&sh.shift_date?sh.shift_date:'none';
+      if(!bySite[site])bySite[site]={};
+      if(!bySite[site][dk])bySite[site][dk]={dateKey:dk,photos:[],attachId:null};
+      const j=bySite[site][dk];j.photos.push(p);
+      if(!j.attachId&&p.shift_id)j.attachId=p.shift_id;
+    });
+    if(phAddJob){
+      const s=phAddJob.site;
+      if(bySite[s]&&bySite[s][phAddJob.dateKey])phAddJob=null;       // it has photos now, so it is listed normally
+      else{if(!bySite[s])bySite[s]={};bySite[s][phAddJob.dateKey]={dateKey:phAddJob.dateKey,photos:[],attachId:phAddJob.shiftId,isNew:true}}
+    }
+    const withPhotos=Object.keys(bySite);
+    (allSites||[]).forEach(function(s){if(s&&s.name&&!bySite[s.name])bySite[s.name]={}});
+    const latest=function(site){const ks=Object.keys(bySite[site]).filter(function(k){return k!=='none'}).sort();return ks.length?ks[ks.length-1]:''};
+    const siteOrder=Object.keys(bySite).sort(function(a,b){
+      const ha=withPhotos.indexOf(a)>-1,hb=withPhotos.indexOf(b)>-1;
+      if(ha!==hb)return ha?-1:1;
+      if(ha&&hb){const la=latest(a),lb=latest(b);if(la!==lb)return la<lb?1:-1}
+      return a.localeCompare(b);
+    });
+
+    const wrap=document.createElement('div');
+    const intro=document.createElement('div');intro.style.cssText='font-size:12px;color:var(--t3);margin:0 2px 12px;line-height:1.5';
+    intro.textContent='Open a site, then a job date. Each job has its own categories, photos and PDF report. Photos from all staff on the same site and date are combined.';
+    wrap.appendChild(intro);
+
+    siteOrder.forEach(function(site){
+      const jobs=bySite[site];
+      const dks=Object.keys(jobs).sort(function(a,b){if(a==='none')return 1;if(b==='none')return -1;return a<b?1:-1});   // newest date first, unlinked photos last
+      const nDates=dks.filter(function(k){return jobs[k].photos.length}).length;
+      const total=dks.reduce(function(a,k){return a+jobs[k].photos.length},0);
+      const sKey='S|'+site;
+
+      const sf=document.createElement('div');sf.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px';
+      const sfh=document.createElement('div');sfh.style.cssText='background:linear-gradient(135deg,var(--nv),var(--nv2));padding:14px 16px;cursor:pointer;'+(total?'':'opacity:.65');
+      sfh.innerHTML='<div style="font-size:15px;font-weight:800;color:#fff">📁 '+esc(site)+'</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">'+(total?nDates+' job date'+(nDates===1?'':'s')+' · '+total+' photo'+(total===1?'':'s'):'No photos yet')+'</div>';
+      const sfb=document.createElement('div');sfb.style.cssText='padding:10px;display:'+(phAdminOpen[sKey]?'block':'none');
+      sfh.onclick=function(){const open=sfb.style.display==='none';sfb.style.display=open?'block':'none';phAdminOpen[sKey]=open};
+
+      dks.forEach(function(dk){
+        const j=jobs[dk];
+        const jKey='J|'+site+'|'+dk;
+        const groups=phGroup(j.photos);
+        const label=dk==='none'?'Photos not linked to a job date':phShort(dk);
+        const jr=document.createElement('div');jr.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);margin-bottom:8px;overflow:hidden';
+        const jh=document.createElement('div');jh.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:11px 12px;cursor:pointer';
+        jh.innerHTML='<div><div style="font-size:13px;font-weight:800;color:var(--nv)">📅 '+esc(label)+(j.isNew?' <span style="font-size:10px;color:var(--or);font-weight:700">(new — no photos yet)</span>':'')+'</div><div style="font-size:10px;color:var(--t3);margin-top:2px">'+groups.length+' categor'+(groups.length===1?'y':'ies')+' · '+j.photos.length+' photo'+(j.photos.length===1?'':'s')+'</div></div><span style="color:var(--t3);font-size:13px">▼</span>';
+        const jb=document.createElement('div');jb.style.cssText='padding:10px 12px;border-top:1px solid var(--bd);display:'+(phAdminOpen[jKey]?'block':'none');
+        jh.onclick=function(){const open=jb.style.display==='none';jb.style.display=open?'block':'none';phAdminOpen[jKey]=open};
+
+        // job actions: PDF + delete photos for THIS date only
+        const act=document.createElement('div');act.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px';
+        const pdfB=document.createElement('button');pdfB.className='btn nv sm';pdfB.style.margin='0';pdfB.textContent='📄 Download PDF Report';
+        pdfB.onclick=function(){downloadJobPDF(site,dk,j.photos)};
+        const delB=document.createElement('button');delB.className='btn rd sm';delB.style.margin='0';delB.textContent='🗑 Delete photos for this date';
+        delB.onclick=async function(){
+          if(!j.photos.length){toast('No photos to delete');return}
+          if(!confirm('Delete ALL '+j.photos.length+' photos for '+site+' on '+label+'?\n\nOnly this job date is affected. This cannot be undone.'))return;
+          if(await phRemove(j.photos)){delete phAdminOpen[jKey];toast('Photos deleted ✅');renderPhotos()}
+        };
+        act.appendChild(pdfB);act.appendChild(delB);jb.appendChild(act);
+
+        const box=document.createElement('div');jb.appendChild(box);
+        phDrawJob(box,{shiftId:j.attachId,site:site,canEdit:true,reload:renderPhotos},j.photos);
+        jr.appendChild(jh);jr.appendChild(jb);sfb.appendChild(jr);
+      });
+
+      // add photos to a job date that has none yet (for example photos staff sent on WhatsApp)
+      const addWrap=document.createElement('div');addWrap.style.cssText='margin-top:4px';
+      const addBox=document.createElement('div');
+      const addBtn=document.createElement('button');addBtn.className='btn sc sm';addBtn.style.margin='0';addBtn.textContent='➕ Add photos to another job date';
+      addBtn.onclick=async function(){
+        if(addBox.children.length){addBox.innerHTML='';return}
+        addBox.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
+        let shs=[];
+        try{const {data}=await db.from('rpc_shifts').select('id,shift_date,start_time,staff_id').eq('site',site).order('shift_date',{ascending:false}).limit(80);shs=data||[]}catch(e){}
+        addBox.innerHTML='';
+        if(!shs.length){toast('No shifts found for this site');return}
+        const row=document.createElement('div');row.style.cssText='display:flex;gap:6px;margin-bottom:8px;align-items:center';
+        const sel=document.createElement('select');sel.className='msel';sel.style.cssText='flex:1;min-width:0;margin:0;font-size:13px';
+        shs.forEach(function(s){
+          const st=(allStaff||[]).find(function(x){return x.id===s.staff_id});
+          const o=document.createElement('option');o.value=s.id;
+          o.textContent=phShort(s.shift_date)+' — '+(st?st.name:'Staff')+(s.start_time?' ('+fmt12(s.start_time)+')':'');
+          sel.appendChild(o);
+        });
+        const go=document.createElement('button');go.textContent='Open';
+        go.style.cssText='flex-shrink:0;padding:10px 14px;border-radius:var(--rs);background:var(--nv);color:#fff;border:none;font-family:var(--fn);font-size:13px;font-weight:700;cursor:pointer';
+        go.onclick=function(){
+          const s=shs.find(function(x){return String(x.id)===sel.value});if(!s)return;
+          phAdminOpen[sKey]=true;phAdminOpen['J|'+site+'|'+s.shift_date]=true;
+          if(!(jobs[s.shift_date]))phAddJob={site:site,shiftId:s.id,dateKey:s.shift_date};
+          renderPhotos();
+        };
+        row.appendChild(sel);row.appendChild(go);addBox.appendChild(row);
+      };
+      addWrap.appendChild(addBtn);addWrap.appendChild(addBox);sfb.appendChild(addWrap);
+
+      sf.appendChild(sfh);sf.appendChild(sfb);wrap.appendChild(sf);
+    });
+    const sp=document.createElement('div');sp.style.height='200px';wrap.appendChild(sp);
+    el2.innerHTML='';el2.appendChild(wrap);
   }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error loading photos.</div>'}
 }
-function buildPhotos(el2,bySite,shiftMap,view){
-  el2.innerHTML='';
-  Object.entries(bySite).forEach(([site,cats])=>{
-    const total=Object.values(cats).reduce((a,ps)=>a+ps.length,0);
-    const sf=document.createElement('div');sf.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px';
-    const sfh=document.createElement('div');sfh.style.cssText='background:linear-gradient(135deg,var(--nv),var(--nv2));padding:14px 16px;cursor:pointer';
-    sfh.innerHTML='<div style="font-size:15px;font-weight:800;color:#fff">📁 '+esc(site)+'</div><div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">'+Object.keys(cats).length+' categories · '+total+' photos</div>';
-    const sfb=document.createElement('div');sfb.style.cssText='padding:10px;display:none';
-    sfh.onclick=()=>{sfb.style.display=sfb.style.display==='none'?'block':'none'};
-    Object.entries(cats).forEach(([cat,ps])=>{
-      const cf=document.createElement('div');cf.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:var(--rs);margin-bottom:8px;overflow:hidden';
-      const cfh=document.createElement('div');cfh.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer';
-      cfh.innerHTML='<div><div style="font-size:13px;font-weight:700;color:var(--nv)">📂 '+esc(cat)+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px">'+ps.length+' photo'+(ps.length>1?'s':'')+'</div></div><div style="display:flex;gap:4px"></div>';
-      const cfActs=cfh.querySelector('div:last-child');
-      if(CU.is_admin){const rnb=document.createElement('button');rnb.className='ebtn';rnb.textContent='Rename';rnb.onclick=e=>{e.stopPropagation();const nn=prompt('Rename "'+cat+'" to:');if(nn)renameCat(site,cat,nn)};const dab=document.createElement('button');dab.className='dbtn';dab.textContent='Delete all';dab.onclick=e=>{e.stopPropagation();delCatPhotos(site,cat,ps)};cfActs.appendChild(rnb);cfActs.appendChild(dab)}
-      const cfb=document.createElement('div');cfb.style.cssText='padding:10px 12px;display:none;border-top:1px solid var(--bd)';
-      cfh.onclick=e=>{if(cfActs.contains(e.target))return;cfb.style.display=cfb.style.display==='none'?'block':'none'};
-      if(view==='grid'){
-        const pg=document.createElement('div');pg.className='pgrid';
-        ps.forEach(p=>{
-          const sh=shiftMap[p.shift_id];const dStr=sh?new Date(sh.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
-          const pc2=document.createElement('div');pc2.className='pcard';
-          const iw=document.createElement('div');iw.style.position='relative';
-          const img=document.createElement('img');img.src=p.url;img.onclick=()=>openLB(p.url,p.label+' — '+p.staff_name);iw.appendChild(img);
-          if(CU.is_admin){const db5=document.createElement('button');db5.style.cssText='position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer';db5.textContent='✕';const pid=p.id,pp=p.storage_path;db5.onclick=e=>{e.stopPropagation();delPhoto(pid,pp)};iw.appendChild(db5)}
-          const pm=document.createElement('div');pm.className='pm';pm.innerHTML='<span class="plbl '+(p.label==='Before'?'B':p.label==='After'?'A':'I')+'">'+esc(p.label)+'</span><div style="font-size:11px;font-weight:700;color:var(--tx)">👤 '+esc(p.staff_name)+'</div><div style="font-size:10px;color:var(--t3);margin-top:2px">📅 '+esc(dStr||fmtD(p.created_at))+'</div>'+(p.note?'<div style="font-size:10px;color:var(--tl);margin-top:1px">💬 '+esc(p.note)+'</div>':'');
-          pc2.appendChild(iw);pc2.appendChild(pm);pg.appendChild(pc2);
-        });
-        cfb.appendChild(pg);
-      }else{
-        ps.forEach(p=>{
-          const sh=shiftMap[p.shift_id];const dStr=sh?new Date(sh.shift_date+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'';
-          const pi=document.createElement('div');pi.className='plist';
-          const th=document.createElement('img');th.className='pth';th.src=p.url;th.onclick=()=>openLB(p.url,p.label+' — '+p.staff_name);
-          const pb=document.createElement('div');pb.style.flex='1';pb.innerHTML='<div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(p.label)+' — '+esc(p.staff_name)+'</div><div style="font-size:10px;color:var(--t3);margin-top:2px">'+esc(dStr||fmtD(p.created_at))+(p.note?' · 💬 '+esc(p.note):'')+'</div>';
-          pi.appendChild(th);pi.appendChild(pb);
-          if(CU.is_admin){const db5=document.createElement('button');db5.className='dbtn';db5.textContent='✕';const pid=p.id,pp=p.storage_path;db5.onclick=()=>delPhoto(pid,pp);pi.appendChild(db5)}
-          cfb.appendChild(pi);
-        });
-      }
-      cf.appendChild(cfh);cf.appendChild(cfb);sfb.appendChild(cf);
-    });
-    if(CU.is_admin){const allPs=Object.values(cats).flat();const dab=document.createElement('button');dab.className='btn rd sm';dab.style.margin='8px 0 0';dab.textContent='🗑 Delete All '+site+' Photos';dab.onclick=()=>delSitePhotos(site,allPs);sfb.appendChild(dab);const pdfBtn=document.createElement('button');pdfBtn.className='btn nv sm';pdfBtn.style.margin='8px 0 0 8px';pdfBtn.textContent='📄 Download Job Report PDF';pdfBtn.onclick=()=>downloadSitePDF(site,allPs,shiftMap);sfb.appendChild(pdfBtn);}
-    sf.appendChild(sfh);sf.appendChild(sfb);el2.appendChild(sf);
-  });
-  const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
-}{selMode=!selMode;selPh=[];q('SelBtn').textContent=selMode?'✕ Cancel':'☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
+function buildPhotos(){}{selMode=!selMode;selPh=[];q('SelBtn').textContent=selMode?'✕ Cancel':'☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
 function clearSel(){selMode=false;selPh=[];q('SelBtn').textContent='☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
 function tgSh(k){shOpts[k]=!shOpts[k];const b=q('tg'+k);if(b)b.classList.toggle('on',shOpts[k])}
 function doShareLink(){if(!selPh.length){toast('Select photos first');return}const payload={photos:selPh,opts:shOpts,company:'Rapid Pro Clean',generated:new Date().toISOString()};const link=window.location.href.split('?')[0]+'?share='+btoa(unescape(encodeURIComponent(JSON.stringify(payload))));navigator.clipboard.writeText(link).catch(()=>{});toast('Share link copied ✅')}
 function doShareEmail(){if(!selPh.length){toast('Select photos first');return}const lines=selPh.map(p=>{let l='['+p.label+']';if(shOpts.C&&p.cat)l+=' '+p.cat;if(shOpts.N&&p.staffName)l+=' - '+p.staffName;if(shOpts.T&&p.date)l+=' - '+p.date;if(shOpts.Nt&&p.note)l+=' - '+p.note;return l+'\n  '+p.url}).join('\n\n');const sub=encodeURIComponent('Rapid Pro Clean - Work Photos');const body=encodeURIComponent('Dear Client,\n\nWork photos from your recent service:\n\n'+lines+'\n\nKind regards,\nRapid Pro Clean');window.location.href='mailto:?subject='+sub+'&body='+body}
-function openPhotoUpload(shiftId,site){
-  pPhSh=shiftId;pPhSite=site;q('PhMS').textContent='Upload photos for: '+site;q('phNote').value='';q('phFile').value='';q('phLbl').value='Before';
-  db.from('rpc_photos').select('category').eq('site',site).not('category','is',null).then(({data})=>{const cats=[...new Set((data||[]).map(p=>p.category).filter(Boolean))];q('phCat').innerHTML='<option value="">-- Select or create --</option>'+cats.map(c=>'<option>'+esc(c)+'</option>').join('')+'<option value="__new__">+ Create new...</option>';q('phCatNew').style.display='none';q('phCatNew').value='';openM('PhotoM')});
+function openPhotoUpload(shiftId,site,dateStr){
+  q('PhCatS').textContent=site+(dateStr?' · '+phShort(dateStr):'');
+  q('PhCatBody').innerHTML='';
+  openM('PhCatM');
+  phRenderJob(q('PhCatBody'),{shiftId:shiftId,site:site,canEdit:true});
 }
+function phCatDone(){closeM('PhCatM');if(q('p-roster')&&q('p-roster').classList.contains('on'))renderRoster()}
 function phCatCh(){const v=q('phCat').value;q('phCatNew').style.display=v==='__new__'?'block':'none';if(v==='__new__')q('phCatNew').focus()}
 async function uploadPhotos(){
   const files=q('phFile').files;if(!files||!files.length){toast('Select at least one photo');return}
@@ -2572,7 +2794,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v27',
+      app_version: 'RapidProClean_v28',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
