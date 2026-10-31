@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v28.0 build 20261030 — v27 fixes + photo categories (staff + admin), per-job Photos tab, per-job PDF report -->
+<!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
@@ -341,12 +341,15 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="ShiftM"><div class="msh"><div class="mh"></div><div class="mt">Assign Shift</div>
   <div id="DBW"></div>
   <div class="mlbl">Staff (tap to select multiple)</div>
+  <input class="mi" id="shStQ" type="text" placeholder="🔍 Search staff…" oninput="filterShStaff()" style="margin-bottom:6px;font-size:16px">
   <div class="msel" id="shSt" style="height:150px;overflow-y:auto;padding:4px"></div>
-  <div class="mlbl">Job Site</div><select class="msel" id="shSi"></select>
+  <div class="mlbl">Job Site</div><input class="mi" id="shSiQ" type="text" placeholder="🔍 Search site…" oninput="fillSiteSel('shSi','shSiQ')" style="margin-bottom:6px;font-size:16px"><select class="msel" id="shSi"></select>
   <div class="mlbl">Date</div><input class="mi" id="shDt" type="date">
   <div class="mlbl">Shift Times</div>
   <div class="mrow"><input class="mi" id="shS" type="time"><input class="mi" id="shE" type="time"></div>
   <div class="mlbl">Duties / Description</div><textarea class="mta" id="shDs" placeholder="Describe tasks..."></textarea>
+  <div class="mlbl">Machines / Equipment</div><textarea class="mta" id="shMc" placeholder="e.g. Rotary floor machine, carpet extractor, scrubber dryer..." style="min-height:55px"></textarea>
+  <div class="mlbl">Chemicals</div><textarea class="mta" id="shCh" placeholder="e.g. Neutral floor cleaner (1:20), glass cleaner..." style="min-height:55px"></textarea>
   <div class="mlbl">Access Notes (keys, codes, parking)</div><textarea class="mta" id="shAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
   <div class="mlbl">Pay Travel: Home to Site?</div>
   <select class="msel" id="shHT"><option value="no">No — no home travel pay</option><option value="yes">Yes — pay travel from home to site</option></select>
@@ -846,6 +849,8 @@ async function renderStaffHome(el2,sm,tm){
     shHdr.innerHTML='<div style="font-size:15px;font-weight:800;color:var(--nv)">📍 '+esc(sh.site)+'</div>'
       +'<div style="font-family:var(--mn);font-size:12px;color:var(--t3);margin-top:2px">'+(sh.start_time&&sh.end_time?fmt12(sh.start_time)+' – '+fmt12(sh.end_time):'Time TBC')+'</div>'
       +(sh.description?'<div style="font-size:12px;color:var(--t2);margin-top:4px">📋 '+esc(sh.description)+'</div>':'')
+      +(sh.machines?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>':'')
+      +(sh.chemicals?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>':'')
       +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(sh.access_notes)+'</div>':'');
 
     // Shift status pill
@@ -855,6 +860,8 @@ async function renderStaffHome(el2,sm,tm){
     else if(isActiveShift){spill.className='pill in';spill.innerHTML='<div class="dot in"></div>Signed In';}
     else{spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Not Started';}
     shHdr.appendChild(spill);
+    shHdr.appendChild(mkTeamBox(sh));
+    shHdr.appendChild(mkShiftPdfBtn(sh,true));
     shCard.appendChild(shHdr);
 
     // Action buttons for this shift
@@ -1210,7 +1217,10 @@ function mkShiftItem(sh,sm){
   top.appendChild(topRow);
   const det=document.createElement('div');det.className='ri-det';
   if(sh.description)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px">📋 '+esc(sh.description)+'</div>';
+  if(sh.machines)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>';
+  if(sh.chemicals)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>';
   if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px">🔑 '+esc(sh.access_notes)+'</div>';
+  if(!CU.is_admin&&CU.id===sh.staff_id){det.appendChild(mkTeamBox(sh));det.appendChild(mkShiftPdfBtn(sh,false))}
   if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Before & After Photos';const shId=sh.id,site=sh.site,shDate=sh.shift_date;ub.onclick=()=>openPhotoUpload(shId,site,shDate);det.appendChild(ub);}
   top.onclick=()=>{det.classList.toggle('on');arr.textContent=det.classList.contains('on')?'▲':'▼'};
   card.appendChild(top);card.appendChild(det);return card;
@@ -1339,8 +1349,8 @@ async function loadRange(){
 // SHIFT MANAGEMENT
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">'+esc(s.name)+'</label>').join('');
-  q('shSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');
-  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';
+  q('shSiQ').value='';q('shStQ').value='';fillSiteSel('shSi','shSiQ');
+  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;openM('ShiftM');
 }
@@ -1350,11 +1360,13 @@ async function saveShift(){
   const site=q('shSi').value,date=q('shDt').value,start=q('shS').value,end=q('shE').value;
   const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes',homeReturn=q('shHR').value==='yes';
   const photos=q('shPh').files;
+  const mach=q('shMc').value.trim(),chem=q('shCh').value.trim();
   if(!site||!date){toast('Select site and date');return}
   try{
     const inserts=sel.map(id=>({staff_id:id,site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeTrv,home_return_travel_pay:homeReturn,status:'draft'}));
+    if(mach||chem)inserts.forEach(function(r){if(mach)r.machines=mach;if(chem)r.chemicals=chem});   // only sent when filled in
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
-    if(error){toast('Error: '+error.message);return}
+    if(error){toast((mach||chem)&&/machines|chemicals/i.test(error.message||'')?'Machines/chemicals need the one-time database step (SQL) first':'Error: '+error.message);return}
     for(const staffId of sel){const s=allStaff.find(x=>x.id===staffId);const others=sel.filter(id=>id!==staffId).map(id=>allStaff.find(x=>x.id===id)).filter(Boolean).map(x=>x.name);let msg='Shift: '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'');if(others.length)msg+='. Also: '+others.join(', ');try{await db.from('rpc_notifications').insert({staff_id:staffId,title:'Shift Assigned',message:msg,icon:'📍',is_read:false})}catch{}}
     if(photos&&photos.length&&newShifts){for(const sh of newShifts){for(const ph of photos){try{const comp=await compressImg(ph,1000,0.8);const fn='shifts/'+sh.id+'/admin_'+Date.now()+'.jpg';const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});if(!ue){const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);await db.from('rpc_photos').insert({shift_id:sh.id,staff_id:0,staff_name:'Admin',label:'Instruction',url:ud.publicUrl,storage_path:fn,uploaded_by:'admin',site,category:'Admin Instructions'})}}catch{}}}}
     closeM('ShiftM');toast('Shift assigned to '+sel.length+' staff ✅');if(q('p-roster').classList.contains('on'))renderRoster();
@@ -2099,6 +2111,175 @@ async function saveSign(){
 
 // PHOTOS
 // ═══════════════════════════════════════════════════════════════════
+// v29 ADDITIONS: search boxes, "Working with" (with times), staff shift PDF
+// ═══════════════════════════════════════════════════════════════════
+
+// Site dropdown with a search box above it. Keeps the current choice if it still matches.
+function fillSiteSel(selId,qId,keep){
+  const sel=q(selId),box=q(qId);if(!sel)return;
+  const qv=((box&&box.value)||'').trim().toLowerCase();
+  const cur=keep!==undefined?keep:sel.value;
+  const list=(allSites||[]).filter(function(s){return !qv||String(s.name||'').toLowerCase().indexOf(qv)>-1});
+  sel.innerHTML='';
+  if(!list.length){const o=document.createElement('option');o.value='';o.textContent='No site matches your search';sel.appendChild(o);return}
+  list.forEach(function(s){const o=document.createElement('option');o.value=s.name;o.textContent=s.name;sel.appendChild(o)});
+  if(list.some(function(s){return s.name===cur}))sel.value=cur;
+}
+// Assign Shift staff list: hide names that don't match the search. Ticked names stay ticked.
+function filterShStaff(){
+  const qv=(q('shStQ').value||'').trim().toLowerCase();
+  q('shSt').querySelectorAll('label').forEach(function(l){l.style.display=(!qv||l.textContent.toLowerCase().indexOf(qv)>-1)?'flex':'none'});
+}
+
+// ── "Working with": colleagues at the same site, same date, whose shift OVERLAPS or TOUCHES this one ──
+// (8-3 and 10-3 overlap. 8-10 and 10-1 touch, so they hand over. 8-10 and 12-5 do not match, so nothing is shown.)
+const teamCache={};
+function tmin(t){if(!t)return null;const a=String(t).split(':');return parseInt(a[0],10)*60+parseInt(a[1]||'0',10)}
+async function getTeammates(sh){
+  if(!sh||!sh.site||!sh.shift_date)return [];
+  const key=sh.site+'|'+sh.shift_date;
+  let c=teamCache[key];
+  if(!c||Date.now()-c.t>15000){
+    c={t:Date.now(),p:(async function(){
+      try{const {data}=await db.from('rpc_shifts').select('id,staff_id,start_time,end_time,status').eq('site',sh.site).eq('shift_date',sh.shift_date).eq('status','published');return data||[]}
+      catch(e){return []}
+    })()};
+    teamCache[key]=c;
+  }
+  const rows=await c.p;
+  const s1=tmin(sh.start_time),e1=tmin(sh.end_time);
+  const out=[];
+  rows.forEach(function(r){
+    if(r.id===sh.id||r.staff_id===sh.staff_id)return;
+    const s2=tmin(r.start_time),e2=tmin(r.end_time);
+    const near=(s1==null||e1==null||s2==null||e2==null)?true:(s1<=e2&&s2<=e1);
+    if(!near)return;
+    const st=(allStaff||[]).find(function(x){return x.id===r.staff_id});
+    if(!st||st.is_admin)return;
+    if(out.some(function(o){return o.staffId===st.id}))return;
+    out.push({staffId:st.id,name:st.name,start:r.start_time,end:r.end_time});
+  });
+  out.sort(function(a,b){return String(a.start||'').localeCompare(String(b.start||''))});
+  return out;
+}
+function teamHTML(list){
+  if(!list||!list.length)return '';
+  return '<div style="font-size:12px;font-weight:800;color:var(--nv2);margin-bottom:3px">👥 Working with</div>'+list.map(function(m){
+    return '<div style="font-size:12px;color:var(--t2);padding:1px 0">• <b>'+esc(m.name)+'</b> <span style="font-family:var(--mn);color:var(--t3)">'+(m.start&&m.end?fmt12(m.start)+' – '+fmt12(m.end):'time TBC')+'</span></div>';
+  }).join('');
+}
+// returns a box that fills itself in (and stays hidden when there is nobody to show)
+function mkTeamBox(sh){
+  const b=document.createElement('div');
+  b.style.cssText='display:none;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;margin-top:6px';
+  getTeammates(sh).then(function(list){if(list.length){b.innerHTML=teamHTML(list);b.style.display='block'}}).catch(function(){});
+  return b;
+}
+function mkShiftPdfBtn(sh,compact){
+  const b=document.createElement('button');b.textContent='📄 Download Shift PDF';
+  b.style.cssText='display:'+(compact?'inline-flex':'flex')+';align-items:center;justify-content:center;gap:6px;padding:'+(compact?'6px 12px':'9px 14px')+';border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px solid var(--nv2);font-family:var(--fn);font-size:'+(compact?'11':'12')+'px;font-weight:700;cursor:pointer;margin-top:8px'+(compact?'':';width:100%');
+  b.onclick=function(e){e.stopPropagation();downloadShiftPDF(sh)};
+  return b;
+}
+
+// ── Staff: download ONE shift's details as a PDF (everything staff can see for that shift) ──
+async function downloadShiftPDF(sh){
+  toast('Building PDF… please wait');
+  try{
+    if(!window.jspdf){
+      await new Promise(function(res,rej){const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=res;s.onerror=function(){rej(new Error('Could not load the PDF library — check your internet'))};document.head.appendChild(s)});
+    }
+    const jsPDF=window.jspdf.jsPDF;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const PW=210,PH=297,MG=15,CW=180;
+    const staff=(allStaff||[]).find(function(x){return x.id===sh.staff_id});
+    const siteRow=(allSites||[]).find(function(s){return s.name===sh.site});
+    const team=await getTeammates(sh);
+    let photos=[];
+    try{const {data}=await db.from('rpc_photos').select('*').eq('shift_id',sh.id).eq('uploaded_by','admin').order('created_at');photos=data||[]}catch(e){}
+    const dataUrl=async function(url){try{const r=await fetch(url);const b=await r.blob();return await new Promise(function(res){const rd=new FileReader();rd.onload=function(){res(rd.result)};rd.onerror=function(){res(null)};rd.readAsDataURL(b)})}catch(e){return null}};
+    const dims=function(u){return new Promise(function(res){const i=new Image();i.onload=function(){res({w:i.naturalWidth,h:i.naturalHeight})};i.onerror=function(){res({w:4,h:3})};i.src=u})};
+    const dateLong=sh.shift_date?phLong(sh.shift_date):'Date TBC';
+    const timeTxt=(sh.start_time&&sh.end_time)?fmt12(sh.start_time)+' - '+fmt12(sh.end_time):'Time TBC';
+
+    // letterhead
+    doc.setFillColor(10,37,64);doc.rect(0,0,PW,52,'F');
+    let logoOk=false;
+    try{const lu=await dataUrl('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');if(lu){const ld=await dims(lu);const lh=18,lw=Math.min(64,lh*(ld.w/ld.h||1));doc.addImage(lu,'PNG',MG,8,lw,lh);logoOk=true}}catch(e){}
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+    if(!logoOk){doc.setFontSize(22);doc.text('RAPID PRO CLEAN',MG,21)}
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(160,200,240);doc.text('CLEANING JUST GOT BETTER',MG,logoOk?32:28);
+    doc.setDrawColor(255,255,255);doc.setLineWidth(0.4);doc.line(MG,36,PW-MG,36);
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(255,255,255);doc.text('SHIFT DETAILS',MG,46);
+
+    let y=64;
+    const need=function(h){if(y+h>PH-20){doc.addPage();y=20}};
+    const row=function(lbl,val){
+      const lines=[];String(val).split(/\r?\n/).forEach(function(p){doc.splitTextToSize(phT(p)||' ',CW-40).forEach(function(l){lines.push(l)})});
+      need(lines.length*5.6+3);
+      doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,37,64);doc.text(lbl,MG,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(30,45,70);
+      lines.forEach(function(l){doc.text(l,MG+40,y);y+=5.6});y+=2;
+    };
+    const head=function(t){need(18);doc.setFillColor(10,37,64);doc.roundedRect(MG,y,CW,8,1.5,1.5,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(phT(t).toUpperCase(),MG+4,y+5.6);y+=12};
+    const para=function(txt){
+      doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(30,45,70);
+      String(txt).split(/\r?\n/).forEach(function(p){doc.splitTextToSize(phT(p)||' ',CW-4).forEach(function(l){need(6);doc.text(l,MG+2,y);y+=5.6})});
+      y+=4;
+    };
+
+    if(staff)row('Staff',staff.name);
+    row('Site',sh.site+(siteRow&&siteRow.address?'\n'+siteRow.address:''));
+    row('Date',dateLong);
+    row('Time',timeTxt);
+    const trv=[];if(sh.home_travel_pay)trv.push('Home to site');if(sh.home_return_travel_pay)trv.push('Site to home');
+    if(trv.length)row('Paid travel',trv.join(' and '));
+    y+=3;
+
+    let any=false;
+    if(team.length){any=true;head('Working with');team.forEach(function(m){need(7);doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(30,45,70);doc.text(phT(m.name),MG+2,y);doc.setFont('helvetica','normal');doc.setTextColor(90,110,130);doc.text((m.start&&m.end)?fmt12(m.start)+' - '+fmt12(m.end):'time TBC',MG+80,y);y+=6});y+=4}
+    if(sh.description){any=true;head('Duties / Description');para(sh.description)}
+    if(sh.machines){any=true;head('Machines / Equipment');para(sh.machines)}
+    if(sh.chemicals){any=true;head('Chemicals');para(sh.chemicals)}
+    if(sh.access_notes){any=true;head('Access Notes (keys, codes, parking)');para(sh.access_notes)}
+    if(!any){doc.setFont('helvetica','italic');doc.setFontSize(10.5);doc.setTextColor(120,135,150);need(8);doc.text('No extra details were added for this shift.',MG+2,y);y+=8}
+
+    if(photos.length){
+      head('Instruction photos');
+      for(let i=0;i<photos.length;i++){
+        const u=await dataUrl(photos[i].url);if(!u)continue;
+        const d=await dims(u);const asp=(d.w/d.h)||1.333;
+        let iw=CW,ih=iw/asp;if(ih>120){ih=120;iw=ih*asp}
+        if(y+ih+12>PH-20){doc.addPage();y=20}
+        const x=MG+(CW-iw)/2;
+        doc.setDrawColor(205,215,228);doc.setLineWidth(0.3);doc.rect(x-0.5,y-0.5,iw+1,ih+1);
+        doc.addImage(u,u.indexOf('image/png')>-1?'PNG':'JPEG',x,y,iw,ih,undefined,'FAST');
+        y+=ih+5;doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(90,110,130);
+        doc.text('Instruction photo '+(i+1)+' of '+photos.length,PW/2,y,{align:'center'});y+=9;
+      }
+    }
+
+    const np=doc.internal.getNumberOfPages();
+    const now=new Date().toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+    for(let i=1;i<=np;i++){
+      doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,165,180);
+      doc.text('Rapid Pro Clean  |  Saved '+now+'  |  Details can change - check the app for the latest',MG,PH-7);
+      doc.text('Page '+i+' of '+np,PW-MG,PH-7,{align:'right'});
+    }
+    const tm=sh.start_time?'_'+String(sh.start_time).slice(0,5).replace(':',''):'';
+    doc.save('RapidProClean_Shift_'+phT(sh.site).replace(/[^a-z0-9]+/gi,'_')+'_'+(sh.shift_date||'')+tm+'.pdf');
+    toast('PDF downloaded ✅');
+  }catch(e){toast('Could not build PDF: '+(e&&e.message?e.message:'unknown error'))}
+}
+
+// Photos tab: search by site name
+let phSearchQ='';
+function phApplySearch(){
+  const v=phSearchQ.trim().toLowerCase();
+  document.querySelectorAll('#PhotosC [data-site]').forEach(function(c){c.style.display=(!v||c.dataset.site.indexOf(v)>-1)?'':'none'});
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // PHOTO CATEGORIES (v28)
 // Staff and admin both use the same screen. Each job (shift) can have any number of
 // custom categories (Kitchen, Carpet, Outdoor...). Each category has Before + After photos.
@@ -2458,6 +2639,10 @@ async function renderPhotos(){
     const intro=document.createElement('div');intro.style.cssText='font-size:12px;color:var(--t3);margin:0 2px 12px;line-height:1.5';
     intro.textContent='Open a site, then a job date. Each job has its own categories, photos and PDF report. Photos from all staff on the same site and date are combined.';
     wrap.appendChild(intro);
+    const sq=document.createElement('input');sq.type='text';sq.id='phSearchQ';sq.placeholder='🔍 Search site…';sq.value=phSearchQ;
+    sq.style.cssText='width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:var(--rs);font-family:var(--fn);font-size:16px;color:var(--tx);background:var(--cd);outline:none;margin:0 0 12px;box-sizing:border-box';
+    sq.oninput=function(){phSearchQ=sq.value;phApplySearch()};
+    wrap.appendChild(sq);
 
     siteOrder.forEach(function(site){
       const jobs=bySite[site];
@@ -2466,7 +2651,7 @@ async function renderPhotos(){
       const total=dks.reduce(function(a,k){return a+jobs[k].photos.length},0);
       const sKey='S|'+site;
 
-      const sf=document.createElement('div');sf.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px';
+      const sf=document.createElement('div');sf.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);margin-bottom:14px';sf.dataset.site=site.toLowerCase();
       const sfh=document.createElement('div');sfh.style.cssText='background:linear-gradient(135deg,var(--nv),var(--nv2));padding:14px 16px;cursor:pointer;'+(total?'':'opacity:.65');
       sfh.innerHTML='<div style="font-size:15px;font-weight:800;color:#fff">📁 '+esc(site)+'</div><div style="font-size:11px;color:rgba(255,255,255,.65);margin-top:2px">'+(total?nDates+' job date'+(nDates===1?'':'s')+' · '+total+' photo'+(total===1?'':'s'):'No photos yet')+'</div>';
       const sfb=document.createElement('div');sfb.style.cssText='padding:10px;display:'+(phAdminOpen[sKey]?'block':'none');
@@ -2534,7 +2719,7 @@ async function renderPhotos(){
       sf.appendChild(sfh);sf.appendChild(sfb);wrap.appendChild(sf);
     });
     const sp=document.createElement('div');sp.style.height='200px';wrap.appendChild(sp);
-    el2.innerHTML='';el2.appendChild(wrap);
+    el2.innerHTML='';el2.appendChild(wrap);phApplySearch();
   }catch(e){el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error loading photos.</div>'}
 }
 function buildPhotos(){}{selMode=!selMode;selPh=[];q('SelBtn').textContent=selMode?'✕ Cancel':'☑ Select to Share';q('ShareP').style.display='none';renderPhotos()}
@@ -2794,7 +2979,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v28',
+      app_version: 'RapidProClean_v29',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -3089,18 +3274,14 @@ var currentEditShift=null;
 function openEditShift(sh){
   currentEditShift=sh;
   // Populate site dropdown
-  var sel=q('esS');sel.innerHTML='';
-  allSites.forEach(function(s){
-    var o=document.createElement('option');
-    o.value=s.name;o.textContent=s.name;
-    if(s.name===sh.site)o.selected=true;
-    sel.appendChild(o);
-  });
+  q('esSq').value='';fillSiteSel('esS','esSq',sh.site);
   q('esDt').value=sh.shift_date||'';
   q('esSt').value=sh.start_time||'';
   q('esEt').value=sh.end_time||'';
   q('esDs').value=sh.description||'';
   q('esAc').value=sh.access_notes||'';
+  q('esMc').value=sh.machines||'';
+  q('esCh').value=sh.chemicals||'';
   q('esHT').value=sh.home_travel_pay?'yes':'no';
   q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
@@ -3115,13 +3296,14 @@ async function saveEditShift(){
   var end=q('esEt').value;
   var desc=q('esDs').value.trim();
   var access=q('esAc').value.trim();
+  var mach=q('esMc').value.trim(),chem=q('esCh').value.trim();
   var err=q('esErr');
 
   if(!site||!date){err.textContent='Site and date are required.';return;}
   err.textContent='Saving...';
 
   try{
-    var {error}=await db.from('rpc_shifts').update({
+    var upd={
       site:site,
       shift_date:date,
       start_time:start||null,
@@ -3131,7 +3313,9 @@ async function saveEditShift(){
       home_travel_pay:q('esHT').value==='yes',
       home_return_travel_pay:q('esHR').value==='yes',
       status:currentEditShift.status||'draft'
-    }).eq('id',currentEditShift.id);
+    };
+    if(mach||chem||('machines' in currentEditShift)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
+    var {error}=await db.from('rpc_shifts').update(upd).eq('id',currentEditShift.id);
 
     if(error)throw error;
 
@@ -3254,12 +3438,16 @@ async function publishShift(id){
 
 
 <div class="mov" id="EditShiftM"><div class="msh"><div class="mh"></div><div class="mt">Edit Shift</div>
-  <div class="mlbl">Job Site</div><select class="msel" id="esS"></select>
+  <div class="mlbl">Job Site</div><input class="mi" id="esSq" type="text" placeholder="🔍 Search site…" oninput="fillSiteSel('esS','esSq')" style="margin-bottom:6px;font-size:16px"><select class="msel" id="esS"></select>
   <div class="mlbl">Date</div><input class="mi" id="esDt" type="date">
   <div class="mlbl">Shift Times</div>
   <div class="mrow"><input class="mi" id="esSt" type="time"><input class="mi" id="esEt" type="time"></div>
   <div class="mlbl">Duties / Description</div>
   <textarea class="mta" id="esDs" placeholder="Describe tasks..."></textarea>
+  <div class="mlbl">Machines / Equipment</div>
+  <textarea class="mta" id="esMc" placeholder="e.g. Rotary floor machine, carpet extractor..." style="min-height:55px"></textarea>
+  <div class="mlbl">Chemicals</div>
+  <textarea class="mta" id="esCh" placeholder="e.g. Neutral floor cleaner (1:20)..." style="min-height:55px"></textarea>
   <div class="mlbl">Access Notes (keys, codes, parking)</div>
   <textarea class="mta" id="esAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
   <div class="mlbl">Pay Travel: Home to Site?</div>
