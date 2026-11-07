@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v31.0 — v30 + Documents upgrade (one-step New Folder, several staff per folder, Manage Access, search, notify only selected staff) -->
 <!-- v30.0 — v29 + site contact person (saved on site, auto-fills shifts, editable per shift), Edit Site button, contact in staff view and Shift PDF -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a2540">
@@ -438,25 +439,48 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="DFM"><div class="msh"><div class="mh"></div><div class="mt">Create Document Folder</div>
   <div class="mlbl">Folder Name</div><input class="mi" id="dfNm" placeholder="e.g. Safety Training" type="text">
   <div class="mlbl">Description</div><input class="mi" id="dfDs" placeholder="Brief description" type="text">
-  <div class="mlbl">Assign To</div>
-  <select class="msel" id="dfAssign">
-    <option value="all">All Staff</option>
-  </select>
-  <div style="font-size:10px;color:var(--t3);margin-top:-6px;margin-bottom:10px">Choose a specific staff member or leave as All Staff</div>
   <div class="mlbl">Requires signature before sign in?</div>
   <select class="msel" id="dfSg"><option value="no">No — read only</option><option value="yes">Yes — must sign before sign in</option></select>
+  <div class="mlbl">Who can see this folder?</div>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="dfAll" checked onchange="dfToggleAll()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">All Staff</label>
+  <div id="dfPickBox" style="display:none">
+    <input class="mi" id="dfSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('dfList','dfSq')" style="margin-bottom:6px;font-size:16px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('dfList','dfSq')">Select all</button><button class="ebtn" onclick="pkClear('dfList','dfSq')">Clear</button><span id="dfListN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+    <div id="dfList" style="max-height:190px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  </div>
+  <div class="mlbl">Attach new files (optional — PDF, Word, Image, several OK)</div>
+  <input type="file" id="dfFile" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" multiple style="margin-bottom:12px;font-size:13px">
+  <div class="mlbl">Add existing documents (optional)</div>
+  <input class="mi" id="dfXq" type="text" placeholder="🔍 Search documents…" oninput="pkRender('dfX','dfXq')" style="margin-bottom:6px;font-size:16px">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkClear('dfX','dfXq')">Clear</button><span id="dfXN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+  <div id="dfX" style="max-height:170px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="dfNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Notify the selected staff</label>
+
   <button class="btn pu" onclick="saveDocFolder()">Create Folder</button>
   <button class="btn sc" onclick="closeM('DFM')">Cancel</button>
 </div></div>
 
+<div class="mov" id="ACM"><div class="msh"><div class="mh"></div><div class="mt" id="acT">Folder Access</div>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="acAll" onchange="acToggleAll()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">All Staff</label>
+  <div id="acPickBox" style="display:none">
+    <input class="mi" id="acSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('acList','acSq')" style="margin-bottom:6px;font-size:16px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('acList','acSq')">Select all</button><button class="ebtn" onclick="pkClear('acList','acSq')">Clear</button><span id="acListN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+    <div id="acList" style="max-height:260px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="acNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Notify newly added staff</label>
+  <button class="btn pu" onclick="saveFolderAccess()">Save Access</button>
+  <button class="btn sc" onclick="closeM('ACM')">Cancel</button>
+</div></div>
+
 <div class="mov" id="UDM"><div class="msh"><div class="mh"></div><div class="mt">Upload Document</div>
-  <div class="mlbl">Folder</div><select class="msel" id="udFd"></select>
+  <div class="mlbl">Folder</div><input class="mi" id="udFq" type="text" placeholder="🔍 Search folders…" oninput="udFill()" style="margin-bottom:6px;font-size:16px"><select class="msel" id="udFd"></select>
   <div class="mlbl">Document Name</div><input class="mi" id="udNm" placeholder="e.g. Safety Guide" type="text">
   <div class="mlbl">Files (PDF, Word, Image — multiple OK)</div>
   <input type="file" id="udFile" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" multiple style="margin-bottom:6px;font-size:13px">
   <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Multiple files allowed</div>
   <div class="mlbl">Require signature before sign in?</div>
   <select class="msel" id="udSg"><option value="no">No</option><option value="yes">Yes — must sign before sign in</option></select>
+  <label style="display:flex;align-items:center;gap:10px;padding:2px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="udNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Notify the staff who can see this folder</label>
   <button class="btn pu" onclick="saveDocUpload()">Upload</button>
   <button class="btn sc" onclick="closeM('UDM')">Cancel</button>
 </div></div>
@@ -635,6 +659,7 @@ async function sendNotif(){
 // TRAINING BLOCKER
 async function checkTraining(){
   try{
+    var accIds=await myFolderAccessIds();
     var results=await Promise.all([
       db.from('rpc_doc_folders').select('*').eq('requires_signature','yes'),
       db.from('rpc_documents').select('*'),
@@ -645,7 +670,7 @@ async function checkTraining(){
     var signed=(results[2].data||[]).map(function(s){return s.doc_id});
     // Only include folders assigned to this staff member OR assigned to all (null)
     var myFolders=folders.filter(function(f){
-      return f.staff_folder_id===null||f.staff_folder_id===CU.id;
+      return canSeeFolder(f,accIds);
     });
     var myFolderIds=myFolders.map(function(f){return f.id});
     var needed=docs.filter(function(d){
@@ -1755,15 +1780,19 @@ async function renderStaffDocs(el2){
     el2.innerHTML='<div class="empty"><div class="empty-ico">📄</div>Error loading documents.<br><small>Run the database SQL setup in Supabase first.</small></div>';
     return;
   }
+  var accIds=await myFolderAccessIds();
   var allFolders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   // Only show: (1) all-staff folders (no staff_folder_id) and (2) this staff member's own personal folder.
   // Never show another staff member's personal folder.
   var folders=allFolders.filter(function(f){
-    return f.staff_folder_id===null||f.staff_folder_id===CU.id;
+    return canSeeFolder(f,accIds);
   });
   var signedIds=signed.map(function(s){return s.doc_id});
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   el2.innerHTML='<div class="sl">Company Documents</div>';
+  var sfq=document.createElement('input');sfq.className='mi';sfq.type='text';sfq.placeholder='🔍 Search folders or documents…';sfq.style.cssText='margin-bottom:10px;font-size:16px';
+  sfq.oninput=function(){var t=sfq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'})};
+  el2.appendChild(sfq);
   if(!folders.length){
     var empty=document.createElement('div');
     empty.innerHTML='<div class="empty"><div class="empty-ico">📁</div>No documents uploaded yet.</div>';
@@ -1772,6 +1801,7 @@ async function renderStaffDocs(el2){
     folders.forEach(function(folder){
       var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
       var df=document.createElement('div');df.className='df';
+      df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
       var hdr=document.createElement('div');hdr.className='dfh';
       hdr.innerHTML='<div style="font-size:20px">📁</div>'
         +'<div style="flex:1"><div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(folder.name)+'</div>'
@@ -1870,6 +1900,8 @@ async function renderAdminDocs(el2){
     return;
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
+  _docsCache=docs;_foldersCache=folders;
+  var accMap={};try{var aR=await db.from('rpc_folder_access').select('folder_id,staff_id');(aR.data||[]).forEach(function(r){(accMap[r.folder_id]=accMap[r.folder_id]||[]).push(r.staff_id)})}catch(e){}
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
 
@@ -1883,17 +1915,19 @@ async function renderAdminDocs(el2){
   var bRow=document.createElement('div');bRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
   var cb=document.createElement('button');cb.className='btn pu sm';cb.style.cssText='margin:0;flex:1';cb.textContent='+ Create Folder';
   cb.onclick=function(){
-    q('dfNm').value='';q('dfDs').value='';q('dfSg').value='no';
-    // Populate assign dropdown with current staff
-    var sel=q('dfAssign');sel.innerHTML='<option value="all">All Staff</option>';
-    allStaff.filter(function(s){return !s.is_admin}).forEach(function(s){
-      var opt=document.createElement('option');opt.value=s.id;opt.textContent=s.name+' ('+s.role+')';sel.appendChild(opt);
-    });
+    q('dfNm').value='';q('dfDs').value='';q('dfSg').value='no';q('dfFile').value='';q('dfSq').value='';q('dfXq').value='';
+    q('dfAll').checked=true;q('dfNt').checked=true;q('dfPickBox').style.display='none';
+    pkInit('dfList',staffPickItems(),[]);pkRender('dfList','dfSq');
+    var fnm={};folders.forEach(function(f){fnm[f.id]=f.name});
+    pkInit('dfX',docs.map(function(d){return {id:d.id,label:d.name,sub:'in '+(fnm[d.folder_id]||'a folder')}}),[]);pkRender('dfX','dfXq');
     openM('DFM');
   };
   var ub=document.createElement('button');ub.className='btn nv sm';ub.style.cssText='margin:0;flex:1';ub.textContent='📎 Upload Doc';
-  ub.onclick=openUploadDoc;
+  ub.onclick=function(){openUploadDoc()};
   bRow.appendChild(cb);bRow.appendChild(ub);el2.appendChild(bRow);
+  var fsq=document.createElement('input');fsq.className='mi';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
+  fsq.oninput=function(){var t=fsq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'})};
+  el2.appendChild(fsq);
 
   // No folders message
   if(!folders.length){
@@ -1904,20 +1938,27 @@ async function renderAdminDocs(el2){
   folders.forEach(function(folder){
     var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
     var df=document.createElement('div');df.className='df';
+    df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
 
     var hdr=document.createElement('div');hdr.className='dfh';
     var icon=document.createElement('div');icon.style.fontSize='20px';icon.textContent='📁';
     var info=document.createElement('div');info.style.flex='1';
-    var assignedTo=folder.staff_folder_id?allStaff.find(function(s){return s.id===folder.staff_folder_id}):null;
+    var accIds=[];if(folder.staff_folder_id){accIds.push(folder.staff_folder_id);(accMap[folder.id]||[]).forEach(function(i){if(accIds.indexOf(i)===-1)accIds.push(i)})}
+    var assignedTo=accIds.length?{name:accIds.length===1?((allStaff.find(function(s){return s.id===accIds[0]})||{}).name||'1 staff member'):(accIds.length<=3?accIds.map(function(i){var s=allStaff.find(function(x){return x.id===i});return s?s.name.split(' ')[0]:'?'}).join(', '):accIds.length+' staff')}:null;
     info.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(folder.name)+'</div>'
       +'<div style="font-size:11px;color:var(--t3);margin-top:1px">'+fdocs.length+' doc'+(fdocs.length!==1?'s':'')+' · '+(folder.requires_signature==='yes'?'✍️ Sig required':'Read only')+'</div>'
       +'<div style="font-size:10px;margin-top:2px;font-weight:700;color:'+(assignedTo?'var(--nv2)':'var(--t3)')+'">👤 '+(assignedTo?assignedTo.name+' only':'All Staff')+'</div>';
     var arrSpan=document.createElement('span');arrSpan.style.cssText='color:var(--t3);font-size:14px';arrSpan.textContent='▼';
     var dBtn=document.createElement('button');dBtn.className='dbtn';dBtn.textContent='Delete';
     (function(fid,fname){dBtn.onclick=function(e){e.stopPropagation();delDocFolder(fid,fname)};})(folder.id,folder.name);
-    hdr.appendChild(icon);hdr.appendChild(info);hdr.appendChild(arrSpan);hdr.appendChild(dBtn);
+    var aBtn=document.createElement('button');aBtn.className='ebtn';aBtn.textContent='Access';
+    (function(fid){aBtn.onclick=function(e){e.stopPropagation();openFolderAccess(fid)};})(folder.id);
+    hdr.appendChild(icon);hdr.appendChild(info);hdr.appendChild(arrSpan);hdr.appendChild(aBtn);hdr.appendChild(dBtn);
 
     var body=document.createElement('div');body.className='dfb';
+    var addB=document.createElement('button');addB.className='btn nv sm';addB.style.cssText='margin:8px 0;width:100%';addB.textContent='📎 Add Documents to this folder';
+    (function(fid){addB.onclick=function(){openUploadDoc(fid)};})(folder.id);
+    body.appendChild(addB);
 
     if(!fdocs.length){
       var nd=document.createElement('div');nd.style.cssText='text-align:center;padding:12px;color:var(--t3);font-size:12px';nd.textContent='No documents in this folder yet';body.appendChild(nd);
@@ -1941,7 +1982,7 @@ async function renderAdminDocs(el2){
 
     (function(body2,folderId,arrSpan2){
       hdr.onclick=function(e){
-        if(e.target===dBtn)return;
+        if(e.target===dBtn||e.target===aBtn)return;
         body2.classList.toggle('on');
         arrSpan2.textContent=body2.classList.contains('on')?'▲':'▼';
       };
@@ -2012,41 +2053,175 @@ async function renderAdminDocs(el2){
   }
 
 }
+// ═══════════════════════════════════════════════════════════════════
+// v31: DOCUMENTS UPGRADE
+// A folder can now be seen by All Staff or by several chosen staff (table rpc_folder_access).
+// staff_folder_id is kept as the first chosen person so older versions stay safe (never show more than intended).
+// ═══════════════════════════════════════════════════════════════════
+var _docsCache=[],_foldersCache=[],_acFid=null,_acPrev=null,_udFolders=[];
+async function myFolderAccessIds(){try{var r=await db.from('rpc_folder_access').select('folder_id').eq('staff_id',CU.id);return (r.data||[]).map(function(x){return x.folder_id})}catch(e){return []}}
+function canSeeFolder(f,accIds){return f.staff_folder_id===null||f.staff_folder_id===undefined||f.staff_folder_id===CU.id||accIds.indexOf(f.id)!==-1}
+function staffPickItems(){return allStaff.filter(function(s){return !s.is_admin}).map(function(s){return {id:s.id,label:s.name,sub:s.role||''}})}
+
+// Generic search + tick list (reused by later versions)
+var _pk={};
+function pkInit(listId,items,preIds){var sel={};(preIds||[]).forEach(function(i){sel[i]=true});_pk[listId]={items:items,sel:sel}}
+function pkText(qId){var e=qId?q(qId):null;return e?String(e.value||'').trim().toLowerCase():''}
+function pkVisible(listId,qId){var t=pkText(qId);return _pk[listId].items.filter(function(it){return !t||(it.label+' '+(it.sub||'')).toLowerCase().indexOf(t)!==-1})}
+function pkCount(listId){var c=q(listId+'N');if(c&&_pk[listId])c.textContent=Object.keys(_pk[listId].sel).length+' selected'}
+function pkRender(listId,qId){
+  var st=_pk[listId],el=q(listId);if(!st||!el)return;
+  el.innerHTML='';
+  var vis=pkVisible(listId,qId);
+  vis.forEach(function(it){
+    var lb=document.createElement('label');lb.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--bd);font-size:13px;cursor:pointer';
+    var cb=document.createElement('input');cb.type='checkbox';cb.checked=!!st.sel[it.id];cb.style.cssText='width:18px;height:18px;flex:none;accent-color:var(--nv2)';
+    cb.onchange=function(){if(cb.checked)st.sel[it.id]=true;else delete st.sel[it.id];pkCount(listId)};
+    var tx=document.createElement('div');tx.style.cssText='flex:1;min-width:0';
+    tx.innerHTML='<div style="font-weight:600;color:var(--tx)">'+esc(it.label)+'</div>'+(it.sub?'<div style="font-size:11px;color:var(--t3)">'+esc(it.sub)+'</div>':'');
+    lb.appendChild(cb);lb.appendChild(tx);el.appendChild(lb);
+  });
+  if(!vis.length)el.innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 2px">Nothing found</div>';
+  pkCount(listId);
+}
+function pkAll(listId,qId){pkVisible(listId,qId).forEach(function(it){_pk[listId].sel[it.id]=true});pkRender(listId,qId)}
+function pkClear(listId,qId){_pk[listId].sel={};pkRender(listId,qId)}
+function pkGet(listId){return _pk[listId]?Object.keys(_pk[listId].sel).map(Number):[]}
+function dfToggleAll(){q('dfPickBox').style.display=q('dfAll').checked?'none':'block'}
+function acToggleAll(){q('acPickBox').style.display=q('acAll').checked?'none':'block'}
+
+// Who should be notified about a folder: all staff, or only the people who can see it
+async function folderRecipients(fid){
+  var staff=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+  var f=await db.from('rpc_doc_folders').select('staff_folder_id').eq('id',fid).limit(1);
+  var row=f.data&&f.data[0];if(!row)return [];
+  if(row.staff_folder_id===null||row.staff_folder_id===undefined)return staff;
+  var ids={};ids[row.staff_folder_id]=true;
+  var a=await db.from('rpc_folder_access').select('staff_id').eq('folder_id',fid);
+  (a.data||[]).forEach(function(r){ids[r.staff_id]=true});
+  return Object.keys(ids).map(Number).filter(function(i){return staff.indexOf(i)!==-1});
+}
+
+// One-step New Folder: name + who can see it + new files + existing documents
 async function saveDocFolder(){
   var nm=q('dfNm').value.trim(),ds=q('dfDs').value.trim(),sg=q('dfSg').value;
   if(!nm){toast('Enter a folder name');return}
-  var assignVal=q('dfAssign').value;
-  var assignedStaffId=assignVal==='all'?null:parseInt(assignVal);
+  var all=q('dfAll').checked,ids=all?[]:pkGet('dfList');
+  if(!all&&!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
+  var files=q('dfFile').files||[],xIds=pkGet('dfX'),notify=q('dfNt').checked;
+  if(ids.length>1){var chk=await db.from('rpc_folder_access').select('id').limit(1);if(chk.error){toast('Choosing several staff needs the one-time database step (SQL) first');return}}
+  toast('Creating folder...');
   try{
-    var ins=await db.from('rpc_doc_folders').insert({
-      name:nm,
-      description:ds||null,
-      requires_signature:sg,
-      staff_folder_id:assignedStaffId
-    });
+    var ins=await db.from('rpc_doc_folders').insert({name:nm,description:ds||null,requires_signature:sg,staff_folder_id:all?null:ids[0]}).select();
     if(ins.error)throw ins.error;
+    var fid=ins.data[0].id;
+    if(!all){var ar=await db.from('rpc_folder_access').insert(ids.map(function(i){return {folder_id:fid,staff_id:i}}));if(ar.error&&ids.length>1)toast('Folder created, but staff access was not saved: '+ar.error.message)}
+    var added=0;
+    for(var xi=0;xi<xIds.length;xi++){
+      var sd=(_docsCache||[]).find(function(d){return d.id===xIds[xi]});if(!sd)continue;
+      var r1=await db.from('rpc_documents').insert({folder_id:fid,name:sd.name,url:sd.url,storage_path:sd.storage_path});
+      if(!r1.error)added++;
+    }
+    for(var fi=0;fi<files.length;fi++){
+      var file=files[fi];
+      var safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      var fn='docs/'+fid+'_'+Date.now()+'_'+safeName;
+      try{
+        var up=await db.storage.from('rpc-photos').upload(fn,file,{contentType:file.type,upsert:true});
+        if(up.error){toast('Upload failed: '+up.error.message);continue}
+        var pu=db.storage.from('rpc-photos').getPublicUrl(fn);
+        var r2=await db.from('rpc_documents').insert({folder_id:fid,name:file.name,url:pu.data.publicUrl,storage_path:fn});
+        if(r2.error){toast('Save failed: '+r2.error.message);continue}
+        added++;
+      }catch(e){toast('Error: '+(e.message||'Upload failed'))}
+    }
+    if(notify){
+      try{
+        var rc=all?allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id}):ids;
+        if(rc.length){
+          var msg='Folder "'+nm+'" is available'+(added?' ('+added+' document'+(added>1?'s':'')+')':'')+(sg==='yes'?'. Signature required.':'. Please review.');
+          await db.from('rpc_notifications').insert(rc.map(function(i){return {staff_id:i,title:'New Folder',message:msg,icon:'📁',is_read:false}}));
+        }
+      }catch(e){}
+    }
     closeM('DFM');
-    var who=assignedStaffId?allStaff.find(function(s){return s.id===assignedStaffId}):null;
-    toast('Folder created ✅'+(who?' — assigned to '+who.name:' — for all staff'));
-    renderDocs();
+    toast('Folder created ✅'+(added?' — '+added+' document'+(added>1?'s':'')+' added':'')+(all?' — for all staff':' — '+ids.length+' staff'));
+    renderDocs();loadNotifs();
   }catch(e){toast('Error creating folder: '+(e.message||'Check database'))}
 }
-async function openUploadDoc(){
+
+// Manage Access: add / remove staff on an existing folder at any time
+async function openFolderAccess(fid){
+  var f=(_foldersCache||[]).find(function(x){return x.id===fid});if(!f)return;
+  _acFid=fid;
+  var isAll=(f.staff_folder_id===null||f.staff_folder_id===undefined),cur=[];
+  if(!isAll){
+    cur.push(f.staff_folder_id);
+    var a=await db.from('rpc_folder_access').select('staff_id').eq('folder_id',fid);
+    (a.data||[]).forEach(function(r){if(cur.indexOf(r.staff_id)===-1)cur.push(r.staff_id)});
+  }
+  _acPrev=isAll?null:cur.slice();
+  q('acT').textContent='Access — '+f.name;
+  q('acAll').checked=isAll;q('acSq').value='';q('acNt').checked=true;
+  q('acPickBox').style.display=isAll?'none':'block';
+  pkInit('acList',staffPickItems(),cur);pkRender('acList','acSq');
+  openM('ACM');
+}
+async function saveFolderAccess(){
+  var fid=_acFid,f=(_foldersCache||[]).find(function(x){return x.id===fid});if(!f)return;
+  var all=q('acAll').checked,ids=all?[]:pkGet('acList');
+  if(!all&&!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
+  try{
+    var chk=await db.from('rpc_folder_access').select('id').limit(1);var hasT=!chk.error;
+    if(!all&&ids.length>1&&!hasT){toast('Choosing several staff needs the one-time database step (SQL) first');return}
+    if(!all&&hasT){
+      var up=await db.from('rpc_folder_access').upsert(ids.map(function(i){return {folder_id:fid,staff_id:i}}),{onConflict:'folder_id,staff_id'});
+      if(up.error)throw up.error;
+      var dl=await db.from('rpc_folder_access').delete().eq('folder_id',fid).not('staff_id','in','('+ids.join(',')+')');
+      if(dl.error)throw dl.error;
+    }
+    if(all&&hasT){var d2=await db.from('rpc_folder_access').delete().eq('folder_id',fid);if(d2.error)throw d2.error}
+    var u=await db.from('rpc_doc_folders').update({staff_folder_id:all?null:ids[0]}).eq('id',fid);
+    if(u.error)throw u.error;
+    if(q('acNt').checked){
+      try{
+        var everyone=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+        var now=all?everyone:ids,before=_acPrev===null?everyone:_acPrev;
+        var added=now.filter(function(i){return before.indexOf(i)===-1});
+        if(added.length){
+          var msg='You now have access to "'+f.name+'"'+(f.requires_signature==='yes'?'. Signature required.':'. Please review.');
+          await db.from('rpc_notifications').insert(added.map(function(i){return {staff_id:i,title:'New Folder',message:msg,icon:'📁',is_read:false}}));
+        }
+      }catch(e){}
+    }
+    closeM('ACM');toast('Access updated ✅');renderDocs();loadNotifs();
+  }catch(e){toast('Error: '+(e.message||'Could not save access'))}
+}
+
+// Upload Document: folder search + optional pre-selected folder
+function udFill(keep){
+  var t=(q('udFq').value||'').trim().toLowerCase(),cur=keep||q('udFd').value;
+  var list=_udFolders.filter(function(f){return !t||String(f.name).toLowerCase().indexOf(t)!==-1});
+  q('udFd').innerHTML=list.length?list.map(function(f){return '<option value="'+f.id+'"'+(String(f.id)===String(cur)?' selected':'')+'>'+esc(f.name)+'</option>'}).join(''):'<option value="">No folder matches</option>';
+}
+async function openUploadDoc(fid){
+  if(typeof fid!=='number')fid=null;
   try{
     const {data:folders,error}=await db.from('rpc_doc_folders').select('*').order('name');
     if(error)throw error;
     if(!folders||!folders.length){toast('Create a folder first before uploading documents');return}
-    q('udFd').innerHTML=folders.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('');
-    q('udNm').value='';q('udFile').value='';q('udSg').value='no';openM('UDM');
+    _udFolders=folders;q('udFq').value='';udFill(fid);
+    q('udNm').value='';q('udFile').value='';q('udSg').value='no';q('udNt').checked=true;openM('UDM');
   }catch(e){toast('Error loading folders: '+(e.message||'Check database setup'))}
 }
+
 async function saveDocUpload(){
   const fidRaw=q('udFd').value,fid=parseInt(fidRaw);
   if(!fid||isNaN(fid)){toast('Select a folder first');return}
   const nm=q('udNm').value.trim(),files=q('udFile').files,sg=q('udSg').value;
   if(!files||!files.length){toast('Select at least one file');return}
   toast('Uploading '+files.length+' file'+(files.length>1?'s':'')+'...');
-  let cnt=0;const staff=allStaff.filter(s=>!s.is_admin);
+  let cnt=0;const staff=allStaff.filter(s=>!s.is_admin);const upNames=[];
   for(const file of files){
     // Sanitise filename — Supabase rejects spaces and special chars in paths
     const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -2059,15 +2234,15 @@ async function saveDocUpload(){
       const {error:ie}=await db.from('rpc_documents').insert({folder_id:fid,name,url:ud.publicUrl,storage_path:fn});
       if(ie){toast('Save failed: '+ie.message);continue}
       if(sg==='yes')await db.from('rpc_doc_folders').update({requires_signature:'yes'}).eq('id',fid);
-      if(staff.length){try{await db.from('rpc_notifications').insert(staff.map(s=>({staff_id:s.id,title:'New Document',message:'"'+name+'" uploaded. Please review.',icon:'📄',is_read:false})))}catch{}}
-      cnt++;
+      cnt++;upNames.push(name);
     }catch(e){toast('Error: '+(e.message||'Upload failed'))}
   }
+  if(cnt>0&&q('udNt').checked){try{const rc=await folderRecipients(fid);if(rc.length){const msg=upNames.length===1?'"'+upNames[0]+'" uploaded. Please review.':upNames.length+' new documents uploaded. Please review.';await db.from('rpc_notifications').insert(rc.map(function(id){return {staff_id:id,title:'New Document',message:msg,icon:'📄',is_read:false}}))}}catch(e){}}
   if(cnt>0){closeM('UDM');toast(cnt+' document'+(cnt>1?'s':'')+' uploaded ✅');renderDocs();loadNotifs();}
   else toast('No files were uploaded. Check the errors above.');
 }
-async function delDocFolder(id,name){if(!confirm('Delete "'+name+'" and all documents?'))return;try{await db.from('rpc_documents').delete().eq('folder_id',id);await db.from('rpc_doc_folders').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
-async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path)await db.storage.from('rpc-photos').remove([path]);await db.from('rpc_documents').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
+async function delDocFolder(id,name){if(!confirm('Delete "'+name+'" and all documents?'))return;try{await db.from('rpc_documents').delete().eq('folder_id',id);try{await db.from('rpc_folder_access').delete().eq('folder_id',id)}catch(e){}await db.from('rpc_doc_folders').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
+async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path){const oth=await db.from('rpc_documents').select('id').eq('storage_path',path).neq('id',id).limit(1);if(!(oth.data&&oth.data.length))await db.storage.from('rpc-photos').remove([path])}await db.from('rpc_documents').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
 
 // SIGNATURE
 function openSign(docId,docName){pSignId=docId;q('SignMId').value=docId;q('SignMN').textContent=docName;q('sigTyped').value='';q('sigFile').value='';q('sigMeth').value='draw';sigMethCh();openM('SignM');setTimeout(initSig,100)}
@@ -2875,40 +3050,12 @@ async function saveStaff(){
     var boxes=q('nTraining').querySelectorAll('input[type=checkbox]:checked');
     boxes.forEach(function(b){checked.push(parseInt(b.value))});
     if(checked.length){
-      // For each selected folder, if it was "All Staff" (staff_folder_id null),
-      // create a duplicate folder assigned to this person
-      // If it was already specific, just add another copy for this person
       try{
-        var fRes=await db.from('rpc_doc_folders').select('*').in('id',checked);
-        var fDocs=await db.from('rpc_documents').select('*').in('folder_id',checked);
-        var srcFolders=fRes.data||[];
-        var srcDocs=fDocs.data||[];
-        for(var fi=0;fi<srcFolders.length;fi++){
-          var sf=srcFolders[fi];
-          // Create a copy of this folder assigned specifically to the new staff member
-          var newFolderRes=await db.from('rpc_doc_folders').insert({
-            name:sf.name,
-            description:sf.description,
-            requires_signature:sf.requires_signature,
-            staff_folder_id:newId
-          }).select();
-          if(newFolderRes.error||!newFolderRes.data||!newFolderRes.data.length)continue;
-          var newFolderId=newFolderRes.data[0].id;
-          // Copy all documents from the source folder into the new folder
-          var docsInFolder=srcDocs.filter(function(d){return d.folder_id===sf.id});
-          for(var di=0;di<docsInFolder.length;di++){
-            var sd=docsInFolder[di];
-            await db.from('rpc_documents').insert({
-              folder_id:newFolderId,
-              name:sd.name,
-              url:sd.url,
-              storage_path:sd.storage_path
-            });
-          }
-        }
-        toast(nm+' added ✅ — '+checked.length+' training folder'+(checked.length>1?'s':'')+' assigned');
+        var accR=await db.from('rpc_folder_access').upsert(checked.map(function(fid2){return {folder_id:fid2,staff_id:newId}}),{onConflict:'folder_id,staff_id'});
+        if(accR.error)throw accR.error;
+        toast(nm+' added ✅ — added to '+checked.length+' training folder'+(checked.length>1?'s':''));
       }catch(e){
-        toast(nm+' added ✅ — training assignment failed: '+e.message);
+        toast(nm+' added ✅ — training assignment failed: '+(/folder_access/i.test(e.message||'')?'run the one-time database step (SQL) first':e.message));
       }
     } else {
       toast(nm+' added ✅');
@@ -2932,10 +3079,10 @@ async function openAddStaff(){
     var folders=res.data||[];
     // Filter: show "All Staff" folders (staff_folder_id null) as assignable training
     // Don't show personal folders of other staff
-    var trainingFolders=folders.filter(function(f){return !f.staff_folder_id});
+    var trainingFolders=folders.filter(function(f){return !!f.staff_folder_id});
     nt.innerHTML='';
     if(!trainingFolders.length){
-      nt.innerHTML='<div style="font-size:12px;color:var(--t3)">No training folders set up yet. Create a folder with "Requires signature" first.</div>';
+      nt.innerHTML='<div style="font-size:12px;color:var(--t3)">No selected-staff training folders yet. Folders for All Staff are visible to new staff automatically.</div>';
       return;
     }
     trainingFolders.forEach(function(f){
@@ -3048,7 +3195,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v30',
+      app_version: 'RapidProClean_v31',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
