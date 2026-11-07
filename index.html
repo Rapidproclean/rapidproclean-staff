@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v32.0 — v31 + search boxes (staff, sites, signed documents, leave, admin Home) and multi-select (manual attendance, send notification, add leave) -->
 <!-- v31.0 — v30 + Documents upgrade (one-step New Folder, several staff per folder, Manage Access, search, notify only selected staff) -->
 <!-- v30.0 — v29 + site contact person (saved on site, auto-fills shifts, editable per shift), Edit Site button, contact in staff view and Shift PDF -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -279,17 +280,19 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div>
 <div class="pg" id="p-admin">
   <div class="sl">Staff</div>
+  <input class="mi" id="stSq" type="text" placeholder="🔍 Search staff…" oninput="filterRows('StaffList','stSq')" style="margin-bottom:10px;font-size:16px">
   <div class="card" id="StaffList"></div>
   <button class="btn tl" onclick="openAddStaff()">+ Add New Staff Member</button>
   <div class="sl" style="margin-top:18px">Manual Attendance Override</div>
   <button class="btn am" onclick="openManual()">&#9999;&#65039; Add / Edit Attendance</button>
   <div class="sl" style="margin-top:4px">Job Sites</div>
+  <input class="mi" id="siSq" type="text" placeholder="🔍 Search sites…" oninput="filterRows('SiteList','siSq')" style="margin-bottom:10px;font-size:16px">
   <div class="card" id="SiteList"></div>
   <button class="btn nv" style="margin-top:10px" onclick="openAddSite()">+ Add Job Site</button>
   <div class="sl" style="margin-top:18px">Assign Shifts</div>
   <button class="btn nv" onclick="openAssign()">+ Assign Shift to Staff</button>
   <div class="sl" style="margin-top:18px">Notifications</div>
-  <button class="btn sc" onclick="openM('NotifM')">&#128226; Send Notification</button>
+  <button class="btn sc" onclick="openNotif()">&#128226; Send Notification</button>
   <div class="sl" style="margin-top:18px">Data Backup</div>
   <div class="card"><div style="padding:12px 14px">
     <div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">Download a full backup of all your data — staff, attendance, shifts, leave, documents, photos and signed records. Save it to your phone or email it to yourself weekly.</div>
@@ -398,7 +401,10 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div></div>
 
 <div class="mov" id="ManM"><div class="msh"><div class="mh"></div><div class="mt">Manual Attendance</div>
-  <div class="mlbl">Staff Member</div><select class="msel" id="mnSt"></select>
+  <div class="mlbl">Staff Member(s)</div>
+  <input class="mi" id="mnSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('mnList','mnSq')" style="margin-bottom:6px;font-size:16px">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('mnList','mnSq')">Select all</button><button class="ebtn" onclick="pkClear('mnList','mnSq')">Clear</button><span id="mnListN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+  <div id="mnList" style="max-height:170px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
   <div class="mlbl">Date</div><input class="mi" id="mnDt" type="date">
   <div class="mlbl">Site</div><select class="msel" id="mnSi"></select>
   <div class="mlbl">Sign In Time</div><input class="mi" id="mnIn" type="time">
@@ -499,7 +505,13 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div></div>
 
 <div class="mov" id="NotifM"><div class="msh"><div class="mh"></div><div class="mt">Send Notification</div>
-  <div class="mlbl">Send To</div><select class="msel" id="ntTg"><option value="all">All Staff</option></select>
+  <div class="mlbl">Send To</div>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="ntAll" checked onchange="ntToggleAll()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">All Staff</label>
+  <div id="ntPickBox" style="display:none">
+  <input class="mi" id="ntSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('ntList','ntSq')" style="margin-bottom:6px;font-size:16px">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('ntList','ntSq')">Select all</button><button class="ebtn" onclick="pkClear('ntList','ntSq')">Clear</button><span id="ntListN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+  <div id="ntList" style="max-height:170px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  </div>
   <div class="mlbl">Message</div><textarea class="mta" id="ntMsg" placeholder="Type your message..."></textarea>
   <button class="btn nv" onclick="sendNotif()">Send</button>
   <button class="btn sc" onclick="closeM('NotifM')">Cancel</button>
@@ -647,10 +659,11 @@ async function markAllRead(){try{await db.from('rpc_notifications').update({is_r
 async function clearReadNotifs(){if(!confirm('Delete all read notifications?'))return;try{await db.from('rpc_notifications').delete().eq('staff_id',CU.id).eq('is_read',true);loadNotifs();toast('Cleared')}catch{}}
 function toggleNotif(){q('NP').classList.toggle('on')}
 async function sendNotif(){
-  const tg=q('ntTg').value,msg=q('ntMsg').value.trim();
+  const msg=q('ntMsg').value.trim();
   if(!msg){toast('Enter a message');return}
   try{
-    const ids=tg==='all'?allStaff.filter(s=>!s.is_admin).map(s=>s.id):[parseInt(tg)];
+    const ids=q('ntAll').checked?allStaff.filter(s=>!s.is_admin).map(s=>s.id):pkGet('ntList');
+    if(!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
     await db.from('rpc_notifications').insert(ids.map(id=>({staff_id:id,title:'Message from Admin',message:msg,icon:'📢',is_read:false})));
     closeM('NotifM');q('ntMsg').value='';toast('Sent to '+ids.length+' staff');
   }catch(e){toast('Error: '+e.message)}
@@ -715,12 +728,12 @@ async function renderHome(){
 async function renderAdminHome(el2,sm,tm){
   const vis=allStaff.filter(s=>!s.is_admin);
   const onS=vis.filter(s=>sm[s.id]&&sm[s.id].is_in).length;
-  el2.innerHTML='<div class="stats"><div class="sc"><div class="sn b">'+vis.length+'</div><div class="sl2">Total</div></div><div class="sc"><div class="sn g">'+onS+'</div><div class="sl2">On Shift</div></div><div class="sc"><div class="sn r">'+(vis.length-onS)+'</div><div class="sl2">Off</div></div></div><div id="FlagDiv"></div><div class="sl">Staff</div><div class="sgrid" id="StaffGrid"></div>';
+  el2.innerHTML='<div class="stats"><div class="sc"><div class="sn b">'+vis.length+'</div><div class="sl2">Total</div></div><div class="sc"><div class="sn g">'+onS+'</div><div class="sl2">On Shift</div></div><div class="sc"><div class="sn r">'+(vis.length-onS)+'</div><div class="sl2">Off</div></div></div><div id="FlagDiv"></div><div class="sl">Staff</div><input class="mi" id="hmSq" type="text" placeholder="🔍 Search staff…" value="'+esc(_homeQ).replace(/"/g,'&quot;')+'" oninput="homeSearch(this.value)" style="margin-bottom:10px;font-size:16px"><div class="sgrid" id="StaffGrid"></div>';
   loadFlags(sm);
   const sg=q('StaffGrid');sg.style.paddingBottom='200px';
   vis.forEach(s=>{
     const st=sm[s.id]||{},isIn=!!st.is_in,isTr=!!tm[s.id],av=AV[s.color||'a']||AV.a;
-    const card=document.createElement('div');card.className='scard'+(isIn?' in':isTr?' tr':'');
+    const card=document.createElement('div');card.className='scard'+(isIn?' in':isTr?' tr':'');card.setAttribute('data-n',(s.name+' '+(s.role||'')+' '+(st.site||'')).toLowerCase());
     const avEl=document.createElement('div');avEl.className='av';avEl.style.cssText='background:'+av.bg+';color:'+av.c+';margin-bottom:8px';
     if(s.profile_pic){const img=document.createElement('img');img.src=s.profile_pic;img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';avEl.appendChild(img)}else avEl.textContent=ini(s.name);
     card.appendChild(avEl);
@@ -735,6 +748,7 @@ async function renderAdminHome(el2,sm,tm){
     const sid=s.id,snm=s.name,sin=isIn,ssite=st.site||'';btn.onclick=()=>doTog(sid,snm,sin,null,ssite);
     card.appendChild(btn);sg.appendChild(card);
   });
+  filterHomeStaff();
 }
 
 async function loadFlags(sm){
@@ -1607,15 +1621,16 @@ async function submitLeave(){
 async function renderAdminLeave(el2){
   const {data:leaves,error}=await db.from('rpc_leave').select('*').order('created_at',{ascending:false});
   if(error)throw error;
-  el2.innerHTML='';
+  el2.innerHTML='';el2.dataset.lvTab='all';
   const pending=(leaves||[]).filter(l=>l.status==='pending').length;
   const slEl=document.createElement('div');slEl.className='sl';slEl.innerHTML='Leave Requests'+(pending>0?' <span style="background:var(--rd);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px">'+pending+' pending</span>':'');el2.appendChild(slEl);
   const addBtn=document.createElement('button');addBtn.className='btn tl';addBtn.style.cssText='margin:0 0 14px 0;width:100%';addBtn.innerHTML='+ Add Leave for Staff Member';
   addBtn.addEventListener('click',function(){openAddStaffLeave();});
   el2.appendChild(addBtn);
   const tabs=document.createElement('div');tabs.className='vtabs';tabs.style.marginBottom='14px';
-  ['all','pending','approved','rejected'].forEach((st,i)=>{const t=document.createElement('button');t.className='vtab'+(i===0?' on':'');t.textContent=st.charAt(0).toUpperCase()+st.slice(1);t.onclick=()=>{tabs.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));t.classList.add('on');el2.querySelectorAll('.lv-item').forEach(x=>{x.style.display=(st==='all'||x.dataset.status===st)?'block':'none'})};tabs.appendChild(t)});
+  ['all','pending','approved','rejected'].forEach((st,i)=>{const t=document.createElement('button');t.className='vtab'+(i===0?' on':'');t.textContent=st.charAt(0).toUpperCase()+st.slice(1);t.onclick=()=>{tabs.querySelectorAll('.vtab').forEach(x=>x.classList.remove('on'));t.classList.add('on');el2.dataset.lvTab=st;applyLeaveFilter(el2)};tabs.appendChild(t)});
   el2.appendChild(tabs);
+  const lq=document.createElement('input');lq.id='lvSq';lq.className='mi';lq.type='text';lq.placeholder='🔍 Search staff or leave type…';lq.style.cssText='margin-bottom:12px;font-size:16px';lq.oninput=function(){applyLeaveFilter(el2)};el2.appendChild(lq);
   if(!leaves||!leaves.length){
     const empty=document.createElement('div');
     empty.className='empty';
@@ -1647,39 +1662,40 @@ async function renderAdminLeave(el2){
   const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
 }
 function openAddStaffLeave(){
-  const sel=q('AddLvStaff');
-  if(!sel)return;
-  sel.innerHTML='<option value="">-- Select staff member --</option>';
-  (allStaff||[]).filter(s=>!s.is_admin).forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o)});
+  if(!q('alvList'))return;
+  pkInit('alvList',staffPickItems(),[]);q('alvSq').value='';pkRender('alvList','alvSq');
   q('AddLvType').selectedIndex=0;
   q('AddLvStart').value='';q('AddLvEnd').value='';q('AddLvNote').value='';
   openM('AddLvM');
 }
 async function submitStaffLeave(){
-  const staffId=parseInt(q('AddLvStaff').value);
+  const ids=pkGet('alvList');
   const leaveType=q('AddLvType').value;
   const start=q('AddLvStart').value;
   const end=q('AddLvEnd').value||start;
   const note=q('AddLvNote').value.trim();
-  if(!staffId){toast('Please select a staff member');return}
+  if(!ids.length){toast('Tick at least one staff member');return}
   if(!start){toast('Please enter a start date');return}
-  const s=allStaff.find(x=>x.id===staffId);
-  if(!s){toast('Staff not found');return}
   try{
-    const {error:e1}=await db.from('rpc_leave').insert({
-      staff_id:staffId,staff_name:s.name,leave_type:leaveType,
-      start_date:start,end_date:end,status:'approved',
-      comment:note||'Added by admin from paper form',
-      created_at:new Date().toISOString()
-    });
-    if(e1){toast('Leave error: '+e1.message);return}
-    const {error:e2}=await db.from('rpc_notifications').insert({
-      staff_id:staffId,title:'Leave Approved',
-      message:'Your '+leaveType+' ('+fmtDate(start)+' – '+fmtDate(end)+') has been approved.'+(note?' Note: '+note:''),
-      icon:'✅',is_read:false
-    });
-    if(e2){toast('Notification error: '+e2.message);return}
-    closeM('AddLvM');toast('Leave added and approved ✅');renderLeave();
+    let done=0;
+    for(const staffId of ids){
+      const s=allStaff.find(x=>x.id===staffId);if(!s)continue;
+      const {error:e1}=await db.from('rpc_leave').insert({
+        staff_id:staffId,staff_name:s.name,leave_type:leaveType,
+        start_date:start,end_date:end,status:'approved',
+        comment:note||'Added by admin from paper form',
+        created_at:new Date().toISOString()
+      });
+      if(e1){toast('Leave error ('+s.name+'): '+e1.message);return}
+      const {error:e2}=await db.from('rpc_notifications').insert({
+        staff_id:staffId,title:'Leave Approved',
+        message:'Your '+leaveType+' ('+fmtDate(start)+' – '+fmtDate(end)+') has been approved.'+(note?' Note: '+note:''),
+        icon:'✅',is_read:false
+      });
+      if(e2)toast('Notification error ('+s.name+'): '+e2.message);
+      done++;
+    }
+    closeM('AddLvM');toast('Leave added and approved ✅'+(done>1?' ('+done+' staff)':''));renderLeave();
   }catch(e){toast('Error: '+e.message)}
 }
 function openLeaveAdmin(l){q('LvAdmId').value=l.id;q('LvAdmT').textContent=l.leave_type+' — '+l.staff_name;q('LvAdmS').textContent=fmtDate(l.start_date)+' to '+fmtDate(l.end_date||l.start_date)+' ('+calcDays(l.start_date,l.end_date)+' days)';q('LvAdmCm').value='';openM('LvAdmM')}
@@ -1993,6 +2009,8 @@ async function renderAdminDocs(el2){
 
   // Signed documents section
   var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='Signed Documents — By Staff';el2.appendChild(slSigned);
+  if(signed.length){var ssq=document.createElement('input');ssq.className='mi';ssq.type='text';ssq.placeholder='🔍 Search staff or document…';ssq.style.cssText='margin-bottom:10px;font-size:16px';
+    ssq.oninput=function(){var t=ssq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-ss]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-ss')||'').indexOf(t)!==-1)?'':'none'})};el2.appendChild(ssq)}
 
   var byStaff={};
   signed.forEach(function(s){if(!byStaff[s.staff_name])byStaff[s.staff_name]=[];byStaff[s.staff_name].push(s)});
@@ -2005,6 +2023,7 @@ async function renderAdminDocs(el2){
       var sm2=allStaff.find(function(s){return s.name===name});
       var av=AV[(sm2&&sm2.color)||'b']||AV.b;
       var df2=document.createElement('div');df2.className='df';
+      df2.setAttribute('data-ss',(name+' '+docs2.map(function(s){return docNames[s.doc_id]||''}).join(' ')).toLowerCase());
 
       var hdr2=document.createElement('div');hdr2.className='dfh';
       var avEl=document.createElement('div');avEl.style.cssText='width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;background:'+av.bg+';color:'+av.c+';overflow:hidden';
@@ -3013,7 +3032,7 @@ async function renderAdmin(){
   q('AW').textContent=CU.name;
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
-  q('ntTg').innerHTML='<option value="all">All Staff</option>'+allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+  filterRows('StaffList','stSq');filterRows('SiteList','siSq');
   // Bottom spacer
   const adminPage=q('p-admin');if(adminPage){const sp=document.createElement('div');sp.style.height='200px';adminPage.appendChild(sp);}
 }
@@ -3158,11 +3177,22 @@ async function saveSiteEdit(addr,cn,cp){
     if(q('p-roster').classList.contains('on'))renderRoster();
   }catch(e){toast('Error: '+e.message)}
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v32: SEARCH BOXES + MULTI-SELECT (uses the pk* picker from v31)
+// ═══════════════════════════════════════════════════════════════════
+var _homeQ='';
+function filterRows(listId,inputId){var t=(q(inputId).value||'').trim().toLowerCase();Array.prototype.forEach.call(q(listId).children,function(r){r.style.display=(!t||r.textContent.toLowerCase().indexOf(t)!==-1)?'':'none'})}
+function filterHomeStaff(){var t=_homeQ.trim().toLowerCase();document.querySelectorAll('#StaffGrid .scard').forEach(function(c){c.style.display=(!t||(c.getAttribute('data-n')||'').indexOf(t)!==-1)?'':'none'})}
+function homeSearch(v){_homeQ=v;phHold=Date.now()+60000;filterHomeStaff()}   // pauses the 30s Home refresh while you are searching
+function applyLeaveFilter(el2){var tab=el2.dataset.lvTab||'all',inp=el2.querySelector('#lvSq'),t=inp?inp.value.trim().toLowerCase():'';el2.querySelectorAll('.lv-item').forEach(function(x){var okT=(tab==='all'||x.dataset.status===tab),okS=!t||x.textContent.toLowerCase().indexOf(t)!==-1;x.style.display=(okT&&okS)?'block':'none'})}
+function ntToggleAll(){q('ntPickBox').style.display=q('ntAll').checked?'none':'block'}
+function openNotif(){q('ntAll').checked=true;q('ntSq').value='';q('ntPickBox').style.display='none';pkInit('ntList',staffPickItems(),[]);pkRender('ntList','ntSq');q('ntMsg').value='';openM('NotifM')}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
-function openManual(){q('mnSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
+function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
-  const staffId=parseInt(q('mnSt').value),s=allStaff.find(x=>x.id===staffId);const date=q('mnDt').value,site=q('mnSi').value,inTime=q('mnIn').value,outTime=q('mnOut').value;const note=q('mnNt').value.trim()||'Admin manual entry',override=q('mnAc').value==='override';if(!date||(!inTime&&!outTime)){toast('Enter at least one time');return}
-  try{if(override)await db.from('rpc_attendance').delete().eq('staff_id',staffId).eq('shift_date',date);if(inTime){const iso=new Date(date+'T'+inTime+':00').toISOString();await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:s.name,action:'Signed in',site,lat:null,lng:null,address:'Manual entry',gps_ok:null,shift_date:date,is_manual:true,manual_note:note,created_at:iso});if(date===todayStr()&&!outTime)await db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:iso,site},{onConflict:'staff_id'})}if(outTime){const iso=new Date(date+'T'+outTime+':00').toISOString();await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:s.name,action:'Signed out',site,lat:null,lng:null,address:'Manual entry',gps_ok:null,shift_date:date,is_manual:true,manual_note:note,created_at:iso});if(date===todayStr())await db.from('rpc_status').upsert({staff_id:staffId,is_in:false,since:null,site:''},{onConflict:'staff_id'})}closeM('ManM');renderHome();toast('Attendance saved ✅')}catch(e){toast('Error: '+e.message)}
+  const mnIds=pkGet('mnList');if(!mnIds.length){toast('Tick at least one staff member');return}const date=q('mnDt').value,site=q('mnSi').value,inTime=q('mnIn').value,outTime=q('mnOut').value;const note=q('mnNt').value.trim()||'Admin manual entry',override=q('mnAc').value==='override';if(!date||(!inTime&&!outTime)){toast('Enter at least one time');return}
+  try{for(const staffId of mnIds){const s=allStaff.find(x=>x.id===staffId);if(!s)continue;if(override)await db.from('rpc_attendance').delete().eq('staff_id',staffId).eq('shift_date',date);if(inTime){const iso=new Date(date+'T'+inTime+':00').toISOString();await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:s.name,action:'Signed in',site,lat:null,lng:null,address:'Manual entry',gps_ok:null,shift_date:date,is_manual:true,manual_note:note,created_at:iso});if(date===todayStr()&&!outTime)await db.from('rpc_status').upsert({staff_id:staffId,is_in:true,since:iso,site},{onConflict:'staff_id'})}if(outTime){const iso=new Date(date+'T'+outTime+':00').toISOString();await db.from('rpc_attendance').insert({staff_id:staffId,staff_name:s.name,action:'Signed out',site,lat:null,lng:null,address:'Manual entry',gps_ok:null,shift_date:date,is_manual:true,manual_note:note,created_at:iso});if(date===todayStr())await db.from('rpc_status').upsert({staff_id:staffId,is_in:false,since:null,site:''},{onConflict:'staff_id'})}}closeM('ManM');renderHome();toast('Attendance saved ✅'+(mnIds.length>1?' ('+mnIds.length+' staff)':''))}catch(e){toast('Error: '+e.message)}
 }
 function uploadProfilePic(){
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
@@ -3195,7 +3225,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v31',
+      app_version: 'RapidProClean_v32',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -3588,7 +3618,9 @@ async function publishShift(id){
 <div class="mov" id="AddLvM"><div class="msh"><div class="mh"></div>
   <div class="mt">Add Leave for Staff Member</div>
   <div class="mlbl">STAFF MEMBER</div>
-  <select class="mi" id="AddLvStaff" style="font-size:14px"></select>
+  <input class="mi" id="alvSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('alvList','alvSq')" style="margin-bottom:6px;font-size:16px">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('alvList','alvSq')">Select all</button><button class="ebtn" onclick="pkClear('alvList','alvSq')">Clear</button><span id="alvListN" style="font-size:11px;color:var(--t3);margin-left:auto">0 selected</span></div>
+  <div id="alvList" style="max-height:190px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
   <div class="mlbl" style="margin-top:10px">LEAVE TYPE</div>
   <select class="mi" id="AddLvType" style="font-size:14px">
     <option>Annual Leave</option>
