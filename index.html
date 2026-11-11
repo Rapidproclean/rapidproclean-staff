@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v35.0 — v34 + Signed Documents status (Not actioned / Review later / Actioned with date), filter chips, multi-select -->
 <!-- v34.0 — v33 + repeat shifts (calendar + quick fill, leave/clash warnings, per-date duties, one notification) -->
 <!-- v33.0 — v32 + job report options (letterhead / plain, staff names, staff comments, overall comment) and per-category staff comments -->
 <!-- v32.0 — v31 + search boxes (staff, sites, signed documents, leave, admin Home) and multi-select (manual attendance, send notification, add leave) -->
@@ -623,7 +624,7 @@ function buildNav(){
   const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['incidents','SOS'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['incidents','SOS']];
   n.innerHTML=pages.map(([p,l])=>'<button class="ni" id="n-'+p+'" onclick="goPage(\''+p+'\')">'+ic[p]+l+'</button>').join('');
 }
-function goPage(p){
+function goPage(p){try{sgBarOff()}catch(e){}
   document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
   const pg=q('p-'+p),nb=q('n-'+p);
@@ -2031,8 +2032,17 @@ async function renderAdminDocs(el2){
 
   // Signed documents section
   var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='Signed Documents — By Staff';el2.appendChild(slSigned);
+  _sgRows={};_sgGroups=[];_sgChips={};_sgSearch=null;_sgFilter='all';sgBarOff();
   if(signed.length){var ssq=document.createElement('input');ssq.className='mi';ssq.type='text';ssq.placeholder='🔍 Search staff or document…';ssq.style.cssText='margin-bottom:10px;font-size:16px';
-    ssq.oninput=function(){var t=ssq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-ss]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-ss')||'').indexOf(t)!==-1)?'':'none'})};el2.appendChild(ssq)}
+    ssq.oninput=function(){sgApply()};_sgSearch=ssq;el2.appendChild(ssq);
+    var sgBar=document.createElement('div');sgBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
+    [['all','All'],['none','Not actioned'],['review','Review later'],['done','Actioned']].forEach(function(c){
+      var b=document.createElement('button');b.className='ebtn';b.style.cssText='padding:7px 12px;font-size:12px;touch-action:manipulation';
+      b.onclick=function(){_sgFilter=c[0];sgCounts();sgApply()};_sgChips[c[0]]={b:b,label:c[1]};sgBar.appendChild(b);
+    });
+    var selB=document.createElement('button');selB.className='ebtn';selB.textContent='☑ Select';selB.style.cssText='margin-left:auto;padding:7px 12px;font-size:12px;touch-action:manipulation';
+    selB.onclick=function(){sgSelMode(!_sgSelMode)};_sgSelBtn=selB;sgBar.appendChild(selB);el2.appendChild(sgBar);
+  }
 
   var byStaff={};
   signed.forEach(function(s){if(!byStaff[s.staff_name])byStaff[s.staff_name]=[];byStaff[s.staff_name].push(s)});
@@ -2052,6 +2062,7 @@ async function renderAdminDocs(el2){
       if(sm2&&sm2.profile_pic){var img=document.createElement('img');img.src=sm2.profile_pic;img.style.cssText='width:100%;height:100%;object-fit:cover';avEl.appendChild(img)}else avEl.textContent=ini(name);
       var inf2=document.createElement('div');inf2.style.flex='1';
       inf2.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(name)+'</div><div style="font-size:11px;color:var(--t3);margin-top:1px">'+docs2.length+' signed</div>';
+      var grp={el:df2,ids:[],sub:inf2.children[1],text:df2.getAttribute('data-ss')||''};_sgGroups.push(grp);
       var arr2=document.createElement('span');arr2.style.cssText='color:var(--t3);font-size:14px;margin-left:4px';arr2.textContent='▼';
       hdr2.appendChild(avEl);hdr2.appendChild(inf2);
       if(sm2&&sm2.email){var eb=document.createElement('button');eb.className='ebtn';eb.textContent='📧';(function(email){eb.onclick=function(e){e.stopPropagation();window.location.href='mailto:'+email};})(sm2.email);hdr2.appendChild(eb)}
@@ -2060,10 +2071,15 @@ async function renderAdminDocs(el2){
       var body2=document.createElement('div');body2.className='dfb';
       docs2.forEach(function(s){
         var row=document.createElement('div');row.className='dfi';
-        var tick=document.createElement('div');tick.style.fontSize='18px';tick.textContent='✅';
+        var tick=document.createElement('div');tick.style.cssText='font-size:18px;width:24px;text-align:center;flex-shrink:0';tick.textContent='⏳';
+        var scb=document.createElement('input');scb.type='checkbox';scb.style.cssText='display:none;width:20px;height:20px;flex:none;accent-color:var(--nv2)';
+        scb.onchange=function(){if(scb.checked)_sgSel[s.id]=true;else delete _sgSel[s.id];sgBarUpdate()};
         var rinf=document.createElement('div');rinf.style.flex='1';
         rinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(docNames[s.doc_id]||'Document')+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px">Signed '+fmtD(s.signed_at)+'</div>';
-        row.appendChild(tick);row.appendChild(rinf);
+        var chip=document.createElement('div');chip.style.cssText='font-size:11px;font-weight:700;margin-top:3px;cursor:pointer;text-decoration:underline dotted;touch-action:manipulation';
+        chip.onclick=function(e){e.stopPropagation();sgOpenOne(s.id)};rinf.appendChild(chip);
+        _sgRows[s.id]={row:row,tick:tick,scb:scb,chip:chip,rec:s,name:(docNames[s.doc_id]||'Document')};grp.ids.push(s.id);
+        row.appendChild(tick);row.appendChild(scb);row.appendChild(rinf);
         var rowBtns=document.createElement('div');rowBtns.style.cssText='display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap';
         var dlPdfBtn=document.createElement('button');dlPdfBtn.className='btn nv sm';dlPdfBtn.style.cssText='margin:0;font-size:11px;padding:4px 8px;touch-action:manipulation';dlPdfBtn.textContent='PDF';
         (function(dn,sn,sa,su,du){dlPdfBtn.onclick=function(){downloadSignedDoc(dn,sn,sa,su,du);};})(docNames[s.doc_id]||'Document',s.staff_name,s.signed_at,s.signed_url,docUrls[s.doc_id]||null);
@@ -2085,12 +2101,13 @@ async function renderAdminDocs(el2){
           });
         };})(s.id,s.staff_name,docNames[s.doc_id]||'Document');
         row.appendChild(delBtn);
-        body2.appendChild(row);
+        body2.appendChild(row);sgPaint(s.id);
       });
 
       (function(b,a){hdr2.onclick=function(){b.classList.toggle('on');a.textContent=b.classList.contains('on')?'▲':'▼'};})(body2,arr2);
       df2.appendChild(hdr2);df2.appendChild(body2);el2.appendChild(df2);
     });
+    sgCounts();sgApply();
   }
 
 }
@@ -3500,6 +3517,85 @@ async function rpCopyShifts(ds){
     if(q('p-roster').classList.contains('on'))renderRoster();
   }catch(e){toast('Error: '+(e.message||e))}
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v35: SIGNED DOCUMENT STATUS  (admin only)
+// rpc_signed_docs.action_status: null = Not actioned, 'review' = Review later, 'done' = Actioned
+// action_at = date the status was set, action_by = who set it
+// ═══════════════════════════════════════════════════════════════════
+var _sgRows={},_sgGroups=[],_sgChips={},_sgSearch=null,_sgSelBtn=null,_sgFilter='all',_sgSelMode=false,_sgSel={},_sgOne=null;
+var SG_COL={none:'#e67e22',review:'#7c5cd6',done:'#1f9d55'};
+function sgStatus(rec){return rec.action_status==='done'?'done':(rec.action_status==='review'?'review':'none')}
+function sgLabel(rec){
+  var s=sgStatus(rec);
+  if(s==='done')return '✅ Actioned '+fmtD(rec.action_at)+(rec.action_by?' · '+rec.action_by:'');
+  if(s==='review')return '🚩 Review later'+(rec.action_at?' · '+fmtD(rec.action_at):'');
+  return '⏳ Not actioned';
+}
+function sgPaint(id){
+  var r=_sgRows[id];if(!r)return;
+  var st=sgStatus(r.rec),col=SG_COL[st];
+  r.row.style.borderLeft='4px solid '+col;r.row.setAttribute('data-st',st);
+  r.tick.textContent=st==='done'?'✅':(st==='review'?'🚩':'⏳');
+  r.chip.style.color=col;r.chip.textContent=sgLabel(r.rec);
+}
+function sgCounts(){
+  var c={all:0,none:0,review:0,done:0};
+  Object.keys(_sgRows).forEach(function(id){c.all++;c[sgStatus(_sgRows[id].rec)]++});
+  Object.keys(_sgChips).forEach(function(k){var ch=_sgChips[k],on=_sgFilter===k;ch.b.textContent=ch.label+' ('+c[k]+')';ch.b.style.background=on?'var(--nv)':'';ch.b.style.color=on?'#fff':''});
+  _sgGroups.forEach(function(g){
+    var n=0,r=0;g.ids.forEach(function(id){var st=sgStatus(_sgRows[id].rec);if(st==='none')n++;else if(st==='review')r++});
+    if(g.sub)g.sub.textContent=g.ids.length+' signed'+(n?' · '+n+' not actioned':'')+(r?' · '+r+' review later':'');
+  });
+}
+function sgApply(){
+  var t=_sgSearch?(_sgSearch.value||'').trim().toLowerCase():'';
+  _sgGroups.forEach(function(g){
+    var any=false;
+    g.ids.forEach(function(id){var r=_sgRows[id],show=(_sgFilter==='all'||sgStatus(r.rec)===_sgFilter);r.row.style.display=show?'':'none';if(show)any=true});
+    g.el.style.display=((!t||g.text.indexOf(t)!==-1)&&any)?'':'none';
+  });
+}
+function sgBarUpdate(){var b=q('SgBar');if(!b)return;b.style.display=_sgSelMode?'block':'none';q('SgN').textContent=Object.keys(_sgSel).length+' selected'}
+function sgBarOff(){_sgSelMode=false;_sgSel={};var b=q('SgBar');if(b)b.style.display='none'}
+function sgSelMode(on){
+  _sgSelMode=on;_sgSel={};
+  Object.keys(_sgRows).forEach(function(id){var r=_sgRows[id];r.scb.style.display=on?'':'none';r.scb.checked=false;r.tick.style.display=on?'none':''});
+  if(_sgSelBtn)_sgSelBtn.textContent=on?'✓ Selecting':'☑ Select';
+  sgBarUpdate();
+}
+function sgSelAll(){
+  _sgGroups.forEach(function(g){
+    if(g.el.style.display==='none')return;
+    g.ids.forEach(function(id){var r=_sgRows[id];if(r.row.style.display==='none')return;_sgSel[id]=true;r.scb.checked=true});
+  });
+  sgBarUpdate();
+}
+async function sgApplyStatus(ids,status){
+  if(!ids.length)return false;
+  var upd=status?{action_status:status,action_at:new Date().toISOString(),action_by:CU.name}:{action_status:null,action_at:null,action_by:null};
+  try{
+    var r=await db.from('rpc_signed_docs').update(upd).in('id',ids);
+    if(r.error){toast(/action_status|action_at|action_by/i.test(r.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+r.error.message);return false}
+    ids.forEach(function(id){var rr=_sgRows[id];if(!rr)return;rr.rec.action_status=upd.action_status;rr.rec.action_at=upd.action_at;rr.rec.action_by=upd.action_by;sgPaint(id)});
+    sgCounts();sgApply();
+    return true;
+  }catch(e){toast('Error: '+(e.message||e));return false}
+}
+async function sgBulk(status){
+  var ids=Object.keys(_sgSel).map(Number);
+  if(!ids.length){toast('Tick at least one document first');return}
+  if(await sgApplyStatus(ids,status)){toast(ids.length+' document'+(ids.length>1?'s':'')+(status==='done'?' marked Actioned ✅':status==='review'?' marked Review later 🚩':' cleared'));sgSelMode(false)}
+}
+function sgOpenOne(id){
+  var r=_sgRows[id];if(!r)return;
+  _sgOne=id;q('SgS').textContent=r.name+' · '+(r.rec.staff_name||'');openM('SgM');
+}
+async function sgPick(status){
+  if(_sgOne===null)return;
+  var ok=await sgApplyStatus([_sgOne],status);
+  if(ok)closeM('SgM');
+}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
 function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
@@ -3537,7 +3633,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v34',
+      app_version: 'RapidProClean_v35',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -4046,5 +4142,16 @@ async function publishShift(id){
   <button class="btn tl" id="rpGo" onclick="rpConfirm()">Use these dates</button>
   <button class="btn sc" onclick="closeM('RepM')">Cancel</button>
 </div></div>
+<div class="mov" id="SgM"><div class="msh"><div class="mh"></div><div class="mt">Document status</div>
+  <div class="ms" id="SgS"></div>
+  <button class="btn tl" onclick="sgPick('done')">✅ Actioned</button>
+  <button class="btn nv" onclick="sgPick('review')">🚩 Review later</button>
+  <button class="btn sc" onclick="sgPick(null)">Clear status (not actioned)</button>
+  <button class="btn sc" onclick="closeM('SgM')">Cancel</button>
+</div></div>
+<div id="SgBar" style="display:none;position:fixed;left:8px;right:8px;bottom:calc(var(--nav) + 8px);z-index:95;background:var(--cd);border:1.5px solid var(--nv);border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div id="SgN" style="flex:1;font-size:13px;font-weight:700;color:var(--tx)">0 selected</div><button class="ebtn" onclick="sgSelAll()">Select all shown</button><button class="ebtn" onclick="sgSelMode(false)">Done</button></div>
+  <div style="display:flex;gap:6px"><button class="btn tl sm" style="flex:1;margin:0" onclick="sgBulk('done')">✅ Actioned</button><button class="btn nv sm" style="flex:1;margin:0" onclick="sgBulk('review')">🚩 Review later</button><button class="btn sc sm" style="flex:1;margin:0" onclick="sgBulk(null)">Clear</button></div>
+</div>
 </body>
 </html>
