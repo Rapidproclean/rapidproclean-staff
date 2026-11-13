@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v37.0 — v36 + parking / alarm / watch-out boxes, PDF attachments on shifts, Navigate button + optional site maps pin link -->
 <!-- v36.0 — v35 + Edit Shift: change staff (search, safety block, draft), move whole job, change message, instruction photos, publish/unpublish, delete with message; photo previews in Assign Shift -->
 <!-- v35.0 — v34 + Signed Documents status (Not actioned / Review later / Actioned with date), filter chips, multi-select -->
 <!-- v34.0 — v33 + repeat shifts (calendar + quick fill, leave/clash warnings, per-date duties, one notification) -->
@@ -346,6 +347,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="sCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="sCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
+  <div class="mlbl">Maps pin link (optional)</div>
+  <input class="mi" id="sMp" type="url" placeholder="Paste a shared Google Maps pin link (only if the address is not accurate)" style="font-size:16px">
   <button class="btn tl" id="SiteSaveBtn" onclick="saveSite()">Add Site</button>
   <button class="btn sc" onclick="closeM('SiteM')">Cancel</button>
 </div></div>
@@ -363,7 +366,10 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Duties / Description</div><textarea class="mta" id="shDs" placeholder="Describe tasks..."></textarea>
   <div class="mlbl">Machines / Equipment</div><textarea class="mta" id="shMc" placeholder="e.g. Rotary floor machine, carpet extractor, scrubber dryer..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div><textarea class="mta" id="shCh" placeholder="e.g. Neutral floor cleaner (1:20), glass cleaner..." style="min-height:55px"></textarea>
-  <div class="mlbl">Access Notes (keys, codes, parking)</div><textarea class="mta" id="shAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  <div class="mlbl">Access Notes (keys, codes, who lets you in)</div><textarea class="mta" id="shAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  <div class="mlbl">Parking</div><textarea class="mta" id="shPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
+  <div class="mlbl">Alarm</div><textarea class="mta" id="shAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
+  <div class="mlbl">Watch out for</div><textarea class="mta" id="shWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="shCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="shCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
@@ -374,6 +380,9 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <select class="msel" id="shHR"><option value="no">No — no return travel pay</option><option value="yes">Yes — pay travel from site to home after work</option></select>
   <div class="mlbl">Attach Instruction Photos (optional)</div><input type="file" id="shPh" accept="image/*" multiple onchange="shPhAdd()" style="margin-bottom:8px;font-size:13px">
   <div id="shPhList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+  <div class="mlbl">Attach PDFs (floor plans, site maps — up to 5, 10 MB each)</div>
+  <input type="file" id="shPdfIn" accept="application/pdf,.pdf" multiple onchange="shPdfAdd()" style="margin-bottom:8px;font-size:13px">
+  <div id="shPdfList" style="margin-bottom:12px"></div>
   <button class="btn tl" onclick="saveShift()">Assign Shift</button>
   <button class="btn sc" onclick="closeM('ShiftM')">Cancel</button>
 </div></div>
@@ -917,7 +926,8 @@ async function renderStaffHome(el2,sm,tm){
       +(sh.machines?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>':'')
       +(sh.chemicals?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>':'')
       +contactHTML(sh,12)
-      +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(sh.access_notes)+'</div>':'');
+      +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(sh.access_notes)+'</div>':'')
+      +shiftExtraHTML(sh,12);
 
     // Shift status pill
     const spill=document.createElement('div');
@@ -927,7 +937,7 @@ async function renderStaffHome(el2,sm,tm){
     else{spill.className='pill out';spill.innerHTML='<div class="dot out"></div>Not Started';}
     shHdr.appendChild(spill);
     shHdr.appendChild(mkTeamBox(sh));
-    shHdr.appendChild(mkShiftPdfBtn(sh,true));
+    shHdr.appendChild(mkShiftPdfBtn(sh,true));shHdr.appendChild(mkFilesBox(sh));
     shCard.appendChild(shHdr);
 
     // Action buttons for this shift
@@ -1287,9 +1297,11 @@ function mkShiftItem(sh,sm){
   if(sh.chemicals)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>';
   if(sh.site_contact_name||sh.site_contact_phone)det.innerHTML+=contactHTML(sh,12).replace('margin-top:4px','margin-bottom:6px');
   if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px">🔑 '+esc(sh.access_notes)+'</div>';
+  det.innerHTML+=shiftExtraHTML(sh,12);
+  const fb=mkFilesBox(sh,true);det.appendChild(fb);
   if(!CU.is_admin&&CU.id===sh.staff_id){det.appendChild(mkTeamBox(sh));det.appendChild(mkShiftPdfBtn(sh,false))}
   if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Before & After Photos';const shId=sh.id,site=sh.site,shDate=sh.shift_date;ub.onclick=()=>openPhotoUpload(shId,site,shDate);det.appendChild(ub);}
-  top.onclick=()=>{det.classList.toggle('on');arr.textContent=det.classList.contains('on')?'▲':'▼'};
+  top.onclick=()=>{det.classList.toggle('on');arr.textContent=det.classList.contains('on')?'▲':'▼';if(det.classList.contains('on')&&fb.load)fb.load()};
   card.appendChild(top);card.appendChild(det);return card;
 }
 function renderDayList(el2,shifts,sm){el2.innerHTML='';(shifts||[]).forEach(sh=>el2.appendChild(mkShiftItem(sh,sm)))}
@@ -1417,7 +1429,7 @@ async function loadRange(){
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">'+esc(s.name)+'</label>').join('');
   q('shSiQ').value='';q('shStQ').value='';fillSiteSel('shSi','shSiQ');_cs.sh=null;fillSiteContact('sh',true);q('shSv').checked=false;
-  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
+  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('shPk').value='';q('shAl').value='';q('shWo').value='';_shPdf=[];shPdfRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;_repPlan=null;rpSummary();openM('ShiftM');
 }
@@ -1429,6 +1441,7 @@ async function saveShift(){
   const photos=_shPhFiles.slice();
   const mach=q('shMc').value.trim(),chem=q('shCh').value.trim();
   const cn=q('shCn').value.trim(),cp=q('shCp').value.trim();
+  const pk=q('shPk').value.trim(),al=q('shAl').value.trim(),wo=q('shWo').value.trim();
   if(!site||!date){toast('Select site and date');return}
   try{
     const rp=(_repPlan&&_repPlan.dates&&_repPlan.dates.length)?_repPlan:null;
@@ -1438,19 +1451,26 @@ async function saveShift(){
     const inserts=[];dayList.forEach(function(dl){sel.forEach(function(id){inserts.push({staff_id:id,site,shift_date:dl.date,start_time:start||null,end_time:end||null,description:dl.duties||null,access_notes:access||null,home_travel_pay:homeTrv,home_return_travel_pay:homeReturn,status:'draft'})})});
     if(mach||chem)inserts.forEach(function(r){if(mach)r.machines=mach;if(chem)r.chemicals=chem});   // only sent when filled in
     if(cn||cp)inserts.forEach(function(r){r.site_contact_name=cn||null;r.site_contact_phone=cp||null});   // only sent when filled in
+    if(pk||al||wo)inserts.forEach(function(r){r.parking=pk||null;r.alarm_info=al||null;r.watch_out=wo||null});   // only sent when filled in
+    if(_shPdf.length&&!(await sfReady())){toast('PDF attachments need the one-time database step (SQL) first');return}
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){toast('Site contact needs the one-time database step (SQL) first');return}
+    if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){toast('Parking, alarm and watch out need the one-time database step (SQL) first');return}
     if(error){toast((mach||chem)&&/machines|chemicals/i.test(error.message||'')?'Machines/chemicals need the one-time database step (SQL) first':'Error: '+error.message);return}
     for(const staffId of sel){const s=allStaff.find(x=>x.id===staffId);const others=sel.filter(id=>id!==staffId).map(id=>allStaff.find(x=>x.id===id)).filter(Boolean).map(x=>x.name);let msg='Shift: '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'');if(others.length)msg+='. Also: '+others.join(', ');if(dayList.length>1)msg=rpNotifText(site,dayList.map(function(x){return x.date}),start);try{await db.from('rpc_notifications').insert({staff_id:staffId,title:'Shift Assigned',message:msg,icon:'📍',is_read:false})}catch{}}
     if(photos&&photos.length&&newShifts&&newShifts.length){   // each photo is uploaded once and shared by the new shifts
       const photoTargets=(rp&&rp.photos===false)?newShifts.filter(function(s){return s.shift_date===date}):newShifts;
       for(const ph of photos){try{const comp=await compressImg(ph,1000,0.8);const fn='shifts/'+newShifts[0].id+'/admin_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)+'.jpg';const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});if(!ue){const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);await db.from('rpc_photos').insert(photoTargets.map(function(sh){return {shift_id:sh.id,staff_id:0,staff_name:'Admin',label:'Instruction',url:ud.publicUrl,storage_path:fn,uploaded_by:'admin',site,category:'Admin Instructions'}}))}}catch{}}
     }
+    if(_shPdf.length&&newShifts&&newShifts.length){   // each PDF is uploaded once and shared by the new shifts
+      const fTargets=(rp&&rp.photos===false)?newShifts.filter(function(s){return s.shift_date===date}):newShifts;
+      for(const f of _shPdf){const u=await sfUpload(f,newShifts[0].id);if(!u)continue;const fi=await db.from('rpc_shift_files').insert(fTargets.map(function(sh){return {shift_id:sh.id,name:f.name,url:u.url,storage_path:u.path,size_bytes:f.size}}));if(fi.error)toast('Could not save PDF: '+fi.error.message)}
+    }
     if(q('shSv').checked&&(cn||cp)){try{const r2=await db.from('rpc_sites').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('name',site);if(r2.error)toast('Shift saved, but the site contact was not saved: '+r2.error.message);else await loadSites()}catch(e){}}
-    closeM('ShiftM');_repPlan=null;toast(dayList.length>1?(inserts.length+' draft shifts created ✅ — remember to Publish'):'Shift assigned to '+sel.length+' staff ✅');if(q('p-roster').classList.contains('on'))renderRoster();
+    closeM('ShiftM');_repPlan=null;_shPdf=[];toast(dayList.length>1?(inserts.length+' draft shifts created ✅ — remember to Publish'):'Shift assigned to '+sel.length+' staff ✅');if(q('p-roster').classList.contains('on'))renderRoster();
   }catch(e){toast('Error: '+e.message)}
 }
-async function delShift(id){if(!confirm('Remove this shift?'))return;try{await db.from('rpc_shifts').delete().eq('id',id);if(q('p-roster').classList.contains('on'))renderRoster();toast('Removed')}catch{}}
+async function delShift(id){if(!confirm('Remove this shift?'))return;try{try{await sfDropShift(id)}catch(e){}await db.from('rpc_shifts').delete().eq('id',id);if(q('p-roster').classList.contains('on'))renderRoster();toast('Removed')}catch{}}
 
 // LEAVE
 async function renderLeave(){
@@ -2485,13 +2505,18 @@ async function downloadShiftPDF(sh){
     if(trv.length)row('Paid travel',trv.join(' and '));
     y+=3;
 
+    let sfiles=[];try{const fr=await db.from('rpc_shift_files').select('*').eq('shift_id',sh.id);if(!fr.error)sfiles=fr.data||[]}catch(e){}
     let any=false;
     if(team.length){any=true;head('Working with');team.forEach(function(m){need(7);doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(30,45,70);doc.text(phT(m.name),MG+2,y);doc.setFont('helvetica','normal');doc.setTextColor(90,110,130);doc.text((m.start&&m.end)?fmt12(m.start)+' - '+fmt12(m.end):'time TBC',MG+80,y);y+=6});y+=4}
     if(sh.site_contact_name||sh.site_contact_phone){any=true;head('Site Contact');para((sh.site_contact_name||'')+(sh.site_contact_name&&sh.site_contact_phone?'\n':'')+(sh.site_contact_phone?'Phone: '+sh.site_contact_phone:''))}
+    if(sh.watch_out){any=true;head('Watch Out For');para(sh.watch_out)}
     if(sh.description){any=true;head('Duties / Description');para(sh.description)}
     if(sh.machines){any=true;head('Machines / Equipment');para(sh.machines)}
     if(sh.chemicals){any=true;head('Chemicals');para(sh.chemicals)}
-    if(sh.access_notes){any=true;head('Access Notes (keys, codes, parking)');para(sh.access_notes)}
+    if(sh.access_notes){any=true;head('Access Notes');para(sh.access_notes)}
+    if(sh.parking){any=true;head('Parking');para(sh.parking)}
+    if(sh.alarm_info){any=true;head('Alarm');para(sh.alarm_info)}
+    if(sfiles.length){any=true;head('Attached PDFs');sfiles.forEach(function(f){need(7);doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(0,90,180);doc.textWithLink(phT(f.name),MG+2,y,{url:f.url});y+=6.5})}
     if(!any){doc.setFont('helvetica','italic');doc.setFontSize(10.5);doc.setTextColor(120,135,150);need(8);doc.text('No extra details were added for this shift.',MG+2,y);y+=8}
 
     if(photos.length){
@@ -3136,7 +3161,7 @@ async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
 async function renderAdmin(){
   q('AW').textContent=CU.name;
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
-  q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
+  q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   filterRows('StaffList','stSq');filterRows('SiteList','siSq');
   // Bottom spacer
   const adminPage=q('p-admin');if(adminPage){const sp=document.createElement('div');sp.style.height='200px';adminPage.appendChild(sp);}
@@ -3227,7 +3252,7 @@ async function openAddStaff(){
 function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin;q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
 async function saveEditStaff(){const id=parseInt(q('eId').value);try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
 async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
-async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim();if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp)){toast(/site_contact/i.test(sins.error.message||'')?'Site contact needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
+async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp)){toast(/site_contact|maps_link/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
 
 // ═══════════════════════════════════════════════════════════════════
 // v30: SITE CONTACT PERSON
@@ -3251,23 +3276,25 @@ function fillSiteContact(pre,force){
   q(pre+'Cp').value=(s&&s.site_contact_phone)||'';
 }
 function openAddSite(){
-  editSiteId=null;q('sNm').value='';q('sNm').disabled=false;q('sAd').value='';q('sCn').value='';q('sCp').value='';
+  editSiteId=null;q('sNm').value='';q('sNm').disabled=false;q('sAd').value='';q('sCn').value='';q('sCp').value='';q('sMp').value='';
   q('SiteMt').textContent='Add Job Site';q('SiteSaveBtn').textContent='Add Site';openM('SiteM');
 }
 function openEditSite(id){
   var s=(allSites||[]).find(function(x){return x.id===id});if(!s)return;
   editSiteId=id;q('sNm').value=s.name||'';q('sNm').disabled=true;q('sAd').value=s.address||'';
-  q('sCn').value=s.site_contact_name||'';q('sCp').value=s.site_contact_phone||'';
+  q('sCn').value=s.site_contact_name||'';q('sCp').value=s.site_contact_phone||'';q('sMp').value=s.maps_link||'';
   q('SiteMt').textContent='Edit Job Site';q('SiteSaveBtn').textContent='Save Changes';openM('SiteM');
 }
 async function saveSiteEdit(addr,cn,cp){
   var s=(allSites||[]).find(function(x){return x.id===editSiteId});if(!s){toast('Site not found');return}
   var upd={address:addr||null,site_contact_name:cn||null,site_contact_phone:cp||null};
+  var mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}
+  if(mp||('maps_link' in s))upd.maps_link=mp||null;
   if(addr!==(s.address||'')&&addr){try{var r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');var j=await r.json();if(j&&j[0]){upd.lat=parseFloat(j[0].lat);upd.lng=parseFloat(j[0].lon)}}catch(e){}}
   var changed=(cn!==(s.site_contact_name||''))||(cp!==(s.site_contact_phone||''));
   try{
     var u=await db.from('rpc_sites').update(upd).eq('id',s.id);
-    if(u.error){toast(/site_contact/i.test(u.error.message||'')?'Site contact needs the one-time database step (SQL) first':'Error: '+u.error.message);return}
+    if(u.error){toast(/site_contact|maps_link/i.test(u.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+u.error.message);return}
     var n=0,done=false;
     if(changed){
       var f=await db.from('rpc_shifts').select('id').eq('site',s.name).gte('shift_date',todayStr());
@@ -3491,11 +3518,13 @@ async function rpCopyShifts(ds){
   if(ds.length>RP_MAX){toast('Up to '+RP_MAX+' dates at a time');return}
   var site=q('esS').value,mainDuties=q('esDs').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim(),cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
+  var pkx=q('esPk').value.trim(),alx=q('esAl').value.trim(),wox=q('esWo').value.trim();
   var rows=ds.map(function(d){
     var r={staff_id:(parseInt(q('esPs').value)||sh.staff_id),site:site,shift_date:d,start_time:q('esSt').value||null,end_time:q('esEt').value||null,
       description:((_rp.dates[d].duties||'').trim())||mainDuties||null,access_notes:q('esAc').value.trim()||null,
       home_travel_pay:q('esHT').value==='yes',home_return_travel_pay:q('esHR').value==='yes',status:'draft'};
     if(mach)r.machines=mach;if(chem)r.chemicals=chem;
+    if(pkx||alx||wox){r.parking=pkx||null;r.alarm_info=alx||null;r.watch_out=wox||null}
     if(cn||cp){r.site_contact_name=cn||null;r.site_contact_phone=cp||null}
     return r;
   });
@@ -3513,6 +3542,7 @@ async function rpCopyShifts(ds){
         }
       }catch(e){}
     }
+    if(q('rpPh').checked&&made.length){try{var fr=await db.from('rpc_shift_files').select('*').eq('shift_id',sh.id);var fsrc=fr.data||[];if(fsrc.length){var frow=[];made.forEach(function(ns){fsrc.forEach(function(f){frow.push({shift_id:ns.id,name:f.name,url:f.url,storage_path:f.storage_path,size_bytes:f.size_bytes})})});await db.from('rpc_shift_files').insert(frow)}}catch(e){}}
     try{await db.from('rpc_notifications').insert({staff_id:(parseInt(q('esPs').value)||sh.staff_id),title:'Shift Assigned',message:rpNotifText(site,ds,q('esSt').value),icon:'📍',is_read:false})}catch(e){}
     closeM('RepM');closeM('EditShiftM');
     toast(made.length+' draft shift'+(made.length>1?'s':'')+' created ✅ — remember to Publish');
@@ -3648,6 +3678,7 @@ async function esDelete(){
   var quiet=q('esNn').checked;
   if(!confirm('Delete this shift? '+esStaffName(sh.staff_id)+(quiet?' will NOT be told.':' will be told it was cancelled.')))return;
   try{
+    try{await sfDropShift(sh.id)}catch(e){}
     var r=await db.from('rpc_shifts').delete().eq('id',sh.id);
     if(r.error)throw r.error;
     if(!quiet)await esNotify(sh.staff_id,'Shift Cancelled','Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' has been cancelled.');
@@ -3738,6 +3769,112 @@ function shPhRender(){
   box.innerHTML='';_shUrls.forEach(function(u){try{URL.revokeObjectURL(u)}catch(e){}});_shUrls=[];
   _shPhFiles.forEach(function(f,i){var u=URL.createObjectURL(f);_shUrls.push(u);box.appendChild(phThumb(u,false,function(){_shPhFiles.splice(i,1);shPhRender()},false))});
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v37: PARKING / ALARM / WATCH OUT, PDF ATTACHMENTS, NAVIGATE
+// rpc_shifts.parking / alarm_info / watch_out, rpc_sites.maps_link, table rpc_shift_files
+// ═══════════════════════════════════════════════════════════════════
+var SF_MAX=5,SF_MB=10,_shPdf=[],_esPdf={existing:[],added:[]};
+function navURL(sh){
+  var rec=(allSites||[]).find(function(s){return s.name===sh.site})||{};
+  if(rec.maps_link)return rec.maps_link;
+  var a=String(rec.address||'').trim();if(!a)return '';   // no address and no pin link = no Navigate button
+  var ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  return ios?'https://maps.apple.com/?daddr='+encodeURIComponent(a):'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(a);
+}
+function shiftExtraHTML(sh,sz){
+  var h='',nu=navURL(sh);
+  if(nu)h+='<a href="'+esc(nu)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:6px;padding:7px 14px;border-radius:18px;background:var(--nvl);color:var(--nv2);font-weight:700;font-size:'+sz+'px;text-decoration:none">🧭 Navigate</a>';
+  if(sh.parking)h+='<div style="font-size:'+sz+'px;color:var(--t2);margin-top:6px;white-space:pre-line;word-break:break-word">🅿️ '+esc(sh.parking)+'</div>';
+  if(sh.alarm_info)h+='<div style="font-size:'+sz+'px;color:var(--t2);margin-top:4px;white-space:pre-line;word-break:break-word">🔔 Alarm: '+esc(sh.alarm_info)+'</div>';
+  if(sh.watch_out)h+='<div style="margin-top:6px;margin-bottom:4px;padding:8px 10px;border-radius:8px;background:#fff3e0;color:#b34700;font-size:'+sz+'px;font-weight:700;white-space:pre-line;word-break:break-word">⚠️ Watch out for: '+esc(sh.watch_out)+'</div>';
+  return h;
+}
+function mkFilesBox(sh,lazy){
+  var b=document.createElement('div'),done=false;b.style.cssText='display:none;margin:6px 0';
+  b.load=function(){
+    if(done)return;done=true;
+    db.from('rpc_shift_files').select('*').eq('shift_id',sh.id).order('created_at').then(function(r){
+      var f=(r&&r.data)||[];if(!f.length)return;
+      b.innerHTML=f.map(function(x){return '<a href="'+esc(x.url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:6px;border-radius:var(--rs);background:var(--sf);border:1px solid var(--bd);color:var(--nv2);font-size:12px;font-weight:700;text-decoration:none;word-break:break-word">📎 '+esc(x.name)+'</a>'}).join('');
+      b.style.display='block';
+    }).catch(function(){});
+  };
+  if(!lazy)b.load();
+  return b;
+}
+// PDF helpers
+async function sfReady(){try{var r=await db.from('rpc_shift_files').select('id').limit(1);return !r.error}catch(e){return false}}
+function sfAccept(list,incoming,existingCount){
+  for(var i=0;i<incoming.length;i++){
+    var f=incoming[i];
+    if(f.type!=='application/pdf'&&!/\.pdf$/i.test(f.name||'')){toast((f.name||'File')+' is not a PDF');continue}
+    if(f.size>SF_MB*1024*1024){toast(f.name+' is '+(f.size/1048576).toFixed(1)+' MB — the limit is '+SF_MB+' MB');continue}
+    if(existingCount+list.length>=SF_MAX){toast('Up to '+SF_MAX+' PDFs per shift');break}
+    list.push(f);
+  }
+}
+function sfRow(name,sizeBytes,removed,onX){
+  var r=document.createElement('div');r.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--bd);border-radius:var(--rs);background:var(--sf);font-size:12px';
+  var t=document.createElement('div');t.style.cssText='flex:1;min-width:0;word-break:break-word;color:var(--tx);'+(removed?'text-decoration:line-through;opacity:.5':'');
+  t.textContent='📎 '+name+(sizeBytes?' ('+(sizeBytes/1048576).toFixed(1)+' MB)':'')+(removed?' — removed on save':'');
+  var x=document.createElement('button');x.className='ebtn';x.textContent=removed?'↩':'✕';x.onclick=function(e){e.preventDefault();e.stopPropagation();onX()};
+  r.appendChild(t);r.appendChild(x);return r;
+}
+function shPdfAdd(){sfAccept(_shPdf,q('shPdfIn').files,0);q('shPdfIn').value='';shPdfRender()}
+function shPdfRender(){var box=q('shPdfList');if(!box)return;box.innerHTML='';_shPdf.forEach(function(f,i){box.appendChild(sfRow(f.name,f.size,false,function(){_shPdf.splice(i,1);shPdfRender()}))})}
+function esPdfAdd(){var ex=_esPdf.existing.filter(function(x){return !x.del}).length;sfAccept(_esPdf.added,q('esPdfIn').files,ex);q('esPdfIn').value='';esPdfRender()}
+function esPdfRender(){
+  var box=q('esPdfList');if(!box)return;box.innerHTML='';
+  _esPdf.existing.forEach(function(p){box.appendChild(sfRow(p.name,p.size_bytes,p.del,function(){p.del=!p.del;esPdfRender()}))});
+  _esPdf.added.forEach(function(f,i){box.appendChild(sfRow(f.name,f.size,false,function(){_esPdf.added.splice(i,1);esPdfRender()}))});
+  if(!_esPdf.existing.length&&!_esPdf.added.length)box.innerHTML='<div style="font-size:12px;color:var(--t3);margin-bottom:6px">No PDFs attached</div>';
+}
+async function esLoadPdf(sh){
+  _esPdf={existing:[],added:[]};esPdfRender();
+  try{
+    var r=await db.from('rpc_shift_files').select('*').eq('shift_id',sh.id).order('created_at');
+    if(currentEditShift!==sh||r.error)return;
+    _esPdf.existing=(r.data||[]).map(function(p){return {id:p.id,name:p.name,url:p.url,storage_path:p.storage_path,size_bytes:p.size_bytes,del:false}});
+    esPdfRender();
+  }catch(e){}
+}
+async function sfUpload(file,key){
+  var safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  var fn='shiftfiles/'+key+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,6)+'_'+safe;
+  try{
+    var up=await db.storage.from('rpc-photos').upload(fn,file,{contentType:'application/pdf'});
+    if(up.error){toast('Upload failed: '+up.error.message);return null}
+    return {url:db.storage.from('rpc-photos').getPublicUrl(fn).data.publicUrl,path:fn};
+  }catch(e){toast('Upload failed');return null}
+}
+// remove file rows; the stored file is kept while another shift still uses it
+async function sfRemove(rows){
+  if(!rows||!rows.length)return true;
+  try{
+    var paths=rows.map(function(r){return r.storage_path}).filter(Boolean);
+    if(paths.length){
+      var delIds=rows.map(function(r){return r.id});
+      var o=await db.from('rpc_shift_files').select('id,storage_path').in('storage_path',paths);
+      var still={};(o.data||[]).forEach(function(r){if(delIds.indexOf(r.id)===-1)still[r.storage_path]=true});
+      paths=paths.filter(function(p){return !still[p]});
+      if(paths.length)await db.storage.from('rpc-photos').remove(paths);
+    }
+    var d=await db.from('rpc_shift_files').delete().in('id',rows.map(function(r){return r.id}));
+    if(d.error){toast('Could not remove PDF: '+d.error.message);return false}
+    return true;
+  }catch(e){toast('Error removing PDF');return false}
+}
+async function sfDropShift(shiftId){var r=await db.from('rpc_shift_files').select('*').eq('shift_id',shiftId);if(r&&r.data&&r.data.length)await sfRemove(r.data)}
+async function esSavePdfs(sh){
+  var del=_esPdf.existing.filter(function(p){return p.del});
+  if(del.length)await sfRemove(del);
+  for(var i=0;i<_esPdf.added.length;i++){
+    var f=_esPdf.added[i],u=await sfUpload(f,sh.id);if(!u)continue;
+    var r=await db.from('rpc_shift_files').insert({shift_id:sh.id,name:f.name,url:u.url,storage_path:u.path,size_bytes:f.size});
+    if(r.error)toast('Could not save PDF: '+r.error.message);
+  }
+}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
 function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
@@ -3775,7 +3912,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v36',
+      app_version: 'RapidProClean_v37',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -4083,7 +4220,8 @@ function openEditShift(sh){
   q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
   q('esPq').value='';fillStaffSel('esPs','esPq',sh.staff_id);q('esNn').checked=false;q('esPubNow').checked=false;q('esWarn').innerHTML='';_esWarnN=0;
-  esStatusUI();esLoadJob(sh);esLoadPh(sh);
+  q('esPk').value=sh.parking||'';q('esAl').value=sh.alarm_info||'';q('esWo').value=sh.watch_out||'';
+  esStatusUI();esLoadJob(sh);esLoadPh(sh);esLoadPdf(sh);
   openM('EditShiftM');
 }
 
@@ -4094,6 +4232,7 @@ async function saveEditShift(){
   var desc=q('esDs').value.trim(),access=q('esAc').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim();
   var cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
+  var pk=q('esPk').value.trim(),al=q('esAl').value.trim(),wo=q('esWo').value.trim();
   var err=q('esErr');
   var newStaff=parseInt(q('esPs').value)||sh.staff_id,staffChanged=newStaff!==sh.staff_id;
   var quiet=q('esNn').checked,pubNow=q('esPubNow').checked;
@@ -4122,10 +4261,13 @@ async function saveEditShift(){
     if(start!==oS||end!==oE)chg.push('Time: '+tt(oS,oE)+' → '+tt(start,end));
     if(site!==sh.site)chg.push('Site: '+sh.site+' → '+site);
     var homeT=q('esHT').value==='yes',homeR=q('esHR').value==='yes';
-    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
+    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||pk!==(sh.parking||'')||al!==(sh.alarm_info||'')||wo!==(sh.watch_out||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
     if(other)chg.push('Other details updated');
     var photoChg=_esPh.added.length>0||_esPh.existing.some(function(x){return x.del});
     if(photoChg)chg.push('Instruction photos updated');
+    var pdfChg=_esPdf.added.length>0||_esPdf.existing.some(function(x){return x.del});
+    if(pdfChg)chg.push('PDF attachments updated');
+    if(pdfChg&&!(await sfReady())){err.textContent='PDF attachments need the one-time database step (SQL) first';return}
 
     // People on the same job who should move with it
     var jobIds=Array.prototype.slice.call(q('esJobList').querySelectorAll('input:checked')).map(function(c){return parseInt(c.value)});
@@ -4144,11 +4286,14 @@ async function saveEditShift(){
     if(staffChanged)upd.staff_id=newStaff;
     if(mach||chem||('machines' in sh)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
     if(cn||cp||('site_contact_name' in sh)){upd.site_contact_name=cn||null;upd.site_contact_phone=cp||null}   // only when the columns exist or something is typed
+    if(pk||al||wo||('parking' in sh)){upd.parking=pk||null;upd.alarm_info=al||null;upd.watch_out=wo||null}   // only when the columns exist or something is typed
     var {error}=await db.from('rpc_shifts').update(upd).eq('id',sh.id);
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){err.textContent='Site contact needs the one-time database step (SQL) first';return;}
+    if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){err.textContent='Parking, alarm and watch out need the one-time database step (SQL) first';return;}
     if(error)throw error;
     if(q('esSv').checked&&(cn||cp)){try{var r2=await db.from('rpc_sites').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('name',site);if(r2.error)toast('Shift saved, but the site contact was not saved: '+r2.error.message);else await loadSites()}catch(e){}}
     if(photoChg)await esSavePhotos(sh,site);
+    if(pdfChg)await esSavePdfs(sh);
 
     // Move the ticked colleagues (only the fields that changed)
     var movedN=0;
@@ -4310,8 +4455,11 @@ async function publishShift(id){
   <textarea class="mta" id="esMc" placeholder="e.g. Rotary floor machine, carpet extractor..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div>
   <textarea class="mta" id="esCh" placeholder="e.g. Neutral floor cleaner (1:20)..." style="min-height:55px"></textarea>
-  <div class="mlbl">Access Notes (keys, codes, parking)</div>
+  <div class="mlbl">Access Notes (keys, codes, who lets you in)</div>
   <textarea class="mta" id="esAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  <div class="mlbl">Parking</div><textarea class="mta" id="esPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
+  <div class="mlbl">Alarm</div><textarea class="mta" id="esAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
+  <div class="mlbl">Watch out for</div><textarea class="mta" id="esWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="esCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="esCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
@@ -4323,6 +4471,9 @@ async function publishShift(id){
   <div class="mlbl">Instruction Photos</div>
   <div id="esPhList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
   <input type="file" id="esPhIn" accept="image/*" multiple onchange="esPhAdd()" style="margin-bottom:12px;font-size:13px">
+  <div class="mlbl">PDF Attachments (up to 5, 10 MB each)</div>
+  <div id="esPdfList" style="margin-bottom:8px"></div>
+  <input type="file" id="esPdfIn" accept="application/pdf,.pdf" multiple onchange="esPdfAdd()" style="margin-bottom:12px;font-size:13px">
   <label style="display:flex;align-items:center;gap:10px;padding:4px 2px;font-size:13px;cursor:pointer"><input type="checkbox" id="esPubNow" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Publish right after saving (if it is a draft)</label>
   <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 8px;font-size:13px;cursor:pointer"><input type="checkbox" id="esNn" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Don't notify staff about this change</label>
   <div id="esErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
@@ -4345,7 +4496,7 @@ async function publishShift(id){
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div class="mlbl" style="margin:0;flex:1">Dates chosen <span id="rpN"></span></div><button class="ebtn" onclick="rpClear()">Clear all</button></div>
   <div id="rpWn" style="font-size:12px;font-weight:700;color:var(--am);min-height:4px"></div>
   <div id="rpList" style="margin-bottom:10px"></div>
-  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="rpPh" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Copy instruction photos to these shifts</label>
+  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="rpPh" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Copy instruction photos and PDFs to these shifts</label>
   <button class="btn tl" id="rpGo" onclick="rpConfirm()">Use these dates</button>
   <button class="btn sc" onclick="closeM('RepM')">Cancel</button>
 </div></div>
