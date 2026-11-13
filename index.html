@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v36.0 — v35 + Edit Shift: change staff (search, safety block, draft), move whole job, change message, instruction photos, publish/unpublish, delete with message; photo previews in Assign Shift -->
 <!-- v35.0 — v34 + Signed Documents status (Not actioned / Review later / Actioned with date), filter chips, multi-select -->
 <!-- v34.0 — v33 + repeat shifts (calendar + quick fill, leave/clash warnings, per-date duties, one notification) -->
 <!-- v33.0 — v32 + job report options (letterhead / plain, staff names, staff comments, overall comment) and per-category staff comments -->
@@ -371,7 +372,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <select class="msel" id="shHT"><option value="no">No — no home travel pay</option><option value="yes">Yes — pay travel from home to site</option></select>
   <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
   <select class="msel" id="shHR"><option value="no">No — no return travel pay</option><option value="yes">Yes — pay travel from site to home after work</option></select>
-  <div class="mlbl">Attach Instruction Photos (optional)</div><input type="file" id="shPh" accept="image/*" multiple style="margin-bottom:12px;font-size:13px">
+  <div class="mlbl">Attach Instruction Photos (optional)</div><input type="file" id="shPh" accept="image/*" multiple onchange="shPhAdd()" style="margin-bottom:8px;font-size:13px">
+  <div id="shPhList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
   <button class="btn tl" onclick="saveShift()">Assign Shift</button>
   <button class="btn sc" onclick="closeM('ShiftM')">Cancel</button>
 </div></div>
@@ -1415,7 +1417,7 @@ async function loadRange(){
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">'+esc(s.name)+'</label>').join('');
   q('shSiQ').value='';q('shStQ').value='';fillSiteSel('shSi','shSiQ');_cs.sh=null;fillSiteContact('sh',true);q('shSv').checked=false;
-  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
+  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;_repPlan=null;rpSummary();openM('ShiftM');
 }
@@ -1424,7 +1426,7 @@ async function saveShift(){
   if(!sel.length){toast('Select at least one staff member');return}
   const site=q('shSi').value,date=q('shDt').value,start=q('shS').value,end=q('shE').value;
   const desc=q('shDs').value.trim(),access=q('shAc').value.trim(),homeTrv=q('shHT').value==='yes',homeReturn=q('shHR').value==='yes';
-  const photos=q('shPh').files;
+  const photos=_shPhFiles.slice();
   const mach=q('shMc').value.trim(),chem=q('shCh').value.trim();
   const cn=q('shCn').value.trim(),cp=q('shCp').value.trim();
   if(!site||!date){toast('Select site and date');return}
@@ -3351,7 +3353,7 @@ function openRepeat(mode){
     if(!site||!base){toast('Select the site and date first');return}
   }else{
     if(!currentEditShift)return;
-    staff=[currentEditShift.staff_id];base=q('esDt').value;site=q('esS').value;
+    staff=[parseInt(q('esPs').value)||currentEditShift.staff_id];base=q('esDt').value;site=q('esS').value;
     if(!site||!base){toast('This shift needs a site and a date');return}
   }
   _rp={mode:mode,base:base,site:site,staff:staff,dates:{},days:{},warn:{},wh:{},tm:0};
@@ -3490,7 +3492,7 @@ async function rpCopyShifts(ds){
   var site=q('esS').value,mainDuties=q('esDs').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim(),cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
   var rows=ds.map(function(d){
-    var r={staff_id:sh.staff_id,site:site,shift_date:d,start_time:q('esSt').value||null,end_time:q('esEt').value||null,
+    var r={staff_id:(parseInt(q('esPs').value)||sh.staff_id),site:site,shift_date:d,start_time:q('esSt').value||null,end_time:q('esEt').value||null,
       description:((_rp.dates[d].duties||'').trim())||mainDuties||null,access_notes:q('esAc').value.trim()||null,
       home_travel_pay:q('esHT').value==='yes',home_return_travel_pay:q('esHR').value==='yes',status:'draft'};
     if(mach)r.machines=mach;if(chem)r.chemicals=chem;
@@ -3511,7 +3513,7 @@ async function rpCopyShifts(ds){
         }
       }catch(e){}
     }
-    try{await db.from('rpc_notifications').insert({staff_id:sh.staff_id,title:'Shift Assigned',message:rpNotifText(site,ds,q('esSt').value),icon:'📍',is_read:false})}catch(e){}
+    try{await db.from('rpc_notifications').insert({staff_id:(parseInt(q('esPs').value)||sh.staff_id),title:'Shift Assigned',message:rpNotifText(site,ds,q('esSt').value),icon:'📍',is_read:false})}catch(e){}
     closeM('RepM');closeM('EditShiftM');
     toast(made.length+' draft shift'+(made.length>1?'s':'')+' created ✅ — remember to Publish');
     if(q('p-roster').classList.contains('on'))renderRoster();
@@ -3596,6 +3598,146 @@ async function sgPick(status){
   var ok=await sgApplyStatus([_sgOne],status);
   if(ok)closeM('SgM');
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v36: EDIT SHIFT — change staff, move the whole job, instruction photos,
+//      publish / unpublish, delete with a message; photo previews in Assign Shift
+// ═══════════════════════════════════════════════════════════════════
+var _shPhFiles=[],_shUrls=[],_esPh={existing:[],added:[]},_esUrls=[],_esJob=[],_esWarnN=0;
+function esStaffName(id){var s=allStaff.find(function(x){return x.id===id});return s?s.name:'Staff member'}
+async function esNotify(staffId,title,msg){try{await db.from('rpc_notifications').insert({staff_id:staffId,title:title,message:msg,icon:'roster',is_read:false})}catch(e){}}
+function fillStaffSel(selId,qId,keep){
+  var sel=q(selId),box=q(qId);if(!sel)return;
+  var qv=((box&&box.value)||'').trim().toLowerCase();
+  var cur=keep!==undefined?keep:parseInt(sel.value);
+  var list=allStaff.filter(function(s){return (!s.is_admin||s.id===cur)&&(!qv||String(s.name||'').toLowerCase().indexOf(qv)>-1)});
+  sel.innerHTML='';
+  if(!list.length){var o=document.createElement('option');o.value='';o.textContent='No staff match your search';sel.appendChild(o);return}
+  list.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o)});
+  if(list.some(function(s){return s.id===cur}))sel.value=cur;
+}
+function esStatusUI(){
+  var pub=(currentEditShift.status||'draft')==='published',t=q('esStatT');
+  t.textContent=pub?'● Published':'● Draft — staff cannot see it yet';
+  t.style.background=pub?'#e3f6ea':'#fff2e0';t.style.color=pub?'#1f9d55':'#c26a00';
+  q('esPubB').textContent=pub?'Unpublish':'Publish';
+}
+async function esTogglePublish(){
+  var sh=currentEditShift;if(!sh)return;
+  var pub=(sh.status||'draft')==='published';
+  try{
+    if(!pub){
+      await publishShift(sh.id);
+      var r=await db.from('rpc_shifts').select('status').eq('id',sh.id).limit(1);
+      if(r.data&&r.data[0])sh.status=r.data[0].status;
+    }else{
+      var quiet=q('esNn').checked;
+      if(!confirm('Unpublish this shift? '+esStaffName(sh.staff_id)+' will no longer see it'+(quiet?'.':' and will be told.')))return;
+      var u=await db.from('rpc_shifts').update({status:'draft'}).eq('id',sh.id);
+      if(u.error)throw u.error;
+      sh.status='draft';
+      if(!quiet)await esNotify(sh.staff_id,'Shift On Hold','Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' is on hold. Please wait for confirmation.');
+      toast('Shift unpublished');
+      if(q('p-roster').classList.contains('on'))renderRoster();
+    }
+    esStatusUI();
+  }catch(e){toast('Error: '+(e.message||e))}
+}
+async function esDelete(){
+  var sh=currentEditShift;if(!sh)return;
+  var quiet=q('esNn').checked;
+  if(!confirm('Delete this shift? '+esStaffName(sh.staff_id)+(quiet?' will NOT be told.':' will be told it was cancelled.')))return;
+  try{
+    var r=await db.from('rpc_shifts').delete().eq('id',sh.id);
+    if(r.error)throw r.error;
+    if(!quiet)await esNotify(sh.staff_id,'Shift Cancelled','Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' has been cancelled.');
+    closeM('EditShiftM');currentEditShift=null;toast('Shift deleted');
+    if(q('p-roster').classList.contains('on'))renderRoster();
+  }catch(e){toast('Error: '+(e.message||e))}
+}
+// warnings when the staff member or date changes
+async function esWarn(){
+  var box=q('esWarn'),sh=currentEditShift;if(!box||!sh)return;
+  var sid=parseInt(q('esPs').value),d=q('esDt').value;
+  if(!sid||!d||(sid===sh.staff_id&&d===sh.shift_date)){box.innerHTML='';_esWarnN=0;return}
+  try{
+    var res=await Promise.all([
+      db.from('rpc_leave').select('staff_id,start_date,end_date,status').in('status',['approved','pending']).lte('start_date',d).gte('end_date',d).eq('staff_id',sid),
+      db.from('rpc_shifts').select('id,site,start_time').eq('staff_id',sid).eq('shift_date',d).neq('id',sh.id)
+    ]);
+    if(parseInt(q('esPs').value)!==sid||q('esDt').value!==d)return;
+    var nm=esc(esStaffName(sid)),w=[];
+    (res[0].data||[]).forEach(function(l){w.push(l.status==='approved'?'⛔ '+nm+' is on approved leave':'⚠️ '+nm+' has a pending leave request')});
+    (res[1].data||[]).forEach(function(s){w.push('⚠️ '+nm+' already has a shift at '+esc(s.site||'another site')+(s.start_time?' ('+fmt12(s.start_time)+')':''))});
+    _esWarnN=w.length;
+    box.innerHTML=w.length?'<div class="wbox" style="margin:0 0 12px">'+w.join('<br>')+'</div>':'';
+  }catch(e){}
+}
+// other people on the same job (same site and date)
+async function esLoadJob(sh){
+  _esJob=[];var box=q('esJobBox'),list=q('esJobList');box.style.display='none';list.innerHTML='';
+  try{
+    var r=await db.from('rpc_shifts').select('*').eq('site',sh.site).eq('shift_date',sh.shift_date).neq('id',sh.id);
+    if(currentEditShift!==sh)return;
+    _esJob=r.data||[];
+    if(!_esJob.length)return;
+    _esJob.forEach(function(j){
+      var lb=document.createElement('label');lb.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 2px;border-top:1px solid var(--bd);font-size:13px;cursor:pointer';
+      var cb=document.createElement('input');cb.type='checkbox';cb.value=j.id;cb.style.cssText='width:18px;height:18px;flex:none;accent-color:var(--nv2)';
+      var tx=document.createElement('div');tx.style.cssText='flex:1;min-width:0';
+      tx.innerHTML='<div style="font-weight:600;color:var(--tx)">'+esc(esStaffName(j.staff_id))+'</div><div style="font-size:11px;color:var(--t3)">'+(j.start_time?fmt12(j.start_time):'No start')+(j.end_time?' – '+fmt12(j.end_time):'')+' · '+((j.status||'draft')==='published'?'Published':'Draft')+'</div>';
+      lb.appendChild(cb);lb.appendChild(tx);list.appendChild(lb);
+    });
+    box.style.display='block';
+  }catch(e){}
+}
+// instruction photos
+function phThumb(src,removed,onX,isExisting){
+  var w=document.createElement('div');w.style.cssText='position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--bd);flex:none';
+  var im=document.createElement('img');im.src=src;im.style.cssText='width:100%;height:100%;object-fit:cover;'+(removed?'opacity:.3':'');w.appendChild(im);
+  var x=document.createElement('button');x.textContent=removed?'↩':'✕';x.style.cssText='position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:13px;cursor:pointer;line-height:24px;padding:0';
+  x.onclick=function(e){e.preventDefault();e.stopPropagation();onX()};w.appendChild(x);
+  if(removed){var t=document.createElement('div');t.textContent='Removed on save';t.style.cssText='position:absolute;left:0;right:0;bottom:2px;text-align:center;font-size:9px;font-weight:700;color:var(--tx)';w.appendChild(t)}
+  return w;
+}
+function esPhRender(){
+  var box=q('esPhList');if(!box)return;
+  box.innerHTML='';_esUrls.forEach(function(u){try{URL.revokeObjectURL(u)}catch(e){}});_esUrls=[];
+  _esPh.existing.forEach(function(p){box.appendChild(phThumb(p.url,p.del,function(){p.del=!p.del;esPhRender()},true))});
+  _esPh.added.forEach(function(f,i){var u=URL.createObjectURL(f);_esUrls.push(u);box.appendChild(phThumb(u,false,function(){_esPh.added.splice(i,1);esPhRender()},false))});
+  if(!_esPh.existing.length&&!_esPh.added.length)box.innerHTML='<div style="font-size:12px;color:var(--t3)">No instruction photos</div>';
+}
+async function esLoadPh(sh){
+  _esPh={existing:[],added:[]};esPhRender();
+  try{
+    var r=await db.from('rpc_photos').select('id,url,storage_path').eq('shift_id',sh.id).eq('uploaded_by','admin');
+    if(currentEditShift!==sh)return;
+    _esPh.existing=(r.data||[]).map(function(p){return {id:p.id,url:p.url,storage_path:p.storage_path,del:false}});
+    esPhRender();
+  }catch(e){}
+}
+function esPhAdd(){var f=q('esPhIn').files;for(var i=0;i<f.length;i++)_esPh.added.push(f[i]);q('esPhIn').value='';esPhRender()}
+async function esSavePhotos(sh,site){
+  var del=_esPh.existing.filter(function(p){return p.del});
+  if(del.length)await phRemove(del);
+  for(var i=0;i<_esPh.added.length;i++){
+    try{
+      var comp=await compressImg(_esPh.added[i],1000,0.8);
+      var fn='shifts/'+sh.id+'/admin_'+Date.now()+'_'+Math.random().toString(36).slice(2,6)+'.jpg';
+      var up=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
+      if(up.error)continue;
+      var pu=db.storage.from('rpc-photos').getPublicUrl(fn);
+      await db.from('rpc_photos').insert({shift_id:sh.id,staff_id:0,staff_name:'Admin',label:'Instruction',url:pu.data.publicUrl,storage_path:fn,uploaded_by:'admin',site:site,category:'Admin Instructions'});
+    }catch(e){}
+  }
+}
+// Assign Shift: photo previews
+function shPhAdd(){var f=q('shPh').files;for(var i=0;i<f.length;i++)_shPhFiles.push(f[i]);q('shPh').value='';shPhRender()}
+function shPhRender(){
+  var box=q('shPhList');if(!box)return;
+  box.innerHTML='';_shUrls.forEach(function(u){try{URL.revokeObjectURL(u)}catch(e){}});_shUrls=[];
+  _shPhFiles.forEach(function(f,i){var u=URL.createObjectURL(f);_shUrls.push(u);box.appendChild(phThumb(u,false,function(){_shPhFiles.splice(i,1);shPhRender()},false))});
+}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
 function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
@@ -3633,7 +3775,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v35',
+      app_version: 'RapidProClean_v36',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -3940,60 +4082,110 @@ function openEditShift(sh){
   q('esHT').value=sh.home_travel_pay?'yes':'no';
   q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
+  q('esPq').value='';fillStaffSel('esPs','esPq',sh.staff_id);q('esNn').checked=false;q('esPubNow').checked=false;q('esWarn').innerHTML='';_esWarnN=0;
+  esStatusUI();esLoadJob(sh);esLoadPh(sh);
   openM('EditShiftM');
 }
 
 async function saveEditShift(){
-  if(!currentEditShift){closeM('EditShiftM');return;}
-  var site=q('esS').value;
-  var date=q('esDt').value;
-  var start=q('esSt').value;
-  var end=q('esEt').value;
-  var desc=q('esDs').value.trim();
-  var access=q('esAc').value.trim();
+  var sh=currentEditShift;
+  if(!sh){closeM('EditShiftM');return;}
+  var site=q('esS').value,date=q('esDt').value,start=q('esSt').value,end=q('esEt').value;
+  var desc=q('esDs').value.trim(),access=q('esAc').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim();
   var cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
   var err=q('esErr');
-
+  var newStaff=parseInt(q('esPs').value)||sh.staff_id,staffChanged=newStaff!==sh.staff_id;
+  var quiet=q('esNn').checked,pubNow=q('esPubNow').checked;
   if(!site||!date){err.textContent='Site and date are required.';return;}
-  err.textContent='Saving...';
-
+  var oldName=esStaffName(sh.staff_id),newName=esStaffName(newStaff);
+  err.textContent='Checking...';
   try{
-    var upd={
-      site:site,
-      shift_date:date,
-      start_time:start||null,
-      end_time:end||null,
-      description:desc||null,
-      access_notes:access||null,
-      home_travel_pay:q('esHT').value==='yes',
-      home_return_travel_pay:q('esHR').value==='yes',
-      status:currentEditShift.status||'draft'
-    };
-    if(mach||chem||('machines' in currentEditShift)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
-    if(cn||cp||('site_contact_name' in currentEditShift)){upd.site_contact_name=cn||null;upd.site_contact_phone=cp||null}   // only when the columns exist or something is typed
-    var {error}=await db.from('rpc_shifts').update(upd).eq('id',currentEditShift.id);
+    if(staffChanged){
+      // Safety block: the old person already has records on this shift
+      var a=await db.from('rpc_attendance').select('id').eq('staff_id',sh.staff_id).eq('shift_date',sh.shift_date).eq('site',sh.site).limit(1);
+      var p=await db.from('rpc_photos').select('id,uploaded_by').eq('shift_id',sh.id);
+      var hasPh=(p.data||[]).some(function(r){return r.uploaded_by!=='admin'});
+      if((a.data&&a.data.length)||hasPh){
+        err.textContent='🚫 '+oldName+' has already signed in or uploaded photos for this shift, so the staff member cannot be changed. Create a new shift for '+newName+' instead.';
+        return;
+      }
+    }
+    if(_esWarnN>0&&!confirm(_esWarnN+' warning'+(_esWarnN>1?'s':'')+' shown for '+newName+' on this date (leave or another shift). Save anyway?')){err.textContent='';return}
+    if(staffChanged&&!confirm('Move the '+site+' shift on '+fmtDate(date)+' from '+oldName+' to '+newName+'?\n\nIt will become a draft until you publish it.')){err.textContent='';return}
 
+    // What changed (for the message to staff)
+    var oS=sh.start_time||'',oE=sh.end_time||'';
+    var tt=function(s,e){return (s?fmt12(s):'no start')+(e?' – '+fmt12(e):'')};
+    var chg=[];
+    if(date!==sh.shift_date)chg.push('Date: '+fmtDate(sh.shift_date)+' → '+fmtDate(date));
+    if(start!==oS||end!==oE)chg.push('Time: '+tt(oS,oE)+' → '+tt(start,end));
+    if(site!==sh.site)chg.push('Site: '+sh.site+' → '+site);
+    var homeT=q('esHT').value==='yes',homeR=q('esHR').value==='yes';
+    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
+    if(other)chg.push('Other details updated');
+    var photoChg=_esPh.added.length>0||_esPh.existing.some(function(x){return x.del});
+    if(photoChg)chg.push('Instruction photos updated');
+
+    // People on the same job who should move with it
+    var jobIds=Array.prototype.slice.call(q('esJobList').querySelectorAll('input:checked')).map(function(c){return parseInt(c.value)});
+    var jUpd={};
+    if(date!==sh.shift_date)jUpd.shift_date=date;
+    if(start!==oS)jUpd.start_time=start||null;
+    if(end!==oE)jUpd.end_time=end||null;
+    if(site!==sh.site)jUpd.site=site;
+    var moveJob=jobIds.length>0&&Object.keys(jUpd).length>0;
+
+    if(!chg.length&&!staffChanged&&!moveJob){err.textContent='No changes to save.';return}
+    err.textContent='Saving...';
+
+    var finalStatus=staffChanged?'draft':(sh.status||'draft');
+    var upd={site:site,shift_date:date,start_time:start||null,end_time:end||null,description:desc||null,access_notes:access||null,home_travel_pay:homeT,home_return_travel_pay:homeR,status:finalStatus};
+    if(staffChanged)upd.staff_id=newStaff;
+    if(mach||chem||('machines' in sh)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
+    if(cn||cp||('site_contact_name' in sh)){upd.site_contact_name=cn||null;upd.site_contact_phone=cp||null}   // only when the columns exist or something is typed
+    var {error}=await db.from('rpc_shifts').update(upd).eq('id',sh.id);
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){err.textContent='Site contact needs the one-time database step (SQL) first';return;}
     if(error)throw error;
     if(q('esSv').checked&&(cn||cp)){try{var r2=await db.from('rpc_sites').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('name',site);if(r2.error)toast('Shift saved, but the site contact was not saved: '+r2.error.message);else await loadSites()}catch(e){}}
+    if(photoChg)await esSavePhotos(sh,site);
 
-    // Notify staff member
-    var staffMember=allStaff.find(function(s){return s.id===currentEditShift.staff_id;});
-    var msg='Your shift at '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'')+' has been updated.';
-    await db.from('rpc_notifications').insert({
-      staff_id:currentEditShift.staff_id,
-      title:'Shift Updated',
-      message:msg,
-      icon:'roster',
-      is_read:false
-    });
+    // Move the ticked colleagues (only the fields that changed)
+    var movedN=0;
+    if(moveJob){
+      for(var ji=0;ji<jobIds.length;ji++){
+        var j=_esJob.find(function(x){return x.id===jobIds[ji]});if(!j)continue;
+        var oj={shift_date:j.shift_date,start_time:j.start_time,end_time:j.end_time,site:j.site};   // their values before the move
+        var ju=await db.from('rpc_shifts').update(jUpd).eq('id',j.id);
+        if(ju.error){toast('Could not move '+esStaffName(j.staff_id)+': '+ju.error.message);continue}
+        movedN++;
+        if(!quiet){
+          var jc=[];
+          if(jUpd.shift_date)jc.push('Date: '+fmtDate(oj.shift_date)+' → '+fmtDate(date));
+          if('start_time' in jUpd||'end_time' in jUpd)jc.push('Time: '+tt(oj.start_time||'',oj.end_time||'')+' → '+tt('start_time' in jUpd?start:(oj.start_time||''),'end_time' in jUpd?end:(oj.end_time||'')));
+          if(jUpd.site)jc.push('Site: '+oj.site+' → '+site);
+          await esNotify(j.staff_id,'Shift Updated','Your '+site+' shift was updated. '+jc.join('. '));
+        }
+      }
+    }
+
+    // Publish right away if asked (and the shift is a draft)
+    var publishing=pubNow&&finalStatus==='draft';
+    if(publishing)await publishShift(sh.id);
+
+    // Tell staff
+    if(!quiet){
+      if(staffChanged){
+        await esNotify(sh.staff_id,'Shift Cancelled','Your shift at '+sh.site+' on '+fmtDate(sh.shift_date)+(sh.start_time?' at '+fmt12(sh.start_time):'')+' has been cancelled.');
+      }else if(chg.length&&!publishing){
+        await esNotify(sh.staff_id,'Shift Updated','Your '+site+' shift on '+fmtDate(date)+' was updated. '+chg.join('. '));
+      }
+    }
 
     closeM('EditShiftM');
-    toast('Shift updated ✅');
+    toast(staffChanged?('Shift moved to '+newName+(publishing?' and published ✅':' as a draft — remember to Publish')):('Shift updated ✅'+(movedN?' — '+movedN+' more person'+(movedN>1?'s':'')+' moved':'')));
     currentEditShift=null;
 
-    // Refresh roster
     if(q('p-roster').classList.contains('on'))renderRoster();
   }catch(e){
     err.textContent='Error: '+(e.message||'Please try again');
@@ -4099,10 +4291,19 @@ async function publishShift(id){
 
 
 <div class="mov" id="EditShiftM"><div class="msh"><div class="mh"></div><div class="mt">Edit Shift</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span id="esStatT" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:12px"></span><button class="ebtn" id="esPubB" onclick="esTogglePublish()"></button></div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Publish and Unpublish act on the saved shift straight away.</div>
+  <div class="mlbl">Staff Member</div><input class="mi" id="esPq" type="text" placeholder="🔍 Search staff…" oninput="fillStaffSel('esPs','esPq');esWarn()" style="margin-bottom:6px;font-size:16px"><select class="msel" id="esPs" onchange="esWarn()"></select>
   <div class="mlbl">Job Site</div><input class="mi" id="esSq" type="text" placeholder="🔍 Search site…" oninput="fillSiteSel('esS','esSq');fillSiteContact('es')" style="margin-bottom:6px;font-size:16px"><select class="msel" id="esS" onchange="fillSiteContact('es')"></select>
-  <div class="mlbl">Date</div><input class="mi" id="esDt" type="date">
+  <div class="mlbl">Date</div><input class="mi" id="esDt" type="date" onchange="esWarn()">
   <div class="mlbl">Shift Times</div>
   <div class="mrow"><input class="mi" id="esSt" type="time"><input class="mi" id="esEt" type="time"></div>
+  <div id="esWarn"></div>
+  <div id="esJobBox" style="display:none;border:1.5px solid var(--bd);border-radius:var(--rs);padding:10px 12px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:800;letter-spacing:.6px;color:var(--nv2);margin-bottom:2px">ALSO MOVE THESE PEOPLE ON THIS JOB?</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Ticked people get the same changes to site, date and time. Everything else on their shift stays as it is.</div>
+    <div id="esJobList"></div>
+  </div>
   <div class="mlbl">Duties / Description</div>
   <textarea class="mta" id="esDs" placeholder="Describe tasks..."></textarea>
   <div class="mlbl">Machines / Equipment</div>
@@ -4119,9 +4320,15 @@ async function publishShift(id){
   <select class="msel" id="esHT"><option value="no">No</option><option value="yes">Yes — pay travel from home to site</option></select>
   <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
   <select class="msel" id="esHR"><option value="no">No</option><option value="yes">Yes — pay travel from site to home after work</option></select>
+  <div class="mlbl">Instruction Photos</div>
+  <div id="esPhList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
+  <input type="file" id="esPhIn" accept="image/*" multiple onchange="esPhAdd()" style="margin-bottom:12px;font-size:13px">
+  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px;font-size:13px;cursor:pointer"><input type="checkbox" id="esPubNow" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Publish right after saving (if it is a draft)</label>
+  <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 8px;font-size:13px;cursor:pointer"><input type="checkbox" id="esNn" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Don't notify staff about this change</label>
   <div id="esErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
   <button class="btn nv" onclick="saveEditShift()">Save Changes</button>
   <button class="btn sc" onclick="openRepeat('copy')">🔁 Repeat this shift on other dates</button>
+  <button class="btn sc" style="color:#e53935" onclick="esDelete()">🗑 Delete this shift</button>
   <button class="btn sc" onclick="closeM('EditShiftM')">Cancel</button>
 </div></div>
 <div class="mov" id="RepM"><div class="msh"><div class="mh"></div><div class="mt" id="rpT">Repeat Shift</div>
