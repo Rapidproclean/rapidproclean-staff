@@ -7,6 +7,8 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v39.0 — v38 + folder Type (Training / Policy) separate from Must sign, folder Settings, Training & Policy screens for staff, Copy to another folder -->
+<!-- v38.0 — v37 + Edit Shift site locked, Docs renamed OHS (OHS & Policy), Access Notes renamed Other Notes and moved down -->
 <!-- v37.0 — v36 + parking / alarm / watch-out boxes, PDF attachments on shifts, Navigate button + optional site maps pin link -->
 <!-- v36.0 — v35 + Edit Shift: change staff (search, safety block, draft), move whole job, change message, instruction photos, publish/unpublish, delete with message; photo previews in Assign Shift -->
 <!-- v35.0 — v34 + Signed Documents status (Not actioned / Review later / Actioned with date), filter chips, multi-select -->
@@ -366,10 +368,11 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Duties / Description</div><textarea class="mta" id="shDs" placeholder="Describe tasks..."></textarea>
   <div class="mlbl">Machines / Equipment</div><textarea class="mta" id="shMc" placeholder="e.g. Rotary floor machine, carpet extractor, scrubber dryer..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div><textarea class="mta" id="shCh" placeholder="e.g. Neutral floor cleaner (1:20), glass cleaner..." style="min-height:55px"></textarea>
-  <div class="mlbl">Access Notes (keys, codes, who lets you in)</div><textarea class="mta" id="shAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  
   <div class="mlbl">Parking</div><textarea class="mta" id="shPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
   <div class="mlbl">Alarm</div><textarea class="mta" id="shAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
   <div class="mlbl">Watch out for</div><textarea class="mta" id="shWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
+  <div class="mlbl">Other Notes</div><textarea class="mta" id="shAc" placeholder="Keys, lockbox, who lets you in, anything else..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="shCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="shCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
@@ -472,6 +475,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="DFM"><div class="msh"><div class="mh"></div><div class="mt">Create Document Folder</div>
   <div class="mlbl">Folder Name</div><input class="mi" id="dfNm" placeholder="e.g. Safety Training" type="text">
   <div class="mlbl">Description</div><input class="mi" id="dfDs" placeholder="Brief description" type="text">
+  <div class="mlbl">Folder type</div>
+  <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn sc sm" id="dfTyT" style="flex:1;margin:0" onclick="dfSetType('training')">📚 Training</button><button class="btn sc sm" id="dfTyP" style="flex:1;margin:0" onclick="dfSetType('policy')">📋 Policy</button></div>
   <div class="mlbl">Requires signature before sign in?</div>
   <select class="msel" id="dfSg"><option value="no">No — read only</option><option value="yes">Yes — must sign before sign in</option></select>
   <div class="mlbl">Who can see this folder?</div>
@@ -493,7 +498,15 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <button class="btn sc" onclick="closeM('DFM')">Cancel</button>
 </div></div>
 
-<div class="mov" id="ACM"><div class="msh"><div class="mh"></div><div class="mt" id="acT">Folder Access</div>
+<div class="mov" id="ACM"><div class="msh"><div class="mh"></div><div class="mt" id="acT">Folder Settings</div>
+  <div id="acTypeBox">
+    <div class="mlbl">Folder type</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn sc sm" id="acTyT" style="flex:1;margin:0" onclick="acSetType('training')">📚 Training</button><button class="btn sc sm" id="acTyP" style="flex:1;margin:0" onclick="acSetType('policy')">📋 Policy</button></div>
+    <div class="mlbl">Staff must sign?</div>
+    <select class="msel" id="acSg"><option value="no">No — read only</option><option value="yes">Yes — must sign before sign in</option></select>
+  </div>
+  <div id="acPersonal" style="display:none;font-size:12px;color:var(--t3);margin-bottom:10px">🗂 Personal folder. It shows under "My documents" for that staff member.</div>
+  <div class="mlbl">Who can see this folder?</div>
   <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="acAll" onchange="acToggleAll()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">All Staff</label>
   <div id="acPickBox" style="display:none">
     <input class="mi" id="acSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('acList','acSq')" style="margin-bottom:6px;font-size:16px">
@@ -501,7 +514,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
     <div id="acList" style="max-height:260px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
   </div>
   <label style="display:flex;align-items:center;gap:10px;padding:4px 2px 12px;font-size:13px;cursor:pointer"><input type="checkbox" id="acNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Notify newly added staff</label>
-  <button class="btn pu" onclick="saveFolderAccess()">Save Access</button>
+  <button class="btn pu" onclick="saveFolderAccess()">Save Settings</button>
   <button class="btn sc" onclick="closeM('ACM')">Cancel</button>
 </div></div>
 
@@ -632,10 +645,10 @@ async function loadSites(){try{const {data}=await db.from('rpc_sites').select('*
 function buildNav(){
   const n=q('MNav');
   const ic={home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',incidents:'<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'};
-  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['incidents','SOS'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['incidents','SOS']];
+  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS'],['photos','Photos'],['payroll','Payroll'],['incidents','SOS'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS'],['incidents','SOS']];
   n.innerHTML=pages.map(([p,l])=>'<button class="ni" id="n-'+p+'" onclick="goPage(\''+p+'\')">'+ic[p]+l+'</button>').join('');
 }
-function goPage(p){try{sgBarOff()}catch(e){}
+function goPage(p){try{sgBarOff();dcBarOff()}catch(e){}
   document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(x=>x.classList.remove('on'));
   const pg=q('p-'+p),nb=q('n-'+p);
@@ -926,8 +939,8 @@ async function renderStaffHome(el2,sm,tm){
       +(sh.machines?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>':'')
       +(sh.chemicals?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>':'')
       +contactHTML(sh,12)
-      +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:4px">🔑 '+esc(sh.access_notes)+'</div>':'')
-      +shiftExtraHTML(sh,12);
+      +shiftExtraHTML(sh,12)
+      +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:6px;white-space:pre-line;word-break:break-word">📝 '+esc(sh.access_notes)+'</div>':'');
 
     // Shift status pill
     const spill=document.createElement('div');
@@ -1296,8 +1309,8 @@ function mkShiftItem(sh,sm){
   if(sh.machines)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>';
   if(sh.chemicals)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>';
   if(sh.site_contact_name||sh.site_contact_phone)det.innerHTML+=contactHTML(sh,12).replace('margin-top:4px','margin-bottom:6px');
-  if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px">🔑 '+esc(sh.access_notes)+'</div>';
   det.innerHTML+=shiftExtraHTML(sh,12);
+  if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px;white-space:pre-line;word-break:break-word">📝 '+esc(sh.access_notes)+'</div>';
   const fb=mkFilesBox(sh,true);det.appendChild(fb);
   if(!CU.is_admin&&CU.id===sh.staff_id){det.appendChild(mkTeamBox(sh));det.appendChild(mkShiftPdfBtn(sh,false))}
   if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Before & After Photos';const shId=sh.id,site=sh.site,shDate=sh.shift_date;ub.onclick=()=>openPhotoUpload(shId,site,shDate);det.appendChild(ub);}
@@ -1827,7 +1840,7 @@ async function renderDocs(){
   const sp=document.createElement('div');sp.style.height='200px';el2.appendChild(sp);
 }
 async function renderStaffDocs(el2){
-  el2.innerHTML='<div class="sl">Company Documents</div><div class="loader"><div class="spin"></div>Loading documents...</div>';
+  el2.innerHTML='<div class="sl">Training &amp; Policy</div><div class="loader"><div class="spin"></div>Loading documents...</div>';
   var fR,dR,sR;
   try{
     var results=await Promise.all([
@@ -1850,7 +1863,7 @@ async function renderStaffDocs(el2){
   });
   var signedIds=signed.map(function(s){return s.doc_id});
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
-  el2.innerHTML='<div class="sl">Company Documents</div>';
+  el2.innerHTML='<div class="sl">Training &amp; Policy</div>';
   var sfq=document.createElement('input');sfq.className='mi';sfq.type='text';sfq.placeholder='🔍 Search folders or documents…';sfq.style.cssText='margin-bottom:10px;font-size:16px';
   sfq.oninput=function(){var t=sfq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'})};
   el2.appendChild(sfq);
@@ -1859,8 +1872,10 @@ async function renderStaffDocs(el2){
     empty.innerHTML='<div class="empty"><div class="empty-ico">📁</div>No documents uploaded yet.</div>';
     el2.appendChild(empty);
   } else {
+    var grp={training:[],policy:[],personal:[]},unsignedBy={training:0,policy:0,personal:0};
     folders.forEach(function(folder){
       var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
+      var ft=fType(folder);
       var df=document.createElement('div');df.className='df';
       df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
       var hdr=document.createElement('div');hdr.className='dfh';
@@ -1876,13 +1891,14 @@ async function renderStaffDocs(el2){
       } else {
         fdocs.forEach(function(d){
           var isSigned=signedIds.indexOf(d.id)!==-1;
+          if(folder.requires_signature==='yes'&&!isSigned)unsignedBy[ft]++;
           var ditem=document.createElement('div');ditem.className='dfi';
           var icon=document.createElement('div');icon.style.fontSize='18px';icon.textContent=(d.url&&d.url.indexOf('.pdf')!==-1)?'📄':'📝';
           var info=document.createElement('div');info.style.flex='1';
           info.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+esc(d.name)+'</div>'
             +'<div style="font-size:10px;color:var(--t3);margin-top:2px">'
             +(folder.requires_signature==='yes'?'✍️ Signature required · ':'')
-            +(isSigned?'✅ You have signed this':'⏳ Not yet signed')
+            +(isSigned?'✅ You have signed this':(folder.requires_signature==='yes'?'⏳ Not yet signed':'Read only'))
             +'</div>';
           var acts=document.createElement('div');acts.style.cssText='display:flex;gap:6px;align-items:center;flex-shrink:0';
           var rb=document.createElement('button');rb.className='btn sc sm';rb.style.cssText='margin:0;padding:7px 12px';rb.textContent='📖 Read';
@@ -1890,7 +1906,7 @@ async function renderStaffDocs(el2){
           acts.appendChild(rb);
           if(isSigned){
             var badge=document.createElement('span');badge.style.cssText='font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;background:var(--tll);color:var(--tl)';badge.textContent='✅ Signed';acts.appendChild(badge);
-          } else {
+          } else if(folder.requires_signature==='yes'){
             var sb=document.createElement('button');sb.className='btn tl sm';sb.style.cssText='margin:0;padding:7px 12px';sb.textContent='✍️ Sign';
             (function(id,name){sb.onclick=function(){openSign(id,name)};})(d.id,d.name);
             acts.appendChild(sb);
@@ -1906,11 +1922,18 @@ async function renderStaffDocs(el2){
           if(arr)arr.textContent=body.classList.contains('on')?'▲':'▼';
         };
       })(body,folder.id);
-      df.appendChild(hdr);df.appendChild(body);el2.appendChild(df);
+      df.appendChild(hdr);df.appendChild(body);grp[ft].push(df);
+    });
+    [['training','📚 Training — read and sign'],['policy','📋 Policies'],['personal','🗂 My documents']].forEach(function(sct){
+      if(!grp[sct[0]].length)return;
+      var h=document.createElement('div');h.className='sl';h.style.marginTop='14px';h.textContent=sct[1];
+      if(unsignedBy[sct[0]]>0){var bd=document.createElement('span');bd.style.cssText='background:#e53935;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800;margin-left:8px';bd.textContent=unsignedBy[sct[0]]+' to sign';h.appendChild(bd)}
+      el2.appendChild(h);
+      grp[sct[0]].forEach(function(d){el2.appendChild(d)});
     });
   }
   // Signed documents section — use appendChild not innerHTML+=
-  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='My Signed Documents';el2.appendChild(slSigned);
+  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='My Signed Training & Policy Documents';el2.appendChild(slSigned);
   if(!signed.length){
     var noSigned=document.createElement('div');noSigned.className='card';noSigned.innerHTML='<div class="cr"><div class="cs">No signed documents yet</div></div>';el2.appendChild(noSigned);
   } else {
@@ -1946,7 +1969,7 @@ async function renderStaffDocs(el2){
   }
 }
 async function renderAdminDocs(el2){
-  el2.innerHTML='<div class="sl">Document Folders</div><div class="loader"><div class="spin"></div>Loading...</div>';
+  el2.innerHTML='<div class="sl">Training &amp; Policy Folders</div><div class="loader"><div class="spin"></div>Loading...</div>';
   var fR,dR,sR;
   try{
     var results=await Promise.all([
@@ -1970,14 +1993,14 @@ async function renderAdminDocs(el2){
   el2.innerHTML='';
 
   // Section label
-  var sl=document.createElement('div');sl.className='sl';sl.textContent='Document Folders';el2.appendChild(sl);
+  var sl=document.createElement('div');sl.className='sl';sl.textContent='Training & Policy Folders';el2.appendChild(sl);
 
   // Action buttons row — appended first, NEVER destroyed by innerHTML+=
   var bRow=document.createElement('div');bRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
   var cb=document.createElement('button');cb.className='btn pu sm';cb.style.cssText='margin:0;flex:1';cb.textContent='+ Create Folder';
   cb.onclick=function(){
     q('dfNm').value='';q('dfDs').value='';q('dfSg').value='no';q('dfFile').value='';q('dfSq').value='';q('dfXq').value='';
-    q('dfAll').checked=true;q('dfNt').checked=true;q('dfPickBox').style.display='none';
+    q('dfAll').checked=true;q('dfNt').checked=true;q('dfPickBox').style.display='none';_dfType=null;dfPaintType();
     pkInit('dfList',staffPickItems(),[]);pkRender('dfList','dfSq');
     var fnm={};folders.forEach(function(f){fnm[f.id]=f.name});
     pkInit('dfX',docs.map(function(d){return {id:d.id,label:d.name,sub:'in '+(fnm[d.folder_id]||'a folder')}}),[]);pkRender('dfX','dfXq');
@@ -1987,8 +2010,17 @@ async function renderAdminDocs(el2){
   ub.onclick=function(){openUploadDoc()};
   bRow.appendChild(cb);bRow.appendChild(ub);el2.appendChild(bRow);
   var fsq=document.createElement('input');fsq.className='mi';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
-  fsq.oninput=function(){var t=fsq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'})};
+  fsq.oninput=function(){dcApply()};
   el2.appendChild(fsq);
+  _dcRows={};_dcSel={};_dcMode=false;_dcFilter='all';_dcChips={};_dcSearch=fsq;_dcEl=el2;dcBarOff();
+  var fBar=document.createElement('div');fBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
+  var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});
+  [['all','All'],['training','📚 Training'],['policy','📋 Policy'],['personal','🗂 Personal']].forEach(function(c){
+    var b=document.createElement('button');b.className='ebtn';b.style.cssText='padding:7px 12px;font-size:12px;touch-action:manipulation';b.textContent=c[1]+' ('+fCnt[c[0]]+')';
+    b.onclick=function(){_dcFilter=c[0];dcPaintChips();dcApply()};_dcChips[c[0]]=b;fBar.appendChild(b);
+  });
+  var dsel=document.createElement('button');dsel.className='ebtn';dsel.textContent='☑ Select docs';dsel.style.cssText='margin-left:auto;padding:7px 12px;font-size:12px;touch-action:manipulation';
+  dsel.onclick=function(){dcSelMode(!_dcMode)};_dcSelBtn=dsel;fBar.appendChild(dsel);el2.appendChild(fBar);dcPaintChips();
 
   // No folders message
   if(!folders.length){
@@ -2000,6 +2032,7 @@ async function renderAdminDocs(el2){
     var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
     var df=document.createElement('div');df.className='df';
     df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
+    df.setAttribute('data-ft',fType(folder));
 
     var hdr=document.createElement('div');hdr.className='dfh';
     var icon=document.createElement('div');icon.style.fontSize='20px';icon.textContent='📁';
@@ -2007,12 +2040,13 @@ async function renderAdminDocs(el2){
     var accIds=[];if(folder.staff_folder_id){accIds.push(folder.staff_folder_id);(accMap[folder.id]||[]).forEach(function(i){if(accIds.indexOf(i)===-1)accIds.push(i)})}
     var assignedTo=accIds.length?{name:accIds.length===1?((allStaff.find(function(s){return s.id===accIds[0]})||{}).name||'1 staff member'):(accIds.length<=3?accIds.map(function(i){var s=allStaff.find(function(x){return x.id===i});return s?s.name.split(' ')[0]:'?'}).join(', '):accIds.length+' staff')}:null;
     info.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(folder.name)+'</div>'
+      +fTagHTML(folder)
       +'<div style="font-size:11px;color:var(--t3);margin-top:1px">'+fdocs.length+' doc'+(fdocs.length!==1?'s':'')+' · '+(folder.requires_signature==='yes'?'✍️ Sig required':'Read only')+'</div>'
       +'<div style="font-size:10px;margin-top:2px;font-weight:700;color:'+(assignedTo?'var(--nv2)':'var(--t3)')+'">👤 '+(assignedTo?assignedTo.name+' only':'All Staff')+'</div>';
     var arrSpan=document.createElement('span');arrSpan.style.cssText='color:var(--t3);font-size:14px';arrSpan.textContent='▼';
     var dBtn=document.createElement('button');dBtn.className='dbtn';dBtn.textContent='Delete';
     (function(fid,fname){dBtn.onclick=function(e){e.stopPropagation();delDocFolder(fid,fname)};})(folder.id,folder.name);
-    var aBtn=document.createElement('button');aBtn.className='ebtn';aBtn.textContent='Access';
+    var aBtn=document.createElement('button');aBtn.className='ebtn';aBtn.textContent='Settings';
     (function(fid){aBtn.onclick=function(e){e.stopPropagation();openFolderAccess(fid)};})(folder.id);
     hdr.appendChild(icon);hdr.appendChild(info);hdr.appendChild(arrSpan);hdr.appendChild(aBtn);hdr.appendChild(dBtn);
 
@@ -2020,6 +2054,8 @@ async function renderAdminDocs(el2){
     var addB=document.createElement('button');addB.className='btn nv sm';addB.style.cssText='margin:8px 0;width:100%';addB.textContent='📎 Add Documents to this folder';
     (function(fid){addB.onclick=function(){openUploadDoc(fid)};})(folder.id);
     body.appendChild(addB);
+    var allB=document.createElement('button');allB.className='ebtn dcAllB';allB.style.cssText='display:none;margin:0 0 8px;width:100%';allB.textContent='Select all in this folder';
+    allB.onclick=function(){fdocs.forEach(function(d){var r=_dcRows[d.id];if(r){r.cb.checked=true;_dcSel[d.id]=true}});dcBarUpdate()};body.appendChild(allB);
 
     if(!fdocs.length){
       var nd=document.createElement('div');nd.style.cssText='text-align:center;padding:12px;color:var(--t3);font-size:12px';nd.textContent='No documents in this folder yet';body.appendChild(nd);
@@ -2027,6 +2063,8 @@ async function renderAdminDocs(el2){
       fdocs.forEach(function(d){
         var ditem=document.createElement('div');ditem.className='dfi';
         var dic=document.createElement('div');dic.style.fontSize='18px';dic.textContent='📄';
+        var dcb=document.createElement('input');dcb.type='checkbox';dcb.style.cssText='display:none;width:20px;height:20px;flex:none;accent-color:var(--nv2)';
+        dcb.onchange=function(){if(dcb.checked)_dcSel[d.id]=true;else delete _dcSel[d.id];dcBarUpdate()};_dcRows[d.id]={cb:dcb,ic:dic};
         var dinf=document.createElement('div');dinf.style.flex='1';
         dinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+esc(d.name)+'</div>';
         var dacts=document.createElement('div');dacts.style.cssText='display:flex;gap:4px;flex-shrink:0';
@@ -2036,7 +2074,7 @@ async function renderAdminDocs(el2){
         (function(id,name,path){db2.onclick=function(){delDoc(id,name,path)};})(d.id,d.name,d.storage_path);
         dacts.appendChild(vb);
         if(CU.is_admin){dacts.appendChild(db2);}
-        ditem.appendChild(dic);ditem.appendChild(dinf);ditem.appendChild(dacts);
+        ditem.appendChild(dcb);ditem.appendChild(dic);ditem.appendChild(dinf);ditem.appendChild(dacts);
         body.appendChild(ditem);
       });
     }
@@ -2053,7 +2091,7 @@ async function renderAdminDocs(el2){
   });
 
   // Signed documents section
-  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='Signed Documents — By Staff';el2.appendChild(slSigned);
+  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='Signed Training & Policy Documents — By Staff';el2.appendChild(slSigned);
   _sgRows={};_sgGroups=[];_sgChips={};_sgSearch=null;_sgFilter='all';sgBarOff();
   if(signed.length){var ssq=document.createElement('input');ssq.className='mi';ssq.type='text';ssq.placeholder='🔍 Search staff or document…';ssq.style.cssText='margin-bottom:10px;font-size:16px';
     ssq.oninput=function(){sgApply()};_sgSearch=ssq;el2.appendChild(ssq);
@@ -2186,13 +2224,16 @@ async function folderRecipients(fid){
 async function saveDocFolder(){
   var nm=q('dfNm').value.trim(),ds=q('dfDs').value.trim(),sg=q('dfSg').value;
   if(!nm){toast('Enter a folder name');return}
+  if(!_dfType){toast('Choose Training or Policy');return}
   var all=q('dfAll').checked,ids=all?[]:pkGet('dfList');
   if(!all&&!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
   var files=q('dfFile').files||[],xIds=pkGet('dfX'),notify=q('dfNt').checked;
   if(ids.length>1){var chk=await db.from('rpc_folder_access').select('id').limit(1);if(chk.error){toast('Choosing several staff needs the one-time database step (SQL) first');return}}
   toast('Creating folder...');
   try{
-    var ins=await db.from('rpc_doc_folders').insert({name:nm,description:ds||null,requires_signature:sg,staff_folder_id:all?null:ids[0]}).select();
+    var frow={name:nm,description:ds||null,requires_signature:sg,staff_folder_id:all?null:ids[0],folder_type:_dfType};
+    var ins=await db.from('rpc_doc_folders').insert(frow).select();
+    if(ins.error&&/folder_type/i.test(ins.error.message||'')){delete frow.folder_type;ins=await db.from('rpc_doc_folders').insert(frow).select();toast('Folder created, but its type was not saved. Run the one-time database step (SQL) first.')}
     if(ins.error)throw ins.error;
     var fid=ins.data[0].id;
     if(!all){var ar=await db.from('rpc_folder_access').insert(ids.map(function(i){return {folder_id:fid,staff_id:i}}));if(ar.error&&ids.length>1)toast('Folder created, but staff access was not saved: '+ar.error.message)}
@@ -2241,7 +2282,8 @@ async function openFolderAccess(fid){
     (a.data||[]).forEach(function(r){if(cur.indexOf(r.staff_id)===-1)cur.push(r.staff_id)});
   }
   _acPrev=isAll?null:cur.slice();
-  q('acT').textContent='Access — '+f.name;
+  q('acT').textContent='Settings — '+f.name;
+  _acType=fType(f);q('acSg').value=f.requires_signature==='yes'?'yes':'no';q('acTypeBox').style.display=_acType==='personal'?'none':'';q('acPersonal').style.display=_acType==='personal'?'block':'none';acPaint();
   q('acAll').checked=isAll;q('acSq').value='';q('acNt').checked=true;
   q('acPickBox').style.display=isAll?'none':'block';
   pkInit('acList',staffPickItems(),cur);pkRender('acList','acSq');
@@ -2251,6 +2293,11 @@ async function saveFolderAccess(){
   var fid=_acFid,f=(_foldersCache||[]).find(function(x){return x.id===fid});if(!f)return;
   var all=q('acAll').checked,ids=all?[]:pkGet('acList');
   if(!all&&!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
+  var typeNew=(_acType==='training'||_acType==='policy')?_acType:null;
+  var typeChanged=!!typeNew&&typeNew!==fType(f);
+  var sigNew=q('acSg').value,sigChanged=_acType!=='personal'&&sigNew!==(f.requires_signature==='yes'?'yes':'no');
+  if(typeChanged&&!('folder_type' in f)){toast('Changing the type needs the one-time database step (SQL) first');return}
+  if(sigChanged&&sigNew==='yes'&&!confirm('Everyone who can see this folder will have to sign it before they can sign in. Continue?'))return;
   try{
     var chk=await db.from('rpc_folder_access').select('id').limit(1);var hasT=!chk.error;
     if(!all&&ids.length>1&&!hasT){toast('Choosing several staff needs the one-time database step (SQL) first');return}
@@ -2261,7 +2308,8 @@ async function saveFolderAccess(){
       if(dl.error)throw dl.error;
     }
     if(all&&hasT){var d2=await db.from('rpc_folder_access').delete().eq('folder_id',fid);if(d2.error)throw d2.error}
-    var u=await db.from('rpc_doc_folders').update({staff_folder_id:all?null:ids[0]}).eq('id',fid);
+    var fu={staff_folder_id:all?null:ids[0]};if(typeChanged)fu.folder_type=typeNew;if(sigChanged)fu.requires_signature=sigNew;
+    var u=await db.from('rpc_doc_folders').update(fu).eq('id',fid);
     if(u.error)throw u.error;
     if(q('acNt').checked){
       try{
@@ -2274,7 +2322,7 @@ async function saveFolderAccess(){
         }
       }catch(e){}
     }
-    closeM('ACM');toast('Access updated ✅');renderDocs();loadNotifs();
+    closeM('ACM');toast('Settings saved ✅');renderDocs();loadNotifs();
   }catch(e){toast('Error: '+(e.message||'Could not save access'))}
 }
 
@@ -2513,9 +2561,9 @@ async function downloadShiftPDF(sh){
     if(sh.description){any=true;head('Duties / Description');para(sh.description)}
     if(sh.machines){any=true;head('Machines / Equipment');para(sh.machines)}
     if(sh.chemicals){any=true;head('Chemicals');para(sh.chemicals)}
-    if(sh.access_notes){any=true;head('Access Notes');para(sh.access_notes)}
     if(sh.parking){any=true;head('Parking');para(sh.parking)}
     if(sh.alarm_info){any=true;head('Alarm');para(sh.alarm_info)}
+    if(sh.access_notes){any=true;head('Other Notes');para(sh.access_notes)}
     if(sfiles.length){any=true;head('Attached PDFs');sfiles.forEach(function(f){need(7);doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(0,90,180);doc.textWithLink(phT(f.name),MG+2,y,{url:f.url});y+=6.5})}
     if(!any){doc.setFont('helvetica','italic');doc.setFontSize(10.5);doc.setTextColor(120,135,150);need(8);doc.text('No extra details were added for this shift.',MG+2,y);y+=8}
 
@@ -3590,7 +3638,7 @@ function sgApply(){
 }
 function sgBarUpdate(){var b=q('SgBar');if(!b)return;b.style.display=_sgSelMode?'block':'none';q('SgN').textContent=Object.keys(_sgSel).length+' selected'}
 function sgBarOff(){_sgSelMode=false;_sgSel={};var b=q('SgBar');if(b)b.style.display='none'}
-function sgSelMode(on){
+function sgSelMode(on){if(on&&typeof dcSelOff==='function')dcSelOff();
   _sgSelMode=on;_sgSel={};
   Object.keys(_sgRows).forEach(function(id){var r=_sgRows[id];r.scb.style.display=on?'':'none';r.scb.checked=false;r.tick.style.display=on?'none':''});
   if(_sgSelBtn)_sgSelBtn.textContent=on?'✓ Selecting':'☑ Select';
@@ -3875,6 +3923,98 @@ async function esSavePdfs(sh){
     if(r.error)toast('Could not save PDF: '+r.error.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v39: FOLDER TYPE (Training / Policy / Personal) + COPY TO ANOTHER FOLDER
+// rpc_doc_folders.folder_type; "Must sign" stays the separate requires_signature setting.
+// If folder_type is empty, the type is worked out: personal name -> Personal, must sign -> Training, else Policy.
+// ═══════════════════════════════════════════════════════════════════
+var _dfType=null,_acType=null,_dcRows={},_dcSel={},_dcMode=false,_dcFilter='all',_dcChips={},_dcSearch=null,_dcEl=null,_dcSelBtn=null,_cpTarget=null;
+function fType(f){
+  var t=f.folder_type;if(t==='training'||t==='policy'||t==='personal')return t;
+  if(/Personal Documents\s*$/i.test(f.name||''))return 'personal';
+  return f.requires_signature==='yes'?'training':'policy';
+}
+function fTagHTML(f){
+  var t=fType(f),lab=t==='training'?'📚 Training':(t==='policy'?'📋 Policy':'🗂 Personal'),col=t==='training'?'#2b6cb0':(t==='policy'?'#1f9d55':'#6b7a8d');
+  return '<div style="font-size:10px;font-weight:800;letter-spacing:.5px;margin-top:2px;color:'+col+'">'+lab+'</div>';
+}
+function typeBtnPaint(idT,idP,cur){
+  [['T','training',idT],['P','policy',idP]].forEach(function(p){var b=q(p[2]);if(!b)return;var on=cur===p[1];b.style.background=on?'var(--nv)':'';b.style.color=on?'#fff':'';b.style.borderColor=on?'var(--nv)':''});
+}
+function dfPaintType(){typeBtnPaint('dfTyT','dfTyP',_dfType)}
+function dfSetType(t){_dfType=t;q('dfSg').value=t==='training'?'yes':'no';dfPaintType()}
+function acPaint(){typeBtnPaint('acTyT','acTyP',_acType)}
+function acSetType(t){_acType=t;acPaint()}
+// admin folder list: filter + search
+function dcPaintChips(){Object.keys(_dcChips).forEach(function(k){var on=_dcFilter===k;_dcChips[k].style.background=on?'var(--nv)':'';_dcChips[k].style.color=on?'#fff':''})}
+function dcApply(){
+  if(!_dcEl)return;
+  var t=_dcSearch?(_dcSearch.value||'').trim().toLowerCase():'';
+  _dcEl.querySelectorAll('.df[data-ft]').forEach(function(d){
+    var okT=_dcFilter==='all'||d.getAttribute('data-ft')===_dcFilter,okS=!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1;
+    d.style.display=(okT&&okS)?'':'none';
+  });
+}
+// select documents -> copy to folder
+function dcBarUpdate(){var b=q('DcBar');if(!b)return;b.style.display=_dcMode?'block':'none';q('DcN').textContent=Object.keys(_dcSel).length+' selected'}
+function dcBarOff(){_dcMode=false;_dcSel={};var b=q('DcBar');if(b)b.style.display='none'}
+function dcSelOff(){if(_dcMode)dcSelMode(false)}
+function dcSelMode(on){
+  if(on&&_sgSelMode)sgSelMode(false);
+  _dcMode=on;_dcSel={};
+  Object.keys(_dcRows).forEach(function(id){var r=_dcRows[id];r.cb.style.display=on?'':'none';r.cb.checked=false;r.ic.style.display=on?'none':''});
+  if(_dcEl)_dcEl.querySelectorAll('.dcAllB').forEach(function(b){b.style.display=on?'':'none'});
+  if(_dcSelBtn)_dcSelBtn.textContent=on?'✓ Selecting':'☑ Select docs';
+  dcBarUpdate();
+}
+function dcOpenCopy(){
+  var ids=Object.keys(_dcSel);
+  if(!ids.length){toast('Tick at least one document first');return}
+  _cpTarget=null;q('cpSq').value='';q('cpNt').checked=false;
+  q('cpS').textContent=ids.length+' document'+(ids.length>1?'s':'')+' selected';
+  cpRender();openM('CpM');
+}
+function cpRender(){
+  var box=q('cpList');if(!box)return;box.innerHTML='';
+  var t=(q('cpSq').value||'').trim().toLowerCase(),from={};
+  Object.keys(_dcSel).forEach(function(id){var d=(_docsCache||[]).find(function(x){return x.id===Number(id)});if(d)from[d.folder_id]=true});
+  var list=(_foldersCache||[]).filter(function(f){return !t||String(f.name||'').toLowerCase().indexOf(t)!==-1});
+  list.forEach(function(f){
+    var row=document.createElement('div'),on=_cpTarget===f.id;
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bd);cursor:pointer;font-size:13px;'+(on?'background:var(--nvl);font-weight:800':'');
+    var ty=fType(f);
+    row.textContent=(on?'✓ ':'')+(ty==='training'?'📚 ':(ty==='policy'?'📋 ':'🗂 '))+f.name+(from[f.id]?'  (current folder)':'');
+    row.onclick=function(){_cpTarget=f.id;cpRender()};
+    box.appendChild(row);
+  });
+  if(!list.length)box.innerHTML='<div style="font-size:12px;color:var(--t3);padding:12px">No folders found</div>';
+}
+async function cpConfirm(){
+  if(_cpTarget===null){toast('Choose the folder to copy into');return}
+  var target=(_foldersCache||[]).find(function(f){return f.id===_cpTarget});if(!target)return;
+  var ids=Object.keys(_dcSel).map(Number),have=(_docsCache||[]).filter(function(d){return d.folder_id===_cpTarget}),rows=[],skipped=0;
+  ids.forEach(function(id){
+    var d=(_docsCache||[]).find(function(x){return x.id===id});if(!d)return;
+    var dup=have.some(function(e){return e.name===d.name&&e.storage_path===d.storage_path})||rows.some(function(r){return r.name===d.name&&r.storage_path===d.storage_path});
+    if(dup)skipped++;else rows.push({folder_id:_cpTarget,name:d.name,url:d.url,storage_path:d.storage_path});
+  });
+  if(!rows.length){toast('Those documents are already in that folder');return}
+  try{
+    var r=await db.from('rpc_documents').insert(rows);
+    if(r.error){toast('Error: '+r.error.message);return}
+    if(q('cpNt').checked){
+      try{
+        var rc=await folderRecipients(_cpTarget);
+        if(rc.length){var msg=rows.length===1?'"'+rows[0].name+'" added to "'+target.name+'". Please review.':rows.length+' documents added to "'+target.name+'". Please review.';
+          await db.from('rpc_notifications').insert(rc.map(function(i){return {staff_id:i,title:'New Document',message:msg,icon:'📄',is_read:false}}))}
+      }catch(e){}
+    }
+    closeM('CpM');dcSelMode(false);
+    toast(rows.length+' document'+(rows.length>1?'s':'')+' copied to "'+target.name+'" ✅'+(skipped?' ('+skipped+' already there)':''));
+    renderDocs();
+  }catch(e){toast('Error: '+(e.message||e))}
+}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
 function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
@@ -3912,7 +4052,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v37',
+      app_version: 'RapidProClean_v39',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -4208,6 +4348,7 @@ function openEditShift(sh){
   currentEditShift=sh;
   // Populate site dropdown
   q('esSq').value='';fillSiteSel('esS','esSq',sh.site);
+  {var so=q('esS');if(so.value!==sh.site){var op=document.createElement('option');op.value=sh.site;op.textContent=sh.site;so.appendChild(op);so.value=sh.site}q('esSiteTxt').textContent='🔒 '+sh.site}   // the site can never change by accident
   _cs.es=sh.site;q('esCn').value=sh.site_contact_name||'';q('esCp').value=sh.site_contact_phone||'';q('esSv').checked=false;
   q('esDt').value=sh.shift_date||'';
   q('esSt').value=sh.start_time||'';
@@ -4439,14 +4580,16 @@ async function publishShift(id){
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span id="esStatT" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:12px"></span><button class="ebtn" id="esPubB" onclick="esTogglePublish()"></button></div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Publish and Unpublish act on the saved shift straight away.</div>
   <div class="mlbl">Staff Member</div><input class="mi" id="esPq" type="text" placeholder="🔍 Search staff…" oninput="fillStaffSel('esPs','esPq');esWarn()" style="margin-bottom:6px;font-size:16px"><select class="msel" id="esPs" onchange="esWarn()"></select>
-  <div class="mlbl">Job Site</div><input class="mi" id="esSq" type="text" placeholder="🔍 Search site…" oninput="fillSiteSel('esS','esSq');fillSiteContact('es')" style="margin-bottom:6px;font-size:16px"><select class="msel" id="esS" onchange="fillSiteContact('es')"></select>
+  <div class="mlbl">Job Site 🔒</div><div id="esSiteTxt" style="padding:12px 14px;border:1.5px solid var(--bd);border-radius:var(--rs);background:var(--sf);font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px;word-break:break-word"></div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">The site is locked. To use a different site, delete this shift and create a new one.</div>
+  <input id="esSq" type="hidden"><select id="esS" style="display:none"></select>
   <div class="mlbl">Date</div><input class="mi" id="esDt" type="date" onchange="esWarn()">
   <div class="mlbl">Shift Times</div>
   <div class="mrow"><input class="mi" id="esSt" type="time"><input class="mi" id="esEt" type="time"></div>
   <div id="esWarn"></div>
   <div id="esJobBox" style="display:none;border:1.5px solid var(--bd);border-radius:var(--rs);padding:10px 12px;margin-bottom:12px">
     <div style="font-size:12px;font-weight:800;letter-spacing:.6px;color:var(--nv2);margin-bottom:2px">ALSO MOVE THESE PEOPLE ON THIS JOB?</div>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Ticked people get the same changes to site, date and time. Everything else on their shift stays as it is.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Ticked people get the same changes to date and time. Everything else on their shift stays as it is.</div>
     <div id="esJobList"></div>
   </div>
   <div class="mlbl">Duties / Description</div>
@@ -4455,11 +4598,11 @@ async function publishShift(id){
   <textarea class="mta" id="esMc" placeholder="e.g. Rotary floor machine, carpet extractor..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div>
   <textarea class="mta" id="esCh" placeholder="e.g. Neutral floor cleaner (1:20)..." style="min-height:55px"></textarea>
-  <div class="mlbl">Access Notes (keys, codes, who lets you in)</div>
-  <textarea class="mta" id="esAc" placeholder="Keys, codes..." style="min-height:55px"></textarea>
+  
   <div class="mlbl">Parking</div><textarea class="mta" id="esPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
   <div class="mlbl">Alarm</div><textarea class="mta" id="esAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
   <div class="mlbl">Watch out for</div><textarea class="mta" id="esWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
+  <div class="mlbl">Other Notes</div><textarea class="mta" id="esAc" placeholder="Keys, lockbox, who lets you in, anything else..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="esCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="esCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
@@ -4510,6 +4653,19 @@ async function publishShift(id){
 <div id="SgBar" style="display:none;position:fixed;left:8px;right:8px;bottom:calc(var(--nav) + 8px);z-index:95;background:var(--cd);border:1.5px solid var(--nv);border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div id="SgN" style="flex:1;font-size:13px;font-weight:700;color:var(--tx)">0 selected</div><button class="ebtn" onclick="sgSelAll()">Select all shown</button><button class="ebtn" onclick="sgSelMode(false)">Done</button></div>
   <div style="display:flex;gap:6px"><button class="btn tl sm" style="flex:1;margin:0" onclick="sgBulk('done')">✅ Actioned</button><button class="btn nv sm" style="flex:1;margin:0" onclick="sgBulk('review')">🚩 Review later</button><button class="btn sc sm" style="flex:1;margin:0" onclick="sgBulk(null)">Clear</button></div>
+</div>
+<div class="mov" id="CpM"><div class="msh"><div class="mh"></div><div class="mt">Copy to folder</div>
+  <div class="ms" id="cpS"></div>
+  <input class="mi" id="cpSq" type="text" placeholder="🔍 Search folders…" oninput="cpRender()" style="margin-bottom:8px;font-size:16px">
+  <div id="cpList" style="max-height:260px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);margin-bottom:12px"></div>
+  <label style="display:flex;align-items:center;gap:10px;padding:2px 2px 6px;font-size:13px;cursor:pointer"><input type="checkbox" id="cpNt" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Notify the staff who can see that folder</label>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">The originals stay where they are. Delete them afterwards if you no longer need them.</div>
+  <button class="btn tl" onclick="cpConfirm()">Copy</button>
+  <button class="btn sc" onclick="closeM('CpM')">Cancel</button>
+</div></div>
+<div id="DcBar" style="display:none;position:fixed;left:8px;right:8px;bottom:calc(var(--nav) + 8px);z-index:95;background:var(--cd);border:1.5px solid var(--nv);border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div id="DcN" style="flex:1;font-size:13px;font-weight:700;color:var(--tx)">0 selected</div><button class="ebtn" onclick="dcSelMode(false)">Done</button></div>
+  <button class="btn tl sm" style="width:100%;margin:0" onclick="dcOpenCopy()">📋 Copy to folder…</button>
 </div>
 </body>
 </html>
