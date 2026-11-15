@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
+<!-- v40.0 — v39 + tabs: admin (All / Training / Policy / Personal / Signed by staff) and staff (Training / Policies / My documents / My signed) -->
 <!-- v39.0 — v38 + folder Type (Training / Policy) separate from Must sign, folder Settings, Training & Policy screens for staff, Copy to another folder -->
 <!-- v38.0 — v37 + Edit Shift site locked, Docs renamed OHS (OHS & Policy), Access Notes renamed Other Notes and moved down -->
 <!-- v37.0 — v36 + parking / alarm / watch-out boxes, PDF attachments on shifts, Navigate button + optional site maps pin link -->
@@ -23,6 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+.tabHide{display:none!important}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   --nv:#0a2540;--nv2:#1058a0;--nv3:#0d3a6e;--nvl:#e8f2fb;
@@ -1854,6 +1856,7 @@ async function renderStaffDocs(el2){
     el2.innerHTML='<div class="empty"><div class="empty-ico">📄</div>Error loading documents.<br><small>Run the database SQL setup in Supabase first.</small></div>';
     return;
   }
+  _stTabs={};
   var accIds=await myFolderAccessIds();
   var allFolders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   // Only show: (1) all-staff folders (no staff_folder_id) and (2) this staff member's own personal folder.
@@ -1865,7 +1868,7 @@ async function renderStaffDocs(el2){
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   el2.innerHTML='<div class="sl">Training &amp; Policy</div>';
   var sfq=document.createElement('input');sfq.className='mi';sfq.type='text';sfq.placeholder='🔍 Search folders or documents…';sfq.style.cssText='margin-bottom:10px;font-size:16px';
-  sfq.oninput=function(){var t=sfq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'})};
+  sfq.oninput=function(){var t=sfq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'});el2.querySelectorAll('[data-sr]').forEach(function(r){r.style.display=(!t||(r.getAttribute('data-sr')||'').indexOf(t)!==-1)?'':'none'})};
   el2.appendChild(sfq);
   if(!folders.length){
     var empty=document.createElement('div');
@@ -1924,23 +1927,30 @@ async function renderStaffDocs(el2){
       })(body,folder.id);
       df.appendChild(hdr);df.appendChild(body);grp[ft].push(df);
     });
-    [['training','📚 Training — read and sign'],['policy','📋 Policies'],['personal','🗂 My documents']].forEach(function(sct){
-      if(!grp[sct[0]].length)return;
-      var h=document.createElement('div');h.className='sl';h.style.marginTop='14px';h.textContent=sct[1];
-      if(unsignedBy[sct[0]]>0){var bd=document.createElement('span');bd.style.cssText='background:#e53935;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800;margin-left:8px';bd.textContent=unsignedBy[sct[0]]+' to sign';h.appendChild(bd)}
-      el2.appendChild(h);
-      grp[sct[0]].forEach(function(d){el2.appendChild(d)});
+    var tmsg={training:'No training to complete right now.',policy:'No policies have been shared with you yet.',personal:'Nothing here yet.'};
+    ['training','policy','personal'].forEach(function(k){
+      grp[k].forEach(function(d){d.classList.add('tab-'+k);el2.appendChild(d)});
+      if(!grp[k].length&&k!=='personal'){var em=document.createElement('div');em.className='empty tab-'+k;em.textContent=tmsg[k];el2.appendChild(em)}
     });
+    var tdefs=[['training','📚 Training'],['policy','📋 Policies']];if(grp.personal.length)tdefs.push(['personal','🗂 My documents']);tdefs.push(['signed','✍️ My signed']);
+    if(!_stTab||!tdefs.some(function(t){return t[0]===_stTab})){_stTab=unsignedBy.training>0?'training':(unsignedBy.policy>0?'policy':(grp.training.length?'training':(grp.policy.length?'policy':(grp.personal.length?'personal':'signed'))))}
+    var tabBar=document.createElement('div');tabBar.style.cssText='display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding-bottom:8px;margin-bottom:10px;-webkit-overflow-scrolling:touch';
+    tdefs.forEach(function(t){
+      var b=document.createElement('button');b.className='ebtn';b.style.cssText='flex:none;padding:9px 14px;font-size:13px;touch-action:manipulation';b.textContent=t[1];
+      var nn=unsignedBy[t[0]]||0;if(nn>0){var bd=document.createElement('span');bd.style.cssText='background:#e53935;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:800;margin-left:6px';bd.textContent=nn;b.appendChild(bd)}
+      b.onclick=function(){_stTab=t[0];stTabApply(el2)};_stTabs[t[0]]=b;tabBar.appendChild(b);
+    });
+    el2.insertBefore(tabBar,sfq);
   }
   // Signed documents section — use appendChild not innerHTML+=
-  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='My Signed Training & Policy Documents';el2.appendChild(slSigned);
+  var slSigned=document.createElement('div');slSigned.className='sl tab-signed';slSigned.style.marginTop='4px';slSigned.textContent='My Signed Training & Policy Documents';el2.appendChild(slSigned);
   if(!signed.length){
-    var noSigned=document.createElement('div');noSigned.className='card';noSigned.innerHTML='<div class="cr"><div class="cs">No signed documents yet</div></div>';el2.appendChild(noSigned);
+    var noSigned=document.createElement('div');noSigned.className='card tab-signed';noSigned.innerHTML='<div class="cr"><div class="cs">No signed documents yet</div></div>';el2.appendChild(noSigned);
   } else {
-    var sc=document.createElement('div');sc.className='card';
+    var sc=document.createElement('div');sc.className='card tab-signed';
     signed.forEach(function(s){
       var d=docs.find(function(x){return x.id===s.doc_id});
-      var row=document.createElement('div');row.className='cr';
+      var row=document.createElement('div');row.className='cr';row.setAttribute('data-sr',((d?d.name:'')+' '+(s.signed_at||'')).toLowerCase());
       var info2=document.createElement('div');
       info2.innerHTML='<div class="cl" style="font-size:13px">'+(d?esc(d.name):'Document')+'</div><div class="cs">Signed '+fmtD(s.signed_at)+'</div>';
       row.appendChild(info2);
@@ -1967,6 +1977,7 @@ async function renderStaffDocs(el2){
     });
     el2.appendChild(sc);
   }
+  if(Object.keys(_stTabs).length)stTabApply(el2);
 }
 async function renderAdminDocs(el2){
   el2.innerHTML='<div class="sl">Training &amp; Policy Folders</div><div class="loader"><div class="spin"></div>Loading...</div>';
@@ -1996,7 +2007,15 @@ async function renderAdminDocs(el2){
   var sl=document.createElement('div');sl.className='sl';sl.textContent='Training & Policy Folders';el2.appendChild(sl);
 
   // Action buttons row — appended first, NEVER destroyed by innerHTML+=
-  var bRow=document.createElement('div');bRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
+  _dcRows={};_dcSel={};_dcMode=false;_dcChips={};_dcSearch=null;_dcEl=el2;dcBarOff();
+  var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});
+  var tabsBar=document.createElement('div');tabsBar.style.cssText='display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding-bottom:8px;margin-bottom:10px;-webkit-overflow-scrolling:touch';
+  [['all','All ('+fCnt.all+')'],['training','📚 Training ('+fCnt.training+')'],['policy','📋 Policy ('+fCnt.policy+')'],['personal','🗂 Personal ('+fCnt.personal+')'],['signed','✍️ Signed by staff ('+signed.length+')']].forEach(function(c){
+    var b=document.createElement('button');b.className='ebtn';b.style.cssText='flex:none;padding:9px 14px;font-size:13px;touch-action:manipulation';b.textContent=c[1];
+    b.onclick=function(){_dcTab=c[0];dcTabApply()};_dcChips[c[0]]=b;tabsBar.appendChild(b);
+  });
+  el2.appendChild(tabsBar);
+  var bRow=document.createElement('div');bRow.className='tabF';bRow.style.cssText='display:flex;gap:8px;margin-bottom:12px';
   var cb=document.createElement('button');cb.className='btn pu sm';cb.style.cssText='margin:0;flex:1';cb.textContent='+ Create Folder';
   cb.onclick=function(){
     q('dfNm').value='';q('dfDs').value='';q('dfSg').value='no';q('dfFile').value='';q('dfSq').value='';q('dfXq').value='';
@@ -2009,28 +2028,23 @@ async function renderAdminDocs(el2){
   var ub=document.createElement('button');ub.className='btn nv sm';ub.style.cssText='margin:0;flex:1';ub.textContent='📎 Upload Doc';
   ub.onclick=function(){openUploadDoc()};
   bRow.appendChild(cb);bRow.appendChild(ub);el2.appendChild(bRow);
-  var fsq=document.createElement('input');fsq.className='mi';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
+  var fsq=document.createElement('input');fsq.className='mi tabF';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
   fsq.oninput=function(){dcApply()};
   el2.appendChild(fsq);
-  _dcRows={};_dcSel={};_dcMode=false;_dcFilter='all';_dcChips={};_dcSearch=fsq;_dcEl=el2;dcBarOff();
-  var fBar=document.createElement('div');fBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
-  var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});
-  [['all','All'],['training','📚 Training'],['policy','📋 Policy'],['personal','🗂 Personal']].forEach(function(c){
-    var b=document.createElement('button');b.className='ebtn';b.style.cssText='padding:7px 12px;font-size:12px;touch-action:manipulation';b.textContent=c[1]+' ('+fCnt[c[0]]+')';
-    b.onclick=function(){_dcFilter=c[0];dcPaintChips();dcApply()};_dcChips[c[0]]=b;fBar.appendChild(b);
-  });
-  var dsel=document.createElement('button');dsel.className='ebtn';dsel.textContent='☑ Select docs';dsel.style.cssText='margin-left:auto;padding:7px 12px;font-size:12px;touch-action:manipulation';
-  dsel.onclick=function(){dcSelMode(!_dcMode)};_dcSelBtn=dsel;fBar.appendChild(dsel);el2.appendChild(fBar);dcPaintChips();
+  _dcSearch=fsq;
+  var selRow=document.createElement('div');selRow.className='tabF';selRow.style.cssText='display:flex;margin-bottom:10px';
+  var dsel=document.createElement('button');dsel.className='ebtn';dsel.textContent='☑ Select docs';dsel.style.cssText='padding:7px 12px;font-size:12px;touch-action:manipulation';
+  dsel.onclick=function(){dcSelMode(!_dcMode)};_dcSelBtn=dsel;selRow.appendChild(dsel);el2.appendChild(selRow);
 
   // No folders message
   if(!folders.length){
-    var nf=document.createElement('div');nf.style.cssText='color:var(--t3);font-size:12px;margin-bottom:12px';nf.textContent='No folders yet. Tap + Create Folder to start.';el2.appendChild(nf);
+    var nf=document.createElement('div');nf.className='tabF';nf.style.cssText='color:var(--t3);font-size:12px;margin-bottom:12px';nf.textContent='No folders yet. Tap + Create Folder to start.';el2.appendChild(nf);
   }
 
   // Folder list
   folders.forEach(function(folder){
     var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
-    var df=document.createElement('div');df.className='df';
+    var df=document.createElement('div');df.className='df tabF';
     df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
     df.setAttribute('data-ft',fType(folder));
 
@@ -2091,11 +2105,11 @@ async function renderAdminDocs(el2){
   });
 
   // Signed documents section
-  var slSigned=document.createElement('div');slSigned.className='sl';slSigned.style.marginTop='20px';slSigned.textContent='Signed Training & Policy Documents — By Staff';el2.appendChild(slSigned);
+  var slSigned=document.createElement('div');slSigned.className='sl tabS';slSigned.style.marginTop='4px';slSigned.textContent='Signed Training & Policy Documents — By Staff';el2.appendChild(slSigned);
   _sgRows={};_sgGroups=[];_sgChips={};_sgSearch=null;_sgFilter='all';sgBarOff();
-  if(signed.length){var ssq=document.createElement('input');ssq.className='mi';ssq.type='text';ssq.placeholder='🔍 Search staff or document…';ssq.style.cssText='margin-bottom:10px;font-size:16px';
+  if(signed.length){var ssq=document.createElement('input');ssq.className='mi tabS';ssq.type='text';ssq.placeholder='🔍 Search staff or document…';ssq.style.cssText='margin-bottom:10px;font-size:16px';
     ssq.oninput=function(){sgApply()};_sgSearch=ssq;el2.appendChild(ssq);
-    var sgBar=document.createElement('div');sgBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
+    var sgBar=document.createElement('div');sgBar.className='tabS';sgBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px';
     [['all','All'],['none','Not actioned'],['review','Review later'],['done','Actioned']].forEach(function(c){
       var b=document.createElement('button');b.className='ebtn';b.style.cssText='padding:7px 12px;font-size:12px;touch-action:manipulation';
       b.onclick=function(){_sgFilter=c[0];sgCounts();sgApply()};_sgChips[c[0]]={b:b,label:c[1]};sgBar.appendChild(b);
@@ -2108,13 +2122,13 @@ async function renderAdminDocs(el2){
   signed.forEach(function(s){if(!byStaff[s.staff_name])byStaff[s.staff_name]=[];byStaff[s.staff_name].push(s)});
 
   if(!Object.keys(byStaff).length){
-    var noSig=document.createElement('div');noSig.className='card';noSig.innerHTML='<div class="cr"><div class="cs">No signed documents yet</div></div>';el2.appendChild(noSig);
+    var noSig=document.createElement('div');noSig.className='card tabS';noSig.innerHTML='<div class="cr"><div class="cs">No signed documents yet</div></div>';el2.appendChild(noSig);
   } else {
     Object.entries(byStaff).forEach(function(entry){
       var name=entry[0],docs2=entry[1];
       var sm2=allStaff.find(function(s){return s.name===name});
       var av=AV[(sm2&&sm2.color)||'b']||AV.b;
-      var df2=document.createElement('div');df2.className='df';
+      var df2=document.createElement('div');df2.className='df tabS';
       df2.setAttribute('data-ss',(name+' '+docs2.map(function(s){return docNames[s.doc_id]||''}).join(' ')).toLowerCase());
 
       var hdr2=document.createElement('div');hdr2.className='dfh';
@@ -2169,7 +2183,7 @@ async function renderAdminDocs(el2){
     });
     sgCounts();sgApply();
   }
-
+  dcTabApply();
 }
 // ═══════════════════════════════════════════════════════════════════
 // v31: DOCUMENTS UPGRADE
@@ -3619,7 +3633,7 @@ function sgPaint(id){
   r.tick.textContent=st==='done'?'✅':(st==='review'?'🚩':'⏳');
   r.chip.style.color=col;r.chip.textContent=sgLabel(r.rec);
 }
-function sgCounts(){
+function sgCounts(){try{dcSignedLabel()}catch(e){}
   var c={all:0,none:0,review:0,done:0};
   Object.keys(_sgRows).forEach(function(id){c.all++;c[sgStatus(_sgRows[id].rec)]++});
   Object.keys(_sgChips).forEach(function(k){var ch=_sgChips[k],on=_sgFilter===k;ch.b.textContent=ch.label+' ('+c[k]+')';ch.b.style.background=on?'var(--nv)':'';ch.b.style.color=on?'#fff':''});
@@ -3929,7 +3943,7 @@ async function esSavePdfs(sh){
 // rpc_doc_folders.folder_type; "Must sign" stays the separate requires_signature setting.
 // If folder_type is empty, the type is worked out: personal name -> Personal, must sign -> Training, else Policy.
 // ═══════════════════════════════════════════════════════════════════
-var _dfType=null,_acType=null,_dcRows={},_dcSel={},_dcMode=false,_dcFilter='all',_dcChips={},_dcSearch=null,_dcEl=null,_dcSelBtn=null,_cpTarget=null;
+var _dfType=null,_acType=null,_dcRows={},_dcSel={},_dcMode=false,_dcFilter='all',_dcTab='all',_dcChips={},_dcSearch=null,_dcEl=null,_dcSelBtn=null,_cpTarget=null;
 function fType(f){
   var t=f.folder_type;if(t==='training'||t==='policy'||t==='personal')return t;
   if(/Personal Documents\s*$/i.test(f.name||''))return 'personal';
@@ -3947,12 +3961,25 @@ function dfSetType(t){_dfType=t;q('dfSg').value=t==='training'?'yes':'no';dfPain
 function acPaint(){typeBtnPaint('acTyT','acTyP',_acType)}
 function acSetType(t){_acType=t;acPaint()}
 // admin folder list: filter + search
-function dcPaintChips(){Object.keys(_dcChips).forEach(function(k){var on=_dcFilter===k;_dcChips[k].style.background=on?'var(--nv)':'';_dcChips[k].style.color=on?'#fff':''})}
+function dcPaintChips(){Object.keys(_dcChips).forEach(function(k){var on=_dcTab===k;_dcChips[k].style.background=on?'var(--nv)':'';_dcChips[k].style.color=on?'#fff':''})}
+function dcSignedLabel(){
+  var b=_dcChips.signed;if(!b)return;
+  var ids=Object.keys(_sgRows||{}),n=0;ids.forEach(function(id){if(sgStatus(_sgRows[id].rec)==='none')n++});
+  b.textContent='✍️ Signed by staff ('+ids.length+')'+(n?' · '+n+' not actioned':'');
+}
+function dcTabApply(){
+  if(!_dcEl)return;
+  var s=_dcTab==='signed';
+  _dcEl.querySelectorAll('.tabF').forEach(function(e){e.classList.toggle('tabHide',s)});
+  _dcEl.querySelectorAll('.tabS').forEach(function(e){e.classList.toggle('tabHide',!s)});
+  if(s)dcSelOff();else{try{sgBarOff()}catch(e){}}
+  dcPaintChips();dcApply();
+}
 function dcApply(){
   if(!_dcEl)return;
   var t=_dcSearch?(_dcSearch.value||'').trim().toLowerCase():'';
   _dcEl.querySelectorAll('.df[data-ft]').forEach(function(d){
-    var okT=_dcFilter==='all'||d.getAttribute('data-ft')===_dcFilter,okS=!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1;
+    var okT=_dcTab==='all'||_dcTab==='signed'||d.getAttribute('data-ft')===_dcTab,okS=!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1;
     d.style.display=(okT&&okS)?'':'none';
   });
 }
@@ -4015,6 +4042,15 @@ async function cpConfirm(){
     renderDocs();
   }catch(e){toast('Error: '+(e.message||e))}
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v40: STAFF DOCUMENT TABS (Training / Policies / My documents / My signed)
+// ═══════════════════════════════════════════════════════════════════
+var _stTab=null,_stTabs={};
+function stTabApply(el2){
+  ['training','policy','personal','signed'].forEach(function(k){el2.querySelectorAll('.tab-'+k).forEach(function(e){e.classList.toggle('tabHide',_stTab!==k)})});
+  Object.keys(_stTabs).forEach(function(k){var on=_stTab===k,b=_stTabs[k];b.style.background=on?'var(--nv)':'';b.style.color=on?'#fff':''});
+}
 async function delSite(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_sites').delete().eq('id',id);await loadSites();renderAdmin();toast(name+' removed')}catch{}}
 function openManual(){pkInit('mnList',staffPickItems(),[]);q('mnSq').value='';pkRender('mnList','mnSq');q('mnSi').innerHTML=allSites.map(s=>'<option>'+esc(s.name)+'</option>').join('');q('mnDt').value=todayStr();q('mnIn').value='';q('mnOut').value='';q('mnNt').value='';q('mnAc').value='add';openM('ManM')}
 async function saveManual(){
@@ -4052,7 +4088,7 @@ async function doBackup(){
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v39',
+      app_version: 'RapidProClean_v40',
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
