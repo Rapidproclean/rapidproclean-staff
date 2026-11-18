@@ -468,9 +468,14 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <select class="msel" id="rpLh" onchange="rpLhChg()"><option value="with">With Rapid Pro Clean letterhead</option><option value="plain">Plain — no company name (subcontract work)</option><option value="custom">Type my own company name (subcontract work)</option></select>
   <input class="mi" id="rpCo" type="text" maxlength="60" placeholder="Company name for the heading" style="display:none;margin-bottom:8px;font-size:16px">
   <div class="mlbl">Photos per page</div>
-  <select class="msel" id="rpPp"><option value="1">1 photo per page (large)</option><option value="2">2 photos per page (saves paper)</option></select>
+  <select class="msel" id="rpPp"><option value="1">1 photo per page (large)</option><option value="2">2 photos per page (saves paper)</option><option value="4">4 photos per page (saves the most paper)</option></select>
   <label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpNm" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Show staff names</label>
   <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpCm" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)"><span>Include staff comments <span id="rpCmN" style="font-size:11px;color:var(--t3)"></span></span></label>
+  <div class="mlbl">Include in report (optional)</div>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpJd" onchange="rpJdChg()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)"><span>Job description (scope of work) <span id="rpJdN" style="font-size:11px;color:var(--t3)"></span></span></label>
+  <textarea class="mta" id="rpJdT" style="display:none;margin-bottom:6px" placeholder="Job description for the client. You can edit this wording; the shift itself is not changed."></textarea>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpMc" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)"><span>Machines / Equipment <span id="rpMcN" style="font-size:11px;color:var(--t3)"></span></span></label>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpCh" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)"><span>Chemicals <span id="rpChN" style="font-size:11px;color:var(--t3)"></span></span></label>
   <div class="mlbl">Overall comment (optional)</div>
   <textarea class="mta" id="rpOv" placeholder="Summary for the client, e.g. All areas completed. Carpet stain treated twice."></textarea>
   <button class="btn nv" onclick="runReport()">📄 Download PDF</button>
@@ -2952,10 +2957,23 @@ async function downloadJobPDF(site,dateKey,photos,opts){
       doc.text(text,MG+4,y+6.2);y+=13;
     };
 
-    if(opts.overall){   // overall comment typed by the admin at download time
+    if(opts.overall||opts.jd||opts.mc||opts.ch){   // v44: job summary page = scope of work, machines, chemicals, overall comment
       doc.addPage();band('Job Summary',false);y=32;
-      doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90);
-      doc.splitTextToSize(phT(opts.overall.slice(0,3000)),CW).forEach(function(ln){if(y>PH-20){doc.addPage();band('Job Summary',true);y=22;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90)}doc.text(ln,MG,y);y+=6});
+      const secs=[];
+      if(opts.jd)secs.push(['Scope of Work',opts.jd]);
+      if(opts.mc)secs.push(['Machines / Equipment',opts.mc]);
+      if(opts.ch)secs.push(['Chemicals',opts.ch]);
+      if(opts.overall)secs.push([secs.length?'Comments':'',opts.overall]);
+      secs.forEach(function(sec){
+        if(sec[0]){
+          if(y>PH-34){doc.addPage();band('Job Summary',true);y=22}
+          doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(10,37,64);doc.text(sec[0],MG,y);
+          doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(MG,y+2,MG+34,y+2);y+=9;
+        }
+        doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90);
+        doc.splitTextToSize(phT(sec[1].slice(0,3000)),CW).forEach(function(ln){if(y>PH-20){doc.addPage();band('Job Summary',true);y=22;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90)}doc.text(ln,MG,y);y+=6});
+        y+=7;
+      });
     }
     for(let gi=0;gi<groups.length;gi++){
       const g=groups[gi];
@@ -2972,7 +2990,34 @@ async function downloadJobPDF(site,dateKey,photos,opts){
         });
         y+=3;
       }
+      let pc=0;   // photos on the current page (4-per-page mode)
+      const block4=async function(label,list,rgb){
+        if(!list.length)return;
+        const CWc=87,GAP=6,H=62,ROWH=H+4.5+7;
+        const newPg=function(){doc.addPage();band(g.name,true);y=22;pc=0};
+        if(pc+Math.min(2,list.length)>4||y+13+ROWH>PH-16)newPg();
+        sub(label.toUpperCase()+'  ('+list.length+' photo'+(list.length>1?'s':'')+')',rgb);
+        for(let i=0;i<list.length;i++){
+          const p=list[i],col=i%2,endRow=(col===1||i===list.length-1);
+          if(col===0&&i>0&&(pc+Math.min(2,list.length-i)>4||y+ROWH>PH-16)){newPg();sub(label.toUpperCase()+'  (continued)',rgb)}
+          const u=await dataUrl(p.url);
+          if(u){
+            const d=await dims(u);const asp=(d.w/d.h)||1.333;
+            let iw=CWc,ih=iw/asp;if(ih>H){ih=H;iw=ih*asp}
+            const cx=MG+col*(CWc+GAP),x=cx+(CWc-iw)/2;
+            doc.setDrawColor(205,215,228);doc.setLineWidth(0.3);doc.rect(x-0.5,y-0.5,iw+1,ih+1);
+            doc.addImage(u,u.indexOf('image/png')>-1?'PNG':'JPEG',x,y,iw,ih,undefined,'FAST');
+            doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+            const cap=label.toUpperCase()+' - '+phT(g.name)+' - '+(i+1)+'/'+list.length+(opts.names&&p.staff_name?' - '+phT(p.staff_name):'');
+            doc.text(doc.splitTextToSize(cap,CWc)[0],cx+CWc/2,y+H+4.5,{align:'center'});
+            pc++;
+          }
+          if(endRow)y+=ROWH;
+        }
+        y+=3;
+      };
       const block=async function(label,list,rgb){
+        if(opts.four)return block4(label,list,rgb);
         if(!list.length)return;
         if(y+50>PH-16){doc.addPage();band(g.name,true);y=22}
         sub(label.toUpperCase()+'  ('+list.length+' photo'+(list.length>1?'s':'')+')',rgb);
@@ -3435,17 +3480,37 @@ function openReportOpts(site,dk,photos,cmts){
   if(!photos||!photos.length){toast('No photos to include');return}
   _rpt={site:site,dk:dk,photos:photos,cmts:cmts||[]};
   q('RptS').textContent=site+(dk&&dk!=='none'?' · '+phShort(dk):'');
-  q('rpLh').value='with';q('rpNm').checked=false;q('rpOv').value='';q('rpPp').value='1';q('rpCo').value='';try{q('rpCo').value=localStorage.getItem('rpc_rpt_co')||''}catch(e){}rpLhChg();
+  q('rpLh').value='with';q('rpNm').checked=false;q('rpOv').value='';q('rpPp').value='1';q('rpJd').checked=false;q('rpMc').checked=false;q('rpCh').checked=false;q('rpJdT').value='';q('rpJdT').style.display='none';['rpJdN','rpMcN','rpChN'].forEach(function(i){q(i).textContent='(loading…)'});q('rpCo').value='';try{q('rpCo').value=localStorage.getItem('rpc_rpt_co')||''}catch(e){}rpLhChg();
   const n=_rpt.cmts.filter(function(c){return c.comment}).length;
   q('rpCm').checked=n>0;q('rpCmN').textContent=n?'('+n+' written by staff)':'(none written yet)';
-  openM('RptM');
+  openM('RptM');rpLoadJob(_rpt);
+}
+function rpJdChg(){q('rpJdT').style.display=q('rpJd').checked?'':'none'}
+async function rpLoadJob(r){
+  var rows=[],cols='id,description,machines,chemicals';
+  try{
+    var run=async function(c){
+      var out=[];
+      if(r.dk&&r.dk!=='none'){var qa=db.from('rpc_shifts').select(c).eq('site',r.site).eq('shift_date',r.dk);if(!CU.is_admin)qa=qa.eq('staff_id',CU.id);var a=await qa;if(a.error)throw a.error;out=out.concat(a.data||[])}
+      var ids=Array.from(new Set((r.photos||[]).map(function(p){return p.shift_id}).filter(Boolean)));
+      if(ids.length){var b=await db.from('rpc_shifts').select(c).in('id',ids);if(b.error)throw b.error;out=out.concat(b.data||[])}
+      return out;
+    };
+    try{rows=await run(cols)}catch(e){cols='id,description';rows=await run(cols)}
+  }catch(e){rows=[]}
+  var seen={};rows=rows.filter(function(x){if(seen[x.id])return false;seen[x.id]=1;return true});
+  var uniq=function(k){var s={},o=[];rows.forEach(function(x){var t=(x[k]||'').trim();if(t&&!s[t]){s[t]=1;o.push(t)}});return o.join('\n\n')};
+  if(_rpt!==r)return;
+  r.jd=uniq('description');r.mc=uniq('machines');r.ch=uniq('chemicals');
+  q('rpJdT').value=r.jd;
+  [['rpJd','rpJdN',r.jd],['rpMc','rpMcN',r.mc],['rpCh','rpChN',r.ch]].forEach(function(x){q(x[1]).textContent=x[2]?'':'(none entered)';q(x[0]).disabled=!x[2]});
 }
 function rpLhChg(){q('rpCo').style.display=q('rpLh').value==='custom'?'':'none'}
 function runReport(){
   if(!_rpt)return;
   const co=q('rpLh').value==='custom'?q('rpCo').value.trim():'';if(q('rpLh').value==='custom'&&!co){toast('Type the company name, or choose Plain');return}
   try{if(co)localStorage.setItem('rpc_rpt_co',co)}catch(e){}
-  const o={plain:q('rpLh').value!=='with',company:co,two:q('rpPp').value==='2',names:q('rpNm').checked,comments:q('rpCm').checked?_rpt.cmts:[],overall:q('rpOv').value.trim()};
+  const o={plain:q('rpLh').value!=='with',company:co,two:q('rpPp').value==='2',four:q('rpPp').value==='4',jd:q('rpJd').checked?q('rpJdT').value.trim():'',mc:q('rpMc').checked?(_rpt.mc||''):'',ch:q('rpCh').checked?(_rpt.ch||''):'',names:q('rpNm').checked,comments:q('rpCm').checked?_rpt.cmts:[],overall:q('rpOv').value.trim()};
   closeM('RptM');
   downloadJobPDF(_rpt.site,_rpt.dk,_rpt.photos,o);
 }
