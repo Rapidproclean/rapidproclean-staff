@@ -2957,22 +2957,28 @@ async function downloadJobPDF(site,dateKey,photos,opts){
       doc.text(text,MG+4,y+6.2);y+=13;
     };
 
-    if(opts.overall||opts.jd||opts.mc||opts.ch){   // v44: job summary page = scope of work, machines, chemicals, overall comment
-      doc.addPage();band('Job Summary',false);y=32;
+    if(opts.overall||opts.jd||opts.mc||opts.ch){   // v45: scope of work etc. sit on the cover page under "Areas covered" (one page)
+      y=cy+8;
+      doc.setDrawColor(205,215,228);doc.setLineWidth(0.3);doc.line(MG,y-5,PW-MG,y-5);
       const secs=[];
       if(opts.jd)secs.push(['Scope of Work',opts.jd]);
       if(opts.mc)secs.push(['Machines / Equipment',opts.mc]);
       if(opts.ch)secs.push(['Chemicals',opts.ch]);
       if(opts.overall)secs.push([secs.length?'Comments':'',opts.overall]);
+      const bodyFont=function(){doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(40,60,90)};
+      const nextPg=function(){doc.addPage();band('Job Summary',true);y=22};
       secs.forEach(function(sec){
         if(sec[0]){
-          if(y>PH-34){doc.addPage();band('Job Summary',true);y=22}
-          doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(10,37,64);doc.text(sec[0],MG,y);
-          doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(MG,y+2,MG+34,y+2);y+=9;
+          if(y>PH-34)nextPg();
+          doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(10,37,64);doc.text(sec[0],MG,y);
+          doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(MG,y+2,MG+30,y+2);y+=8;
         }
-        doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90);
-        doc.splitTextToSize(phT(sec[1].slice(0,3000)),CW).forEach(function(ln){if(y>PH-20){doc.addPage();band('Job Summary',true);y=22;doc.setFont('helvetica','normal');doc.setFontSize(11);doc.setTextColor(40,60,90)}doc.text(ln,MG,y);y+=6});
-        y+=7;
+        bodyFont();
+        sec[1].slice(0,3000).split(/\r?\n/).forEach(function(par){
+          if(!par.trim()){y+=3;return}
+          doc.splitTextToSize(phT(par),CW).forEach(function(ln){if(y>PH-20){nextPg();bodyFont()}doc.text(ln,MG,y);y+=5.6});
+        });
+        y+=6;
       });
     }
     for(let gi=0;gi<groups.length;gi++){
@@ -2993,7 +2999,7 @@ async function downloadJobPDF(site,dateKey,photos,opts){
       let pc=0;   // photos on the current page (4-per-page mode)
       const block4=async function(label,list,rgb){
         if(!list.length)return;
-        const CWc=87,GAP=6,H=62,ROWH=H+4.5+7;
+        const CWc=87,GAP=6,H=98,ROWH=H+4.5+7;
         const newPg=function(){doc.addPage();band(g.name,true);y=22;pc=0};
         if(pc+Math.min(2,list.length)>4||y+13+ROWH>PH-16)newPg();
         sub(label.toUpperCase()+'  ('+list.length+' photo'+(list.length>1?'s':'')+')',rgb);
