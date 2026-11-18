@@ -99,6 +99,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 @keyframes pu{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
 .btn{width:100%;padding:11px;border-radius:var(--rs);font-family:var(--fn);font-size:13px;font-weight:700;cursor:pointer;border:none;margin-bottom:8px;transition:opacity .15s}
 .btn:last-child{margin-bottom:0}.btn:active{opacity:.8}
+.btn.big{padding:18px 12px;font-size:17px;min-height:60px;border-radius:14px}
+.ohsBar{display:flex;gap:8px;margin-bottom:12px}.ohsBar button{flex:1;padding:10px 6px;border-radius:var(--rs);border:1.5px solid var(--bd);background:var(--sf);color:var(--t2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer}.ohsBar button.on{background:var(--nv);color:#fff;border-color:var(--nv)}
 .btn.nv{background:var(--nv);color:#fff}.btn.tl{background:var(--tl);color:#fff}
 .btn.rd{background:var(--rdl);color:var(--rd);border:1.5px solid #f5b5b5}
 .btn.am{background:var(--aml);color:var(--am);border:1.5px solid #f5d08a}
@@ -249,8 +251,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div id="RC"><div class="loader"><div class="spin"></div>Loading...</div></div>
 </div>
 <div class="pg" id="p-leave"><div id="LeaveC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
-<div class="pg" id="p-docs"><div id="DocsC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
-<div class="pg" id="p-incidents"><div id="IncidentsC"></div></div>
+<div class="pg" id="p-docs"><div class="ohsBar" id="OhsBar"></div><div id="DocsC"><div class="loader"><div class="spin"></div>Loading...</div></div><div id="IncidentsC" style="display:none"></div></div>
 <div class="pg" id="p-photos">
   <div class="sl">Work Photos</div>
   <div id="ShareP" style="display:none;background:var(--nvl);border:1.5px solid var(--nv2);border-radius:var(--r);padding:14px;margin-bottom:14px">
@@ -353,6 +354,10 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <input class="mi" id="sCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
   <div class="mlbl">Maps pin link (optional)</div>
   <input class="mi" id="sMp" type="url" placeholder="Paste a shared Google Maps pin link (only if the address is not accurate)" style="font-size:16px">
+  <div class="mlbl">Access / Lockbox (optional)</div><textarea class="mta" id="sLb" placeholder="Key / lockbox code, gate, who lets you in..." style="min-height:55px"></textarea>
+  <div class="mlbl">Parking (optional)</div><textarea class="mta" id="sPk" placeholder="Where to park, visitor bays, permits..." style="min-height:55px"></textarea>
+  <div class="mlbl">Alarm (optional)</div><textarea class="mta" id="sAl" placeholder="Alarm code or instructions..." style="min-height:55px"></textarea>
+  <div class="mlbl">Watch out for (optional)</div><textarea class="mta" id="sWo" placeholder="Pets, stairs, hazards, things not to touch..." style="min-height:55px"></textarea>
   <button class="btn tl" id="SiteSaveBtn" onclick="saveSite()">Add Site</button>
   <button class="btn sc" onclick="closeM('SiteM')">Cancel</button>
 </div></div>
@@ -371,14 +376,15 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Machines / Equipment</div><textarea class="mta" id="shMc" placeholder="e.g. Rotary floor machine, carpet extractor, scrubber dryer..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div><textarea class="mta" id="shCh" placeholder="e.g. Neutral floor cleaner (1:20), glass cleaner..." style="min-height:55px"></textarea>
   
+  <div class="mlbl">Access / Lockbox</div><textarea class="mta" id="shLb" placeholder="Key / lockbox code, gate, who lets you in..." style="min-height:55px"></textarea>
   <div class="mlbl">Parking</div><textarea class="mta" id="shPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
   <div class="mlbl">Alarm</div><textarea class="mta" id="shAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
   <div class="mlbl">Watch out for</div><textarea class="mta" id="shWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
-  <div class="mlbl">Other Notes</div><textarea class="mta" id="shAc" placeholder="Keys, lockbox, who lets you in, anything else..." style="min-height:55px"></textarea>
+  <div class="mlbl">Other Notes</div><textarea class="mta" id="shAc" placeholder="Anything else for this shift..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="shCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="shCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
-  <label style="display:flex;align-items:center;gap:10px;padding:8px 2px 4px;font-size:13px;cursor:pointer"><input type="checkbox" id="shSv" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Save this contact to the site</label>
+  <label style="display:flex;align-items:center;gap:10px;padding:8px 2px 4px;font-size:13px;cursor:pointer"><input type="checkbox" id="shSv" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Save these site details (contact, access, parking, alarm, watch out) to the site as the default</label>
   <div class="mlbl">Pay Travel: Home to Site?</div>
   <select class="msel" id="shHT"><option value="no">No — no home travel pay</option><option value="yes">Yes — pay travel from home to site</option></select>
   <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
@@ -459,7 +465,10 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="RptM"><div class="msh"><div class="mh"></div><div class="mt">PDF Report Options</div>
   <div class="ms" id="RptS"></div>
   <div class="mlbl">Letterhead</div>
-  <select class="msel" id="rpLh"><option value="with">With Rapid Pro Clean letterhead</option><option value="plain">Plain — no company name (subcontract work)</option></select>
+  <select class="msel" id="rpLh" onchange="rpLhChg()"><option value="with">With Rapid Pro Clean letterhead</option><option value="plain">Plain — no company name (subcontract work)</option><option value="custom">Type my own company name (subcontract work)</option></select>
+  <input class="mi" id="rpCo" type="text" maxlength="60" placeholder="Company name for the heading" style="display:none;margin-bottom:8px;font-size:16px">
+  <div class="mlbl">Photos per page</div>
+  <select class="msel" id="rpPp"><option value="1">1 photo per page (large)</option><option value="2">2 photos per page (saves paper)</option></select>
   <label style="display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpNm" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Show staff names</label>
   <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;cursor:pointer"><input type="checkbox" id="rpCm" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)"><span>Include staff comments <span id="rpCmN" style="font-size:11px;color:var(--t3)"></span></span></label>
   <div class="mlbl">Overall comment (optional)</div>
@@ -641,13 +650,20 @@ async function startApp(){
   loadNotifs();goHome();
 }
 async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[]}catch{}}
-async function loadSites(){try{const {data}=await db.from('rpc_sites').select('*').order('name');allSites=data||[]}catch{}}
+async function loadSites(){try{
+  if(CU&&!CU.is_admin){   // v43: staff phones only receive the sites they are rostered on
+    const sr=await db.from('rpc_shifts').select('site').eq('staff_id',CU.id).eq('status','published');
+    const names=Array.from(new Set((sr.data||[]).map(function(x){return x.site}).filter(Boolean)));
+    if(!names.length){allSites=[];return}
+    const {data:sd}=await db.from('rpc_sites').select('*').in('name',names).order('name');allSites=sd||[];return;
+  }
+  const {data}=await db.from('rpc_sites').select('*').order('name');allSites=data||[]}catch{}}
 
 // NAV
 function buildNav(){
   const n=q('MNav');
   const ic={home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',incidents:'<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'};
-  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS'],['photos','Photos'],['payroll','Payroll'],['incidents','SOS'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS'],['incidents','SOS']];
+  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS'],['photos','Photos'],['payroll','Payroll'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','OHS']];
   n.innerHTML=pages.map(([p,l])=>'<button class="ni" id="n-'+p+'" onclick="goPage(\''+p+'\')">'+ic[p]+l+'</button>').join('');
 }
 function goPage(p){try{sgBarOff();dcBarOff()}catch(e){}
@@ -659,7 +675,7 @@ function goPage(p){try{sgBarOff();dcBarOff()}catch(e){}
   if(p==='home')renderHome();
   else if(p==='roster'){buildRTabs();renderRoster();}
   else if(p==='leave')renderLeave();
-  else if(p==='docs')renderDocs();
+  else if(p==='docs')ohsSec(_ohsSec);
   else if(p==='photos')renderPhotos();
   else if(p==='payroll')initPayroll();
   else if(p==='admin')renderAdmin();
@@ -686,7 +702,7 @@ async function loadNotifs(){
     if(!data||!data.length){nl.innerHTML='<div class="empty" style="padding:20px"><div class="empty-ico">&#128276;</div>No notifications</div>';return}
     data.forEach(n=>{
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
-      d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
+      d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(({roster:'📅',alert:'🚨'})[n.icon]||n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
       var delBtnN=document.createElement('button');
       delBtnN.textContent='Del';
@@ -825,6 +841,7 @@ async function renderStaffHome(el2,sm,tm){
     activeTrv=(atR.data||[])[0]||null;
     notifs=nR.data||[];
     todayShifts=shR.data||[];
+    if(!CU.is_admin&&todayShifts.some(function(x){return !(allSites||[]).find(function(s){return s.name===x.site})}))await loadSites();   // v43: pick up a newly published site
   }catch(e){console.error('renderStaffHome query error:',e)}
 
   const st=sm[CU.id]||{};
@@ -839,17 +856,7 @@ async function renderStaffHome(el2,sm,tm){
   const brkMin=brks.reduce((a,b)=>a+(b.duration_min||0),0);
   const brkNeeded=(workMin+trvMin)>=300&&brkMin<30;
 
-  // Notification banner
-  if(notifs.length){
-    const nb=document.createElement('div');nb.style.cssText='background:var(--nvl);border:1.5px solid var(--nv2);border-radius:var(--rs);padding:12px 14px;margin-bottom:14px';
-    nb.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--nv);margin-bottom:8px">🔔 '+notifs.length+' New Notification'+(notifs.length>1?'s':'')+'</div>';
-    notifs.forEach(n=>{
-      const ni=document.createElement('div');ni.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd);cursor:pointer';
-      ni.innerHTML='<span style="font-size:14px;flex-shrink:0">'+esc(n.icon||'📌')+'</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);line-height:1.4;margin-top:1px">'+esc(n.message)+'</div></div>';
-      ni.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};nb.appendChild(ni);
-    });
-    el2.appendChild(nb);
-  }
+  // v41: notifications are shown only in the bell panel (no banner on Home)
 
   // Staff identity card (status overview only — no action buttons here)
   const card=document.createElement('div');card.className='mycard'+(isOnBrk?' br':isIn?' in':isTrv?' tr':'');
@@ -883,7 +890,7 @@ async function renderStaffHome(el2,sm,tm){
     if(isIn){
       const soCard=document.createElement('div');soCard.className='card';
       soCard.innerHTML='<div class="cr" style="flex-direction:column;gap:10px"><div class="cs" style="color:var(--or)">&#9888;&#65039; Your shift details are not visible right now — but you are still signed in.</div></div>';
-      const soBtn2=document.createElement('button');soBtn2.className='btn rd full';soBtn2.textContent='Sign Out';
+      const soBtn2=document.createElement('button');soBtn2.className='btn rd full big';soBtn2.textContent='Sign Out';
       soBtn2.onclick=()=>doTog(CU.id,CU.name,true,null,st.site||'');
       soCard.querySelector('.cr').appendChild(soBtn2);el2.appendChild(soCard);
     }else{
@@ -895,6 +902,7 @@ async function renderStaffHome(el2,sm,tm){
   // ── Per-shift cards ──────────────────────────────────────────────
   const slEl=document.createElement('div');slEl.className='sl';slEl.textContent="Today's Shifts";el2.appendChild(slEl);
 
+  let homeShown=0;
   for(let si=0;si<todayShifts.length;si++){
     const sh=todayShifts[si];
     const nextSh=todayShifts[si+1]||null;
@@ -923,6 +931,9 @@ async function renderStaffHome(el2,sm,tm){
     const homeTrvDone=shTrvs.some(t=>t.travel_type==='home_to_site'&&t.end_time);
     const returnTrvDone=shTrvs.some(t=>t.travel_type==='site_to_home'&&t.end_time);
     const interTrvDone=shTrvs.some(t=>t.travel_type==='inter_site'&&t.end_time);
+    // v41: once signed out the shift leaves Home (still in Roster) - unless return travel is still to be recorded
+    if(shComplete&&!(sh.home_return_travel_pay&&!returnTrvDone)){continue;}
+    homeShown++;
 
     // Is this the active shift?
     const isActiveShift=isIn&&(
@@ -987,7 +998,7 @@ async function renderStaffHome(el2,sm,tm){
         bg.appendChild(etBtn);
       } else {
         // ON SHIFT — show Sign Out, Break, Travel
-        const soBtn=document.createElement('button');soBtn.className='btn rd';
+        const soBtn=document.createElement('button');soBtn.className='btn rd full big';
         soBtn.textContent='Sign Out';
         soBtn.onclick=()=>doTog(CU.id,CU.name,true,sh.id,sh.site);
         const brkBtn=document.createElement('button');brkBtn.className='btn '+(brkNeeded?'or':'am');
@@ -1010,7 +1021,7 @@ async function renderStaffHome(el2,sm,tm){
         htBtn.onclick=()=>openTrv(CU.id,'start',sh.id,'home_to_site');
         bg.appendChild(htBtn);
       }
-      const siBtn=document.createElement('button');siBtn.className='btn nv full';
+      const siBtn=document.createElement('button');siBtn.className='btn nv full big';
       siBtn.textContent='Sign In — '+esc(sh.site);
       siBtn.onclick=()=>doTog(CU.id,CU.name,false,sh.id,sh.site);
       bg.appendChild(siBtn);
@@ -1043,6 +1054,7 @@ async function renderStaffHome(el2,sm,tm){
 
     el2.appendChild(shCard);
   }
+  if(!homeShown){const dn=document.createElement('div');dn.className='card';dn.innerHTML='<div class="cr"><div class="cs">No more shifts to do today. Finished shifts are in Roster.</div></div>';el2.appendChild(dn);}
   // Bottom spacer so last shift card is never hidden behind nav bar
   const spacer=document.createElement('div');spacer.style.height='200px';el2.appendChild(spacer);
 }
@@ -1269,6 +1281,7 @@ async function renderDay(el2){
   var qb=db.from('rpc_shifts').select('*').eq('shift_date',selDay).order('start_time');
   if(!CU.is_admin){qb=qb.eq('staff_id',CU.id).eq('status','published');}
   var {data:shifts}=await qb;
+  if(!CU.is_admin&&(shifts||[]).some(function(x){return !(allSites||[]).find(function(s){return s.name===x.site})}))await loadSites();   // v43
   var sm={};allStaff.forEach(function(s){sm[s.id]=s;});
   lb.onclick=function(){lb.classList.add('on');bb.classList.remove('on');renderDayList(listEl,shifts,sm);};
   bb.onclick=function(){bb.classList.add('on');lb.classList.remove('on');renderDayBlocks(listEl,shifts,sm);};
@@ -1315,6 +1328,7 @@ function mkShiftItem(sh,sm){
   if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px;white-space:pre-line;word-break:break-word">📝 '+esc(sh.access_notes)+'</div>';
   const fb=mkFilesBox(sh,true);det.appendChild(fb);
   if(!CU.is_admin&&CU.id===sh.staff_id){det.appendChild(mkTeamBox(sh));det.appendChild(mkShiftPdfBtn(sh,false))}
+  if(!CU.is_admin&&CU.id===sh.staff_id&&sh.shift_date===todayStr()){const mt=document.createElement('button');mt.style.cssText='font-size:11px;color:var(--nv2);background:none;border:none;cursor:pointer;font-family:var(--fn);font-weight:600;padding:8px 0 0';mt.textContent='+ Add missed travel for this shift';const mId=sh.id,mSite=sh.site;mt.onclick=()=>openMissedTravel(mId,mSite);det.appendChild(mt);}
   if(!CU.is_admin&&CU.id===sh.staff_id){const ub=document.createElement('button');ub.style.cssText='display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:var(--rs);background:var(--nvl);color:var(--nv2);border:1.5px dashed var(--nv2);font-family:var(--fn);font-size:12px;font-weight:700;cursor:pointer;width:100%;justify-content:center;margin-top:6px';ub.textContent='📷 Before & After Photos';const shId=sh.id,site=sh.site,shDate=sh.shift_date;ub.onclick=()=>openPhotoUpload(shId,site,shDate);det.appendChild(ub);}
   top.onclick=()=>{det.classList.toggle('on');arr.textContent=det.classList.contains('on')?'▲':'▼';if(det.classList.contains('on')&&fb.load)fb.load()};
   card.appendChild(top);card.appendChild(det);return card;
@@ -1444,7 +1458,7 @@ async function loadRange(){
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">'+esc(s.name)+'</label>').join('');
   q('shSiQ').value='';q('shStQ').value='';fillSiteSel('shSi','shSiQ');_cs.sh=null;fillSiteContact('sh',true);q('shSv').checked=false;
-  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('shPk').value='';q('shAl').value='';q('shWo').value='';_shPdf=[];shPdfRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';
+  q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('shPk').value='';q('shAl').value='';q('shWo').value='';_shPdf=[];shPdfRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';fillSiteContact('sh',true);
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
   q('shDt').onchange=chk;q('shSt').onchange=chk;_repPlan=null;rpSummary();openM('ShiftM');
 }
@@ -1456,7 +1470,7 @@ async function saveShift(){
   const photos=_shPhFiles.slice();
   const mach=q('shMc').value.trim(),chem=q('shCh').value.trim();
   const cn=q('shCn').value.trim(),cp=q('shCp').value.trim();
-  const pk=q('shPk').value.trim(),al=q('shAl').value.trim(),wo=q('shWo').value.trim();
+  const pk=q('shPk').value.trim(),al=q('shAl').value.trim(),wo=q('shWo').value.trim(),lb=q('shLb').value.trim();
   if(!site||!date){toast('Select site and date');return}
   try{
     const rp=(_repPlan&&_repPlan.dates&&_repPlan.dates.length)?_repPlan:null;
@@ -1467,9 +1481,11 @@ async function saveShift(){
     if(mach||chem)inserts.forEach(function(r){if(mach)r.machines=mach;if(chem)r.chemicals=chem});   // only sent when filled in
     if(cn||cp)inserts.forEach(function(r){r.site_contact_name=cn||null;r.site_contact_phone=cp||null});   // only sent when filled in
     if(pk||al||wo)inserts.forEach(function(r){r.parking=pk||null;r.alarm_info=al||null;r.watch_out=wo||null});   // only sent when filled in
+    if(lb)inserts.forEach(function(r){r.lockbox=lb});
     if(_shPdf.length&&!(await sfReady())){toast('PDF attachments need the one-time database step (SQL) first');return}
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){toast('Site contact needs the one-time database step (SQL) first');return}
+    if(error&&lb&&/lockbox/i.test(error.message||'')){toast('Access / lockbox needs the one-time database step (SQL) first');return}
     if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){toast('Parking, alarm and watch out need the one-time database step (SQL) first');return}
     if(error){toast((mach||chem)&&/machines|chemicals/i.test(error.message||'')?'Machines/chemicals need the one-time database step (SQL) first':'Error: '+error.message);return}
     for(const staffId of sel){const s=allStaff.find(x=>x.id===staffId);const others=sel.filter(id=>id!==staffId).map(id=>allStaff.find(x=>x.id===id)).filter(Boolean).map(x=>x.name);let msg='Shift: '+site+' on '+fmtDate(date)+(start?' at '+fmt12(start):'');if(others.length)msg+='. Also: '+others.join(', ');if(dayList.length>1)msg=rpNotifText(site,dayList.map(function(x){return x.date}),start);try{await db.from('rpc_notifications').insert({staff_id:staffId,title:'Shift Assigned',message:msg,icon:'📍',is_read:false})}catch{}}
@@ -1481,7 +1497,7 @@ async function saveShift(){
       const fTargets=(rp&&rp.photos===false)?newShifts.filter(function(s){return s.shift_date===date}):newShifts;
       for(const f of _shPdf){const u=await sfUpload(f,newShifts[0].id);if(!u)continue;const fi=await db.from('rpc_shift_files').insert(fTargets.map(function(sh){return {shift_id:sh.id,name:f.name,url:u.url,storage_path:u.path,size_bytes:f.size}}));if(fi.error)toast('Could not save PDF: '+fi.error.message)}
     }
-    if(q('shSv').checked&&(cn||cp)){try{const r2=await db.from('rpc_sites').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('name',site);if(r2.error)toast('Shift saved, but the site contact was not saved: '+r2.error.message);else await loadSites()}catch(e){}}
+    if(q('shSv').checked){await saveSiteDefaults(site,'sh')}
     closeM('ShiftM');_repPlan=null;_shPdf=[];toast(dayList.length>1?(inserts.length+' draft shifts created ✅ — remember to Publish'):'Shift assigned to '+sel.length+' staff ✅');if(q('p-roster').classList.contains('on'))renderRoster();
   }catch(e){toast('Error: '+e.message)}
 }
@@ -2575,6 +2591,7 @@ async function downloadShiftPDF(sh){
     if(sh.description){any=true;head('Duties / Description');para(sh.description)}
     if(sh.machines){any=true;head('Machines / Equipment');para(sh.machines)}
     if(sh.chemicals){any=true;head('Chemicals');para(sh.chemicals)}
+    if(sh.lockbox){any=true;head('Access / Lockbox');para(sh.lockbox)}
     if(sh.parking){any=true;head('Parking');para(sh.parking)}
     if(sh.alarm_info){any=true;head('Alarm');para(sh.alarm_info)}
     if(sh.access_notes){any=true;head('Other Notes');para(sh.access_notes)}
@@ -2861,7 +2878,7 @@ async function downloadJobPDF(site,dateKey,photos,opts){
     }
     const jsPDF=window.jspdf.jsPDF;
     const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const PW=210,PH=297,MG=15,CW=180,MAXH=150;
+    const PW=210,PH=297,MG=15,CW=180,MAXH=opts.two?92:150;
     const hasDate=dateKey&&dateKey!=='none';
     const dateLong=hasDate?phLong(dateKey):'Date not recorded';
     const dateShort=hasDate?phShort(dateKey):'No date';
@@ -2885,6 +2902,11 @@ async function downloadJobPDF(site,dateKey,photos,opts){
     if(!logoOk){doc.setFontSize(24);doc.text('RAPID PRO CLEAN',MG,24)}
     doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(160,200,240);
     doc.text('CLEANING JUST GOT BETTER',MG,logoOk?36:32);
+    } else if(opts.company){   // v42: typed company name in the heading (subcontract work)
+      doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+      let cfs=24;doc.setFontSize(cfs);const cn=phT(opts.company).toUpperCase();
+      while(cfs>12&&doc.getTextWidth(cn)>CW){cfs-=1;doc.setFontSize(cfs)}
+      doc.text(cn,MG,28);
     }
     doc.setDrawColor(255,255,255);doc.setLineWidth(0.4);doc.line(MG,41,PW-MG,41);
     doc.setFont('helvetica','bold');doc.setFontSize(17);doc.setTextColor(255,255,255);doc.text('JOB COMPLETION REPORT',MG,53);
@@ -2978,7 +3000,7 @@ async function downloadJobPDF(site,dateKey,photos,opts){
     // footer + page numbers on every page
     const siteRec=(allSites||[]).find(function(s){return s.name===site});
     const addrTxt=siteRec&&siteRec.address?phT(siteRec.address):'';
-    const footL=(opts.plain?(addrTxt||siteTxt):('Rapid Pro Clean  |  '+(addrTxt||'Perth, Western Australia'))).slice(0,95);
+    const footL=(opts.plain?(opts.company?(phT(opts.company)+'  |  '+(addrTxt||siteTxt)):(addrTxt||siteTxt)):('Rapid Pro Clean  |  '+(addrTxt||'Perth, Western Australia'))).slice(0,95);
     const np=doc.internal.getNumberOfPages();
     for(let i=1;i<=np;i++){
       doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(150,165,180);
@@ -3223,7 +3245,7 @@ async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
 async function renderAdmin(){
   q('AW').textContent=CU.name;
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
-  q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
+  q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+((s.lockbox||s.parking||s.alarm_info||s.watch_out)?'<div class="cs">🔑 Access details saved</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   filterRows('StaffList','stSq');filterRows('SiteList','siSq');
   // Bottom spacer
   const adminPage=q('p-admin');if(adminPage){const sp=document.createElement('div');sp.style.height='200px';adminPage.appendChild(sp);}
@@ -3314,7 +3336,7 @@ async function openAddStaff(){
 function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin;q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
 async function saveEditStaff(){const id=parseInt(q('eId').value);try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
 async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
-async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp)){toast(/site_contact|maps_link/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
+async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;var sdv=siteDetailVals();var hasSd=!!(sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out);if(hasSd)Object.assign(srow,sdv);const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp||hasSd)){toast(/site_contact|maps_link|lockbox|parking|alarm_info|watch_out/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
 
 // ═══════════════════════════════════════════════════════════════════
 // v30: SITE CONTACT PERSON
@@ -3329,6 +3351,13 @@ function contactHTML(sh,sz){
   return '<div style="font-size:'+sz+'px;color:var(--t2);margin-top:4px">👤 Site contact: '+(n?'<b>'+esc(n)+'</b>':'')+(n&&p?' · ':'')+(p?phoneLink(p):'')+'</div>';
 }
 // Fill the contact boxes from the chosen site (only when the site has actually changed, so typed changes are not wiped)
+function siteDetailVals(){return {lockbox:q('sLb').value.trim()||null,parking:q('sPk').value.trim()||null,alarm_info:q('sAl').value.trim()||null,watch_out:q('sWo').value.trim()||null}}
+async function saveSiteDefaults(site,pre){
+  var v={site_contact_name:q(pre+'Cn').value.trim()||null,site_contact_phone:q(pre+'Cp').value.trim()||null,lockbox:q(pre+'Lb').value.trim()||null,parking:q(pre+'Pk').value.trim()||null,alarm_info:q(pre+'Al').value.trim()||null,watch_out:q(pre+'Wo').value.trim()||null};
+  var r=await db.from('rpc_sites').update(v).eq('name',site);
+  if(r.error){toast(/lockbox|parking|alarm_info|watch_out/i.test(r.error.message||'')?'Shift saved, but saving to the site needs the one-time database step (SQL) first':'Shift saved, but the site was not updated: '+r.error.message);return false}
+  await loadSites();return true;
+}
 function fillSiteContact(pre,force){
   var sel=q(pre==='sh'?'shSi':'esS');if(!sel)return;
   if(!force&&_cs[pre]===sel.value)return;
@@ -3336,33 +3365,36 @@ function fillSiteContact(pre,force){
   var s=(allSites||[]).find(function(x){return x.name===sel.value});
   q(pre+'Cn').value=(s&&s.site_contact_name)||'';
   q(pre+'Cp').value=(s&&s.site_contact_phone)||'';
+  q(pre+'Lb').value=(s&&s.lockbox)||'';q(pre+'Pk').value=(s&&s.parking)||'';q(pre+'Al').value=(s&&s.alarm_info)||'';q(pre+'Wo').value=(s&&s.watch_out)||'';
 }
 function openAddSite(){
-  editSiteId=null;q('sNm').value='';q('sNm').disabled=false;q('sAd').value='';q('sCn').value='';q('sCp').value='';q('sMp').value='';
+  editSiteId=null;q('sNm').value='';q('sNm').disabled=false;q('sAd').value='';q('sCn').value='';q('sCp').value='';q('sMp').value='';q('sLb').value='';q('sPk').value='';q('sAl').value='';q('sWo').value='';
   q('SiteMt').textContent='Add Job Site';q('SiteSaveBtn').textContent='Add Site';openM('SiteM');
 }
 function openEditSite(id){
   var s=(allSites||[]).find(function(x){return x.id===id});if(!s)return;
   editSiteId=id;q('sNm').value=s.name||'';q('sNm').disabled=true;q('sAd').value=s.address||'';
-  q('sCn').value=s.site_contact_name||'';q('sCp').value=s.site_contact_phone||'';q('sMp').value=s.maps_link||'';
+  q('sCn').value=s.site_contact_name||'';q('sCp').value=s.site_contact_phone||'';q('sMp').value=s.maps_link||'';q('sLb').value=s.lockbox||'';q('sPk').value=s.parking||'';q('sAl').value=s.alarm_info||'';q('sWo').value=s.watch_out||'';
   q('SiteMt').textContent='Edit Job Site';q('SiteSaveBtn').textContent='Save Changes';openM('SiteM');
 }
 async function saveSiteEdit(addr,cn,cp){
   var s=(allSites||[]).find(function(x){return x.id===editSiteId});if(!s){toast('Site not found');return}
   var upd={address:addr||null,site_contact_name:cn||null,site_contact_phone:cp||null};
+  var sdv=siteDetailVals();if(sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out||('lockbox' in s))Object.assign(upd,sdv);
   var mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}
   if(mp||('maps_link' in s))upd.maps_link=mp||null;
   if(addr!==(s.address||'')&&addr){try{var r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');var j=await r.json();if(j&&j[0]){upd.lat=parseFloat(j[0].lat);upd.lng=parseFloat(j[0].lon)}}catch(e){}}
-  var changed=(cn!==(s.site_contact_name||''))||(cp!==(s.site_contact_phone||''));
+  var changed=(cn!==(s.site_contact_name||''))||(cp!==(s.site_contact_phone||''))||(('lockbox' in s)||sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out?((sdv.lockbox||'')!==(s.lockbox||'')||(sdv.parking||'')!==(s.parking||'')||(sdv.alarm_info||'')!==(s.alarm_info||'')||(sdv.watch_out||'')!==(s.watch_out||'')):false);
   try{
     var u=await db.from('rpc_sites').update(upd).eq('id',s.id);
-    if(u.error){toast(/site_contact|maps_link/i.test(u.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+u.error.message);return}
+    if(u.error){toast(/site_contact|maps_link|lockbox|parking|alarm_info|watch_out/i.test(u.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+u.error.message);return}
     var n=0,done=false;
     if(changed){
       var f=await db.from('rpc_shifts').select('id').eq('site',s.name).gte('shift_date',todayStr());
       n=(f.data||[]).length;
-      if(n&&confirm('Also update the contact on the '+n+' upcoming shift'+(n>1?'s':'')+' at '+s.name+'? Press OK to update them, or Cancel to leave them as they are.')){
-        var u2=await db.from('rpc_shifts').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('site',s.name).gte('shift_date',todayStr());
+      if(n&&confirm('Also update these site details (contact, access, parking, alarm, watch out) on the '+n+' upcoming shift'+(n>1?'s':'')+' at '+s.name+'? Press OK to update them, or Cancel to leave them as they are.')){
+        var su={site_contact_name:cn||null,site_contact_phone:cp||null};if('lockbox' in s||sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out)Object.assign(su,sdv);
+        var u2=await db.from('rpc_shifts').update(su).eq('site',s.name).gte('shift_date',todayStr());
         if(u2.error)toast('Site saved, but the shifts were not updated: '+u2.error.message);else done=true;
       }
     }
@@ -3403,14 +3435,17 @@ function openReportOpts(site,dk,photos,cmts){
   if(!photos||!photos.length){toast('No photos to include');return}
   _rpt={site:site,dk:dk,photos:photos,cmts:cmts||[]};
   q('RptS').textContent=site+(dk&&dk!=='none'?' · '+phShort(dk):'');
-  q('rpLh').value='with';q('rpNm').checked=false;q('rpOv').value='';
+  q('rpLh').value='with';q('rpNm').checked=false;q('rpOv').value='';q('rpPp').value='1';q('rpCo').value='';try{q('rpCo').value=localStorage.getItem('rpc_rpt_co')||''}catch(e){}rpLhChg();
   const n=_rpt.cmts.filter(function(c){return c.comment}).length;
   q('rpCm').checked=n>0;q('rpCmN').textContent=n?'('+n+' written by staff)':'(none written yet)';
   openM('RptM');
 }
+function rpLhChg(){q('rpCo').style.display=q('rpLh').value==='custom'?'':'none'}
 function runReport(){
   if(!_rpt)return;
-  const o={plain:q('rpLh').value==='plain',names:q('rpNm').checked,comments:q('rpCm').checked?_rpt.cmts:[],overall:q('rpOv').value.trim()};
+  const co=q('rpLh').value==='custom'?q('rpCo').value.trim():'';if(q('rpLh').value==='custom'&&!co){toast('Type the company name, or choose Plain');return}
+  try{if(co)localStorage.setItem('rpc_rpt_co',co)}catch(e){}
+  const o={plain:q('rpLh').value!=='with',company:co,two:q('rpPp').value==='2',names:q('rpNm').checked,comments:q('rpCm').checked?_rpt.cmts:[],overall:q('rpOv').value.trim()};
   closeM('RptM');
   downloadJobPDF(_rpt.site,_rpt.dk,_rpt.photos,o);
 }
@@ -3580,12 +3615,13 @@ async function rpCopyShifts(ds){
   if(ds.length>RP_MAX){toast('Up to '+RP_MAX+' dates at a time');return}
   var site=q('esS').value,mainDuties=q('esDs').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim(),cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
-  var pkx=q('esPk').value.trim(),alx=q('esAl').value.trim(),wox=q('esWo').value.trim();
+  var pkx=q('esPk').value.trim(),alx=q('esAl').value.trim(),wox=q('esWo').value.trim(),lbx=q('esLb').value.trim();
   var rows=ds.map(function(d){
     var r={staff_id:(parseInt(q('esPs').value)||sh.staff_id),site:site,shift_date:d,start_time:q('esSt').value||null,end_time:q('esEt').value||null,
       description:((_rp.dates[d].duties||'').trim())||mainDuties||null,access_notes:q('esAc').value.trim()||null,
       home_travel_pay:q('esHT').value==='yes',home_return_travel_pay:q('esHR').value==='yes',status:'draft'};
     if(mach)r.machines=mach;if(chem)r.chemicals=chem;
+    if(lbx)r.lockbox=lbx;
     if(pkx||alx||wox){r.parking=pkx||null;r.alarm_info=alx||null;r.watch_out=wox||null}
     if(cn||cp){r.site_contact_name=cn||null;r.site_contact_phone=cp||null}
     return r;
@@ -3697,7 +3733,7 @@ async function sgPick(status){
 // ═══════════════════════════════════════════════════════════════════
 var _shPhFiles=[],_shUrls=[],_esPh={existing:[],added:[]},_esUrls=[],_esJob=[],_esWarnN=0;
 function esStaffName(id){var s=allStaff.find(function(x){return x.id===id});return s?s.name:'Staff member'}
-async function esNotify(staffId,title,msg){try{await db.from('rpc_notifications').insert({staff_id:staffId,title:title,message:msg,icon:'roster',is_read:false})}catch(e){}}
+async function esNotify(staffId,title,msg){try{await db.from('rpc_notifications').insert({staff_id:staffId,title:title,message:msg,icon:'📅',is_read:false})}catch(e){}}
 function fillStaffSel(selId,qId,keep){
   var sel=q(selId),box=q(qId);if(!sel)return;
   var qv=((box&&box.value)||'').trim().toLowerCase();
@@ -3847,6 +3883,7 @@ function navURL(sh){
 function shiftExtraHTML(sh,sz){
   var h='',nu=navURL(sh);
   if(nu)h+='<a href="'+esc(nu)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-block;margin-top:6px;padding:7px 14px;border-radius:18px;background:var(--nvl);color:var(--nv2);font-weight:700;font-size:'+sz+'px;text-decoration:none">🧭 Navigate</a>';
+  if(sh.lockbox)h+='<div style="font-size:'+sz+'px;color:var(--t2);margin-top:6px;white-space:pre-line;word-break:break-word">🔑 Access: '+esc(sh.lockbox)+'</div>';
   if(sh.parking)h+='<div style="font-size:'+sz+'px;color:var(--t2);margin-top:6px;white-space:pre-line;word-break:break-word">🅿️ '+esc(sh.parking)+'</div>';
   if(sh.alarm_info)h+='<div style="font-size:'+sz+'px;color:var(--t2);margin-top:4px;white-space:pre-line;word-break:break-word">🔔 Alarm: '+esc(sh.alarm_info)+'</div>';
   if(sh.watch_out)h+='<div style="margin-top:6px;margin-bottom:4px;padding:8px 10px;border-radius:8px;background:#fff3e0;color:#b34700;font-size:'+sz+'px;font-weight:700;white-space:pre-line;word-break:break-word">⚠️ Watch out for: '+esc(sh.watch_out)+'</div>';
@@ -4214,6 +4251,18 @@ function doLogout(){CU=null;q('LS').classList.remove('h');q('MH').style.display=
   try{const p=JSON.parse(decodeURIComponent(escape(atob(sd))));document.body.innerHTML='<div style="font-family:Outfit,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f0f4f9;min-height:100vh"><div style="background:linear-gradient(135deg,#0a2540,#1058a0);border-radius:16px;padding:20px;margin-bottom:20px;text-align:center"><div style="font-size:20px;font-weight:800;color:#fff">Rapid Pro Clean</div><div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">Work Completion Photos · '+new Date(p.generated).toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'})+'</div></div>'+p.photos.map(ph=>'<div style="background:#fff;border-radius:12px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.1)"><img src="'+ph.url+'" style="width:100%;max-height:300px;object-fit:cover;display:block"><div style="padding:12px">'+(p.opts.C&&ph.cat?'<div style="font-size:13px;font-weight:700;color:#0a2540">📁 '+ph.cat+'</div>':'')+(p.opts.N&&ph.staffName?'<div style="font-size:12px;color:#4d6a85;margin-top:3px">👤 '+ph.staffName+'</div>':'')+(p.opts.T&&ph.date?'<div style="font-size:11px;color:#95adc3;margin-top:2px">📅 '+ph.date+'</div>':'')+(p.opts.Nt&&ph.note?'<div style="font-size:11px;color:#0a9e7a;margin-top:3px">💬 '+ph.note+'</div>':'')+'</div></div>').join('')+'<div style="text-align:center;padding:20px;color:#95adc3;font-size:11px">Rapid Pro Clean · rapidproclean.com.au</div></div>'}catch{}
 })();
 
+var _ohsSec='docs';
+function ohsSec(s){
+  _ohsSec=s;
+  var bar=q('OhsBar');
+  if(bar&&!bar.children.length){
+    [['docs','📚 Documents'],['inc','🚨 Incident Report']].forEach(function(x){var b=document.createElement('button');b.id='ohsB_'+x[0];b.textContent=x[1];b.onclick=function(){ohsSec(x[0])};bar.appendChild(b)});
+  }
+  ['docs','inc'].forEach(function(k){var b=q('ohsB_'+k);if(b)b.classList.toggle('on',_ohsSec===k)});
+  q('DocsC').style.display=_ohsSec==='docs'?'':'none';
+  q('IncidentsC').style.display=_ohsSec==='inc'?'':'none';
+  if(_ohsSec==='inc')renderIncidents();else renderDocs();
+}
 async function renderIncidents(){
   var el2=q('IncidentsC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
@@ -4221,7 +4270,7 @@ async function renderIncidents(){
     if(!CU.is_admin)qb=qb.eq('reporter_id',CU.id);
     var {data:incidents,error}=await qb;if(error)throw error;el2.innerHTML='';
     var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
-    var ttl=document.createElement('div');ttl.className='sl';ttl.style.margin='0';ttl.textContent=CU.is_admin?'All Incidents':'My Incidents';
+    var ttl=document.createElement('div');ttl.className='sl';ttl.style.margin='0';ttl.textContent=CU.is_admin?'All Incident Reports':'My Incident Reports';
     var nb=document.createElement('button');nb.className='btn nv sm';nb.style.margin='0';nb.textContent='+ Report';nb.onclick=function(){openIncidentForm()};
     hdr.appendChild(ttl);hdr.appendChild(nb);el2.appendChild(hdr);
     if(!incidents||!incidents.length){var emp=document.createElement('div');emp.className='empty';emp.textContent='No incidents yet.';el2.appendChild(emp);return;}
@@ -4282,7 +4331,7 @@ async function submitIncident(){
     var {error}=await db.from('rpc_incidents').insert({reporter_id:CU.id,reporter_name:given+' '+surname,given_name:given,surname:surname,dob:q('incDOB').value,emp_id:q('incEmpID').value,incident_date:date,incident_time:q('incTime').value,weather:q('incWeather').value,site:site,location_desc:q('incLocation').value,incident_type:type,caused_by:q('incCaused').value,injured:q('incInjured').value,injuries:q('incInjuries').value,witness_names:q('incWitness').value,what_happened:what,action_taken:q('incAction').value,reported_to:q('incReportedTo').value,comp_damage:q('incCompDamage').value,vehicle_reg:q('incVehicleReg').value,trailer_reg:q('incTrailerReg').value,third_party:q('incThirdParty').value,third_injuries:q('incThirdInjuries').value,third_damage:q('incThirdDamage').value,ack_date:q('incAckDate').value,sig_data:sigDataUrl,photo_url:photoUrl,status:'Open',incident_number:incNum});
     if(error)throw error;
     var admins=allStaff.filter(function(s){return s.is_admin});
-    if(admins.length)await db.from('rpc_notifications').insert(admins.map(function(a){return {staff_id:a.id,title:'Incident Reported',message:given+' '+surname+' - '+type+' at '+site,icon:'alert',is_read:false};}));
+    if(admins.length)await db.from('rpc_notifications').insert(admins.map(function(a){return {staff_id:a.id,title:'Incident Reported',message:given+' '+surname+' - '+type+' at '+site,icon:'🚨',is_read:false};}));
     closeM('IncidentM');toast('Submitted! Ref: '+incNum);renderIncidents();
   }catch(e){err.textContent='Error: '+(e.message||'Try again');}
 }
@@ -4397,7 +4446,7 @@ function openEditShift(sh){
   q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
   q('esPq').value='';fillStaffSel('esPs','esPq',sh.staff_id);q('esNn').checked=false;q('esPubNow').checked=false;q('esWarn').innerHTML='';_esWarnN=0;
-  q('esPk').value=sh.parking||'';q('esAl').value=sh.alarm_info||'';q('esWo').value=sh.watch_out||'';
+  q('esLb').value=sh.lockbox||'';q('esPk').value=sh.parking||'';q('esAl').value=sh.alarm_info||'';q('esWo').value=sh.watch_out||'';
   esStatusUI();esLoadJob(sh);esLoadPh(sh);esLoadPdf(sh);
   openM('EditShiftM');
 }
@@ -4409,7 +4458,7 @@ async function saveEditShift(){
   var desc=q('esDs').value.trim(),access=q('esAc').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim();
   var cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
-  var pk=q('esPk').value.trim(),al=q('esAl').value.trim(),wo=q('esWo').value.trim();
+  var pk=q('esPk').value.trim(),al=q('esAl').value.trim(),wo=q('esWo').value.trim(),lb=q('esLb').value.trim();
   var err=q('esErr');
   var newStaff=parseInt(q('esPs').value)||sh.staff_id,staffChanged=newStaff!==sh.staff_id;
   var quiet=q('esNn').checked,pubNow=q('esPubNow').checked;
@@ -4438,7 +4487,7 @@ async function saveEditShift(){
     if(start!==oS||end!==oE)chg.push('Time: '+tt(oS,oE)+' → '+tt(start,end));
     if(site!==sh.site)chg.push('Site: '+sh.site+' → '+site);
     var homeT=q('esHT').value==='yes',homeR=q('esHR').value==='yes';
-    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||pk!==(sh.parking||'')||al!==(sh.alarm_info||'')||wo!==(sh.watch_out||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
+    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||lb!==(sh.lockbox||'')||pk!==(sh.parking||'')||al!==(sh.alarm_info||'')||wo!==(sh.watch_out||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
     if(other)chg.push('Other details updated');
     var photoChg=_esPh.added.length>0||_esPh.existing.some(function(x){return x.del});
     if(photoChg)chg.push('Instruction photos updated');
@@ -4463,12 +4512,14 @@ async function saveEditShift(){
     if(staffChanged)upd.staff_id=newStaff;
     if(mach||chem||('machines' in sh)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
     if(cn||cp||('site_contact_name' in sh)){upd.site_contact_name=cn||null;upd.site_contact_phone=cp||null}   // only when the columns exist or something is typed
+    if(lb||('lockbox' in sh))upd.lockbox=lb||null;
     if(pk||al||wo||('parking' in sh)){upd.parking=pk||null;upd.alarm_info=al||null;upd.watch_out=wo||null}   // only when the columns exist or something is typed
     var {error}=await db.from('rpc_shifts').update(upd).eq('id',sh.id);
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){err.textContent='Site contact needs the one-time database step (SQL) first';return;}
+    if(error&&lb&&/lockbox/i.test(error.message||'')){err.textContent='Access / lockbox needs the one-time database step (SQL) first';return;}
     if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){err.textContent='Parking, alarm and watch out need the one-time database step (SQL) first';return;}
     if(error)throw error;
-    if(q('esSv').checked&&(cn||cp)){try{var r2=await db.from('rpc_sites').update({site_contact_name:cn||null,site_contact_phone:cp||null}).eq('name',site);if(r2.error)toast('Shift saved, but the site contact was not saved: '+r2.error.message);else await loadSites()}catch(e){}}
+    if(q('esSv').checked){await saveSiteDefaults(site,'es')}
     if(photoChg)await esSavePhotos(sh,site);
     if(pdfChg)await esSavePdfs(sh);
 
@@ -4525,7 +4576,7 @@ async function publishShift(id){
       staff_id:sh.staff_id,
       title:'Shift Confirmed ✅',
       message:msg,
-      icon:'roster',
+      icon:'📅',
       is_read:false
     });
     toast('Shift published — staff notified ✅');
@@ -4635,14 +4686,15 @@ async function publishShift(id){
   <div class="mlbl">Chemicals</div>
   <textarea class="mta" id="esCh" placeholder="e.g. Neutral floor cleaner (1:20)..." style="min-height:55px"></textarea>
   
+  <div class="mlbl">Access / Lockbox</div><textarea class="mta" id="esLb" placeholder="Key / lockbox code, gate, who lets you in..." style="min-height:55px"></textarea>
   <div class="mlbl">Parking</div><textarea class="mta" id="esPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
   <div class="mlbl">Alarm</div><textarea class="mta" id="esAl" placeholder="Alarm code or instructions (only what staff need)..." style="min-height:55px"></textarea>
   <div class="mlbl">Watch out for</div><textarea class="mta" id="esWo" placeholder="Pets, stairs, fragile items, hazards, things not to touch..." style="min-height:55px"></textarea>
-  <div class="mlbl">Other Notes</div><textarea class="mta" id="esAc" placeholder="Keys, lockbox, who lets you in, anything else..." style="min-height:55px"></textarea>
+  <div class="mlbl">Other Notes</div><textarea class="mta" id="esAc" placeholder="Anything else for this shift..." style="min-height:55px"></textarea>
   <div class="mlbl">Site Contact Person (optional)</div>
   <input class="mi" id="esCn" type="text" placeholder="Name, e.g. Sarah (Centre Manager)" style="margin-bottom:6px;font-size:16px">
   <input class="mi" id="esCp" type="tel" placeholder="Phone, e.g. 0412 345 678" style="font-size:16px">
-  <label style="display:flex;align-items:center;gap:10px;padding:8px 2px 4px;font-size:13px;cursor:pointer"><input type="checkbox" id="esSv" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Save this contact to the site</label>
+  <label style="display:flex;align-items:center;gap:10px;padding:8px 2px 4px;font-size:13px;cursor:pointer"><input type="checkbox" id="esSv" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Save these site details (contact, access, parking, alarm, watch out) to the site as the default</label>
   <div class="mlbl">Pay Travel: Home to Site?</div>
   <select class="msel" id="esHT"><option value="no">No</option><option value="yes">Yes — pay travel from home to site</option></select>
   <div class="mlbl">Pay Travel: Site to Home (after work)?</div>
