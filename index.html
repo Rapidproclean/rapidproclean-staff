@@ -299,6 +299,9 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <input class="mi" id="siSq" type="text" placeholder="🔍 Search sites…" oninput="filterRows('SiteList','siSq')" style="margin-bottom:10px;font-size:16px">
   <div class="card" id="SiteList"></div>
   <button class="btn nv" style="margin-top:10px" onclick="openAddSite()">+ Add Job Site</button>
+  <div class="sl" style="margin-top:18px">Job Types</div>
+  <div class="card" id="JtList"></div>
+  <button class="btn nv" style="margin-top:10px" onclick="openJt(0)">+ Add Job Type</button>
   <div class="sl" style="margin-top:18px">Assign Shifts</div>
   <button class="btn nv" onclick="openAssign()">+ Assign Shift to Staff</button>
   <div class="sl" style="margin-top:18px">Notifications</div>
@@ -346,6 +349,15 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <button class="btn sc" onclick="closeM('EM')">Cancel</button>
 </div></div>
 
+<div class="mov" id="JtM"><div class="msh"><div class="mh"></div><div class="mt" id="JtMt">Add Job Type</div>
+  <div class="mlbl">Type of work (name)</div><input class="mi" id="jtNm" type="text" placeholder="e.g. Carpet Steam Cleaning" style="font-size:16px">
+  <div class="mlbl">Machines / Equipment (one item per line)</div><textarea class="mta" id="jtMc" style="min-height:130px" placeholder="• Item one&#10;• Item two"></textarea>
+  <div class="mlbl">Chemicals (one item per line)</div><textarea class="mta" id="jtCh" style="min-height:90px" placeholder="• Item one&#10;• Item two"></textarea>
+  <div class="mlbl">PPE (one item per line)</div><textarea class="mta" id="jtPp" style="min-height:110px"></textarea>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Changes apply to shifts assigned from now on. Shifts already assigned keep their own text.</div>
+  <button class="btn tl" onclick="saveJt()">Save</button>
+  <button class="btn sc" onclick="closeM('JtM')">Cancel</button>
+</div></div>
 <div class="mov" id="SiteM"><div class="msh"><div class="mh"></div><div class="mt" id="SiteMt">Add Job Site</div>
   <div class="mlbl">Site Name</div><input class="mi" id="sNm" placeholder="e.g. CBD Office Block" type="text">
   <div class="mlbl">Full Street Address (for GPS check)</div><input class="mi" id="sAd" placeholder="e.g. 123 St Georges Tce, Perth WA 6000" type="text">
@@ -373,8 +385,13 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="mlbl">Shift Times</div>
   <div class="mrow"><input class="mi" id="shS" type="time"><input class="mi" id="shE" type="time"></div>
   <div class="mlbl">Duties / Description</div><textarea class="mta" id="shDs" placeholder="Describe tasks..."></textarea>
+  <div class="mlbl">Type of work (optional) <span id="shJtN" style="font-weight:400;color:var(--t3)"></span></div>
+  <input class="mi" id="shJtQ" type="text" placeholder="🔍 Search type of work…" oninput="jtRender('sh')" style="margin-bottom:6px;font-size:16px">
+  <div class="msel" id="shJt" style="height:150px;overflow-y:auto;padding:4px"></div>
+  <div style="font-size:11px;color:var(--t3);margin:-2px 0 10px">Ticking adds that job's machines, chemicals and PPE below as its own list. You can still type, change or delete anything in the boxes.</div>
   <div class="mlbl">Machines / Equipment</div><textarea class="mta" id="shMc" placeholder="e.g. Rotary floor machine, carpet extractor, scrubber dryer..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div><textarea class="mta" id="shCh" placeholder="e.g. Neutral floor cleaner (1:20), glass cleaner..." style="min-height:55px"></textarea>
+  <div class="mlbl">PPE</div><textarea class="mta" id="shPp" placeholder="Protective equipment for this job..." style="min-height:55px"></textarea>
   
   <div class="mlbl">Access / Lockbox</div><textarea class="mta" id="shLb" placeholder="Key / lockbox code, gate, who lets you in..." style="min-height:55px"></textarea>
   <div class="mlbl">Parking</div><textarea class="mta" id="shPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
@@ -954,8 +971,10 @@ async function renderStaffHome(el2,sm,tm){
     shHdr.innerHTML='<div style="font-size:15px;font-weight:800;color:var(--nv)">📍 '+esc(sh.site)+'</div>'
       +'<div style="font-family:var(--mn);font-size:12px;color:var(--t3);margin-top:2px">'+(sh.start_time&&sh.end_time?fmt12(sh.start_time)+' – '+fmt12(sh.end_time):'Time TBC')+'</div>'
       +(sh.description?'<div style="font-size:12px;color:var(--t2);margin-top:4px">📋 '+esc(sh.description)+'</div>':'')
-      +(sh.machines?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>':'')
-      +(sh.chemicals?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>':'')
+      +(sh.job_types?'<div style="font-size:12px;color:var(--t2);margin-top:4px"><b>🛠️ Type of work:</b> '+esc(sh.job_types.split(' | ').join(', '))+'</div>':'')
+      +(sh.machines?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line"><b>🧰 Machines / Equipment</b>\n'+listHTML(sh.machines)+'</div>':'')
+      +(sh.chemicals?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line"><b>🧴 Chemicals</b>\n'+listHTML(sh.chemicals)+'</div>':'')
+      +(sh.ppe?'<div style="font-size:12px;color:var(--t2);margin-top:4px;white-space:pre-line"><b>🦺 PPE</b>\n'+listHTML(sh.ppe)+'</div>':'')
       +contactHTML(sh,12)
       +shiftExtraHTML(sh,12)
       +(sh.access_notes?'<div style="font-size:12px;color:var(--am);font-weight:600;margin-top:6px;white-space:pre-line;word-break:break-word">📝 '+esc(sh.access_notes)+'</div>':'');
@@ -1326,8 +1345,10 @@ function mkShiftItem(sh,sm){
   top.appendChild(topRow);
   const det=document.createElement('div');det.className='ri-det';
   if(sh.description)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px">📋 '+esc(sh.description)+'</div>';
-  if(sh.machines)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧰 '+esc(sh.machines)+'</div>';
-  if(sh.chemicals)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line">🧴 '+esc(sh.chemicals)+'</div>';
+  if(sh.job_types)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line"><b>🛠️ Type of work:</b> '+esc(sh.job_types.split(' | ').join(', '))+'</div>';
+  if(sh.machines)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line"><b>🧰 Machines / Equipment</b>\n'+listHTML(sh.machines)+'</div>';
+  if(sh.chemicals)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line"><b>🧴 Chemicals</b>\n'+listHTML(sh.chemicals)+'</div>';
+  if(sh.ppe)det.innerHTML+='<div style="font-size:12px;color:var(--t2);background:var(--sf);border-radius:8px;padding:8px 10px;line-height:1.5;margin-bottom:6px;white-space:pre-line"><b>🦺 PPE</b>\n'+listHTML(sh.ppe)+'</div>';
   if(sh.site_contact_name||sh.site_contact_phone)det.innerHTML+=contactHTML(sh,12).replace('margin-top:4px','margin-bottom:6px');
   det.innerHTML+=shiftExtraHTML(sh,12);
   if(sh.access_notes)det.innerHTML+='<div style="font-size:11px;color:var(--am);font-weight:600;margin-bottom:6px;white-space:pre-line;word-break:break-word">📝 '+esc(sh.access_notes)+'</div>';
@@ -1460,12 +1481,100 @@ async function loadRange(){
 }
 
 // SHIFT MANAGEMENT
+var allJobTypes=[],_jtLoaded=false,_jt={sh:[],es:[]},_jtEditId=0;
+var JT_STD_PPE="• Gloves, Mask\n• Hard hat / helmet\n• Safety boots\n• Goggles\n• Hi-vis (on builder\'s sites)";
+async function ensureJobTypes(force){
+  if(_jtLoaded&&!force)return;
+  try{var r=await db.from('rpc_job_types').select('*').order('name');if(!r.error){allJobTypes=(r.data||[]).slice().sort(function(a,b){return a.name.localeCompare(b.name)});_jtLoaded=true}else{allJobTypes=[]}}catch(e){allJobTypes=[]}
+}
+function jtLines(t){return String(t||'').split(/\r?\n/).map(function(l){return l.trim()}).filter(Boolean)}
+function jtBlocks(t){return String(t||'').split(/\n\s*\n/).filter(function(b){return b.trim()})}
+function jtHasBlock(t,name){return jtBlocks(t).some(function(b){return b.split('\n')[0].trim()===name+':'})}
+function jtDropBlock(t,name,items){
+  var mine={};jtLines(items).forEach(function(l){mine[l]=1});var hasItems=Object.keys(mine).length>0;
+  var out=[];
+  jtBlocks(t).forEach(function(b){
+    var ls=b.split('\n');
+    if(ls[0].trim()!==name+':'){out.push(b);return}
+    var rest=hasItems?ls.slice(1).filter(function(l){return l.trim()&&!mine[l.trim()]}):[];   // keep anything the admin typed
+    if(rest.length)out.push(rest.join('\n'));
+  });
+  return out.join('\n\n');
+}
+function jtAddBlock(t,name,items){
+  if(!items||!String(items).trim()||jtHasBlock(t,name))return t;
+  var cur=String(t||'').replace(/\s+$/,'');
+  return (cur?cur+'\n\n':'')+name+':\n'+String(items).trim();
+}
+function jtAddLines(t,add){
+  var have={};jtLines(t).forEach(function(l){have[l]=1});
+  var out=jtLines(t);jtLines(add).forEach(function(l){if(!have[l]){have[l]=1;out.push(l)}});
+  return out.join('\n');
+}
+function jtRender(pre){
+  var box=q(pre+'Jt');if(!box)return;
+  var t=(q(pre+'JtQ').value||'').trim().toLowerCase();
+  if(!allJobTypes.length){box.innerHTML='<div style="padding:10px;font-size:12px;color:var(--t3)">No job types yet. Run the one-time database step (SQL), or add them in Admin → Job Types.</div>';return}
+  box.innerHTML='';
+  allJobTypes.filter(function(j){return !t||j.name.toLowerCase().indexOf(t)!==-1}).forEach(function(j){
+    var l=document.createElement('label');l.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)';
+    var c=document.createElement('input');c.type='checkbox';c.style.cssText='width:18px;height:18px;flex:none;accent-color:var(--nv2)';c.checked=_jt[pre].indexOf(j.name)!==-1;
+    c.onchange=function(){jtToggle(pre,j.name,c.checked)};
+    l.appendChild(c);l.appendChild(document.createTextNode(j.name));box.appendChild(l);
+  });
+  jtCount(pre);
+}
+function jtCount(pre){var n=q(pre+'JtN');if(n)n.textContent=_jt[pre].length?'· '+_jt[pre].length+' selected':''}
+function jtToggle(pre,name,on){
+  var j=allJobTypes.find(function(x){return x.name===name});if(!j)return;
+  var mc=q(pre+'Mc'),ch=q(pre+'Ch'),pp=q(pre+'Pp'),i=_jt[pre].indexOf(name);
+  if(on){
+    if(i===-1)_jt[pre].push(name);
+    mc.value=jtAddBlock(mc.value,name,j.machines);
+    ch.value=jtAddBlock(ch.value,name,j.chemicals);
+    pp.value=jtAddLines(pp.value,j.ppe);
+  }else{
+    if(i!==-1)_jt[pre].splice(i,1);
+    mc.value=jtDropBlock(mc.value,name,j.machines);ch.value=jtDropBlock(ch.value,name,j.chemicals);
+    var keep={};_jt[pre].forEach(function(n2){var o=allJobTypes.find(function(x){return x.name===n2});if(o)jtLines(o.ppe).forEach(function(l){keep[l]=1})});
+    var mine=jtLines(j.ppe);
+    pp.value=jtLines(pp.value).filter(function(l){return keep[l]||mine.indexOf(l)===-1}).join('\n');
+  }
+  jtCount(pre);
+}
+function listHTML(t){return esc(t).split('\n').map(function(l){return /^[^•\s].*:$/.test(l.trim())?'<b>'+l+'</b>':l}).join('\n')}
+function renderJtList(){
+  var el=q('JtList');if(!el)return;
+  if(!allJobTypes.length){el.innerHTML='<div class="cr"><div class="cs">No job types yet. Run the one-time database step (SQL), or add one below.</div></div>';return}
+  el.innerHTML=allJobTypes.map(function(j){return '<div class="cr"><div><div class="cl">'+esc(j.name)+'</div></div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openJt('+j.id+')">Edit</button><button class="dbtn" onclick="delJt('+j.id+')">Remove</button></div></div>'}).join('');
+}
+function openJt(id){
+  var j=id?allJobTypes.find(function(x){return x.id===id}):null;_jtEditId=id||0;
+  q('JtMt').textContent=j?'Edit Job Type':'Add Job Type';
+  q('jtNm').value=j?j.name:'';q('jtMc').value=j?(j.machines||''):'';q('jtCh').value=j?(j.chemicals||''):'';q('jtPp').value=j?(j.ppe||''):JT_STD_PPE;
+  openM('JtM');
+}
+async function saveJt(){
+  var nm=q('jtNm').value.trim();if(!nm){toast('Type a name for the job type');return}
+  if(allJobTypes.some(function(x){return x.name.toLowerCase()===nm.toLowerCase()&&x.id!==_jtEditId})){toast('That job type already exists');return}
+  var row={name:nm,machines:q('jtMc').value.trim()||null,chemicals:q('jtCh').value.trim()||null,ppe:q('jtPp').value.trim()||null};
+  try{
+    var r=_jtEditId?await db.from('rpc_job_types').update(row).eq('id',_jtEditId):await db.from('rpc_job_types').insert(row);
+    if(r.error){toast(/rpc_job_types|relation|does not exist/i.test(r.error.message||'')?'Job types need the one-time database step (SQL) first':'Error: '+r.error.message);return}
+    await ensureJobTypes(true);renderJtList();closeM('JtM');toast('Job type saved ✅');
+  }catch(e){toast('Error: '+e.message)}
+}
+async function delJt(id){
+  var j=allJobTypes.find(function(x){return x.id===id});if(!j)return;
+  if(!confirm('Remove "'+j.name+'" from the list? Shifts already assigned keep their text.'))return;
+  try{var r=await db.from('rpc_job_types').delete().eq('id',id);if(r.error){toast('Error: '+r.error.message);return}await ensureJobTypes(true);renderJtList();toast('Removed')}catch(e){toast('Error: '+e.message)}
+}
 function openAssign(){
   q('shSt').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 6px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--bd)"><input type="checkbox" value="'+s.id+'" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">'+esc(s.name)+'</label>').join('');
   q('shSiQ').value='';q('shStQ').value='';fillSiteSel('shSi','shSiQ');_cs.sh=null;fillSiteContact('sh',true);q('shSv').checked=false;
   q('shDt').value=todayStr();q('shS').value='07:00';q('shE').value='15:00';q('shDs').value='';q('shAc').value='';q('shHT').value='no';q('shHR').value='no';q('shPh').value='';_shPhFiles=[];shPhRender();q('shPk').value='';q('shAl').value='';q('shWo').value='';_shPdf=[];shPdfRender();q('DBW').innerHTML='';q('shMc').value='';q('shCh').value='';fillSiteContact('sh',true);
   const chk=async()=>{const date=q('shDt').value;if(!date)return;const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));if(!sel.length)return;try{const [lvR,shR]=await Promise.all([db.from('rpc_leave').select('*').eq('status','approved').lte('start_date',date).gte('end_date',date).in('staff_id',sel),db.from('rpc_shifts').select('*').eq('shift_date',date).in('staff_id',sel)]);const warns=[];(lvR.data||[]).forEach(l=>{const s=allStaff.find(x=>x.id===l.staff_id);if(s)warns.push('⛔ '+s.name+' is on approved leave')});(shR.data||[]).forEach(sh=>{const s=allStaff.find(x=>x.id===sh.staff_id);if(s)warns.push('⚠️ '+s.name+' already has shift at '+sh.site)});q('DBW').innerHTML=warns.length?'<div class="wbox">'+warns.join('<br>')+'</div>':'';}catch{}};
-  q('shDt').onchange=chk;q('shSt').onchange=chk;_repPlan=null;rpSummary();openM('ShiftM');
+  q('shDt').onchange=chk;q('shSt').onchange=chk;_repPlan=null;rpSummary();_jt.sh=[];q('shPp').value='';q('shJtQ').value='';q('shJt').innerHTML='<div style="padding:10px;font-size:12px;color:var(--t3)">Loading…</div>';jtCount('sh');ensureJobTypes().then(function(){jtRender('sh')});openM('ShiftM');
 }
 async function saveShift(){
   const sel=Array.from(q('shSt').querySelectorAll('input[type=checkbox]:checked')).map(o=>parseInt(o.value));
@@ -1475,7 +1584,7 @@ async function saveShift(){
   const photos=_shPhFiles.slice();
   const mach=q('shMc').value.trim(),chem=q('shCh').value.trim();
   const cn=q('shCn').value.trim(),cp=q('shCp').value.trim();
-  const pk=q('shPk').value.trim(),al=q('shAl').value.trim(),wo=q('shWo').value.trim(),lb=q('shLb').value.trim();
+  const pk=q('shPk').value.trim(),al=q('shAl').value.trim(),wo=q('shWo').value.trim(),lb=q('shLb').value.trim(),jt=_jt.sh.join(' | '),ppe=q('shPp').value.trim();
   if(!site||!date){toast('Select site and date');return}
   try{
     const rp=(_repPlan&&_repPlan.dates&&_repPlan.dates.length)?_repPlan:null;
@@ -1487,9 +1596,11 @@ async function saveShift(){
     if(cn||cp)inserts.forEach(function(r){r.site_contact_name=cn||null;r.site_contact_phone=cp||null});   // only sent when filled in
     if(pk||al||wo)inserts.forEach(function(r){r.parking=pk||null;r.alarm_info=al||null;r.watch_out=wo||null});   // only sent when filled in
     if(lb)inserts.forEach(function(r){r.lockbox=lb});
+    if(jt||ppe)inserts.forEach(function(r){if(jt)r.job_types=jt;if(ppe)r.ppe=ppe});
     if(_shPdf.length&&!(await sfReady())){toast('PDF attachments need the one-time database step (SQL) first');return}
     const {data:newShifts,error}=await db.from('rpc_shifts').insert(inserts).select();
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){toast('Site contact needs the one-time database step (SQL) first');return}
+    if(error&&(jt||ppe)&&/job_types|ppe/i.test(error.message||'')){toast('Type of work and PPE need the one-time database step (SQL) first');return}
     if(error&&lb&&/lockbox/i.test(error.message||'')){toast('Access / lockbox needs the one-time database step (SQL) first');return}
     if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){toast('Parking, alarm and watch out need the one-time database step (SQL) first');return}
     if(error){toast((mach||chem)&&/machines|chemicals/i.test(error.message||'')?'Machines/chemicals need the one-time database step (SQL) first':'Error: '+error.message);return}
@@ -2594,8 +2705,10 @@ async function downloadShiftPDF(sh){
     if(sh.site_contact_name||sh.site_contact_phone){any=true;head('Site Contact');para((sh.site_contact_name||'')+(sh.site_contact_name&&sh.site_contact_phone?'\n':'')+(sh.site_contact_phone?'Phone: '+sh.site_contact_phone:''))}
     if(sh.watch_out){any=true;head('Watch Out For');para(sh.watch_out)}
     if(sh.description){any=true;head('Duties / Description');para(sh.description)}
+    if(sh.job_types){any=true;head('Type of Work');para(sh.job_types.split(' | ').join(', '))}
     if(sh.machines){any=true;head('Machines / Equipment');para(sh.machines)}
     if(sh.chemicals){any=true;head('Chemicals');para(sh.chemicals)}
+    if(sh.ppe){any=true;head('PPE');para(sh.ppe)}
     if(sh.lockbox){any=true;head('Access / Lockbox');para(sh.lockbox)}
     if(sh.parking){any=true;head('Parking');para(sh.parking)}
     if(sh.alarm_info){any=true;head('Alarm');para(sh.alarm_info)}
@@ -3295,6 +3408,7 @@ async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
 // ADMIN
 async function renderAdmin(){
   q('AW').textContent=CU.name;
+  ensureJobTypes(true).then(renderJtList);
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+((s.lockbox||s.parking||s.alarm_info||s.watch_out)?'<div class="cs">🔑 Access details saved</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   filterRows('StaffList','stSq');filterRows('SiteList','siSq');
@@ -3686,20 +3800,21 @@ async function rpCopyShifts(ds){
   if(ds.length>RP_MAX){toast('Up to '+RP_MAX+' dates at a time');return}
   var site=q('esS').value,mainDuties=q('esDs').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim(),cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
-  var pkx=q('esPk').value.trim(),alx=q('esAl').value.trim(),wox=q('esWo').value.trim(),lbx=q('esLb').value.trim();
+  var pkx=q('esPk').value.trim(),alx=q('esAl').value.trim(),wox=q('esWo').value.trim(),lbx=q('esLb').value.trim(),jtx=_jt.es.join(' | '),ppx=q('esPp').value.trim();
   var rows=ds.map(function(d){
     var r={staff_id:(parseInt(q('esPs').value)||sh.staff_id),site:site,shift_date:d,start_time:q('esSt').value||null,end_time:q('esEt').value||null,
       description:((_rp.dates[d].duties||'').trim())||mainDuties||null,access_notes:q('esAc').value.trim()||null,
       home_travel_pay:q('esHT').value==='yes',home_return_travel_pay:q('esHR').value==='yes',status:'draft'};
     if(mach)r.machines=mach;if(chem)r.chemicals=chem;
     if(lbx)r.lockbox=lbx;
+    if(jtx)r.job_types=jtx;if(ppx)r.ppe=ppx;
     if(pkx||alx||wox){r.parking=pkx||null;r.alarm_info=alx||null;r.watch_out=wox||null}
     if(cn||cp){r.site_contact_name=cn||null;r.site_contact_phone=cp||null}
     return r;
   });
   try{
     var ins=await db.from('rpc_shifts').insert(rows).select();
-    if(ins.error){toast(/machines|chemicals|site_contact/i.test(ins.error.message||'')?'A one-time database step (SQL) is missing: '+ins.error.message:'Error: '+ins.error.message);return}
+    if(ins.error){toast(/machines|chemicals|site_contact|job_types|ppe/i.test(ins.error.message||'')?'A one-time database step (SQL) is missing: '+ins.error.message:'Error: '+ins.error.message);return}
     var made=ins.data||[];
     if(q('rpPh').checked&&made.length){
       try{
@@ -4517,7 +4632,7 @@ function openEditShift(sh){
   q('esHR').value=sh.home_return_travel_pay?'yes':'no';
   q('esErr').textContent='';
   q('esPq').value='';fillStaffSel('esPs','esPq',sh.staff_id);q('esNn').checked=false;q('esPubNow').checked=false;q('esWarn').innerHTML='';_esWarnN=0;
-  q('esLb').value=sh.lockbox||'';q('esPk').value=sh.parking||'';q('esAl').value=sh.alarm_info||'';q('esWo').value=sh.watch_out||'';
+  q('esLb').value=sh.lockbox||'';q('esPk').value=sh.parking||'';_jt.es=(sh.job_types||'').split(' | ').filter(Boolean);q('esPp').value=sh.ppe||'';q('esJtQ').value='';q('esJt').innerHTML='<div style="padding:10px;font-size:12px;color:var(--t3)">Loading…</div>';jtCount('es');ensureJobTypes().then(function(){jtRender('es')});q('esAl').value=sh.alarm_info||'';q('esWo').value=sh.watch_out||'';
   esStatusUI();esLoadJob(sh);esLoadPh(sh);esLoadPdf(sh);
   openM('EditShiftM');
 }
@@ -4529,7 +4644,7 @@ async function saveEditShift(){
   var desc=q('esDs').value.trim(),access=q('esAc').value.trim();
   var mach=q('esMc').value.trim(),chem=q('esCh').value.trim();
   var cn=q('esCn').value.trim(),cp=q('esCp').value.trim();
-  var pk=q('esPk').value.trim(),al=q('esAl').value.trim(),wo=q('esWo').value.trim(),lb=q('esLb').value.trim();
+  var pk=q('esPk').value.trim(),al=q('esAl').value.trim(),wo=q('esWo').value.trim(),lb=q('esLb').value.trim(),jt=_jt.es.join(' | '),ppe=q('esPp').value.trim();
   var err=q('esErr');
   var newStaff=parseInt(q('esPs').value)||sh.staff_id,staffChanged=newStaff!==sh.staff_id;
   var quiet=q('esNn').checked,pubNow=q('esPubNow').checked;
@@ -4558,7 +4673,7 @@ async function saveEditShift(){
     if(start!==oS||end!==oE)chg.push('Time: '+tt(oS,oE)+' → '+tt(start,end));
     if(site!==sh.site)chg.push('Site: '+sh.site+' → '+site);
     var homeT=q('esHT').value==='yes',homeR=q('esHR').value==='yes';
-    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||lb!==(sh.lockbox||'')||pk!==(sh.parking||'')||al!==(sh.alarm_info||'')||wo!==(sh.watch_out||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
+    var other=(desc!==(sh.description||'')||access!==(sh.access_notes||'')||mach!==(sh.machines||'')||chem!==(sh.chemicals||'')||cn!==(sh.site_contact_name||'')||cp!==(sh.site_contact_phone||'')||jt!==(sh.job_types||'')||ppe!==(sh.ppe||'')||lb!==(sh.lockbox||'')||pk!==(sh.parking||'')||al!==(sh.alarm_info||'')||wo!==(sh.watch_out||'')||homeT!==!!sh.home_travel_pay||homeR!==!!sh.home_return_travel_pay);
     if(other)chg.push('Other details updated');
     var photoChg=_esPh.added.length>0||_esPh.existing.some(function(x){return x.del});
     if(photoChg)chg.push('Instruction photos updated');
@@ -4584,9 +4699,11 @@ async function saveEditShift(){
     if(mach||chem||('machines' in sh)){upd.machines=mach||null;upd.chemicals=chem||null}   // only when the columns exist or something is typed
     if(cn||cp||('site_contact_name' in sh)){upd.site_contact_name=cn||null;upd.site_contact_phone=cp||null}   // only when the columns exist or something is typed
     if(lb||('lockbox' in sh))upd.lockbox=lb||null;
+    if(jt||ppe||('job_types' in sh)){upd.job_types=jt||null;upd.ppe=ppe||null}
     if(pk||al||wo||('parking' in sh)){upd.parking=pk||null;upd.alarm_info=al||null;upd.watch_out=wo||null}   // only when the columns exist or something is typed
     var {error}=await db.from('rpc_shifts').update(upd).eq('id',sh.id);
     if(error&&(cn||cp)&&/site_contact/i.test(error.message||'')){err.textContent='Site contact needs the one-time database step (SQL) first';return;}
+    if(error&&(jt||ppe)&&/job_types|ppe/i.test(error.message||'')){err.textContent='Type of work and PPE need the one-time database step (SQL) first';return;}
     if(error&&lb&&/lockbox/i.test(error.message||'')){err.textContent='Access / lockbox needs the one-time database step (SQL) first';return;}
     if(error&&(pk||al||wo)&&/parking|alarm_info|watch_out/i.test(error.message||'')){err.textContent='Parking, alarm and watch out need the one-time database step (SQL) first';return;}
     if(error)throw error;
@@ -4752,10 +4869,15 @@ async function publishShift(id){
   </div>
   <div class="mlbl">Duties / Description</div>
   <textarea class="mta" id="esDs" placeholder="Describe tasks..."></textarea>
+  <div class="mlbl">Type of work (optional) <span id="esJtN" style="font-weight:400;color:var(--t3)"></span></div>
+  <input class="mi" id="esJtQ" type="text" placeholder="🔍 Search type of work…" oninput="jtRender('es')" style="margin-bottom:6px;font-size:16px">
+  <div class="msel" id="esJt" style="height:150px;overflow-y:auto;padding:4px"></div>
+  <div style="font-size:11px;color:var(--t3);margin:-2px 0 10px">Ticking adds that job's machines, chemicals and PPE below as its own list. You can still type, change or delete anything in the boxes.</div>
   <div class="mlbl">Machines / Equipment</div>
   <textarea class="mta" id="esMc" placeholder="e.g. Rotary floor machine, carpet extractor..." style="min-height:55px"></textarea>
   <div class="mlbl">Chemicals</div>
   <textarea class="mta" id="esCh" placeholder="e.g. Neutral floor cleaner (1:20)..." style="min-height:55px"></textarea>
+  <div class="mlbl">PPE</div><textarea class="mta" id="esPp" placeholder="Protective equipment for this job..." style="min-height:55px"></textarea>
   
   <div class="mlbl">Access / Lockbox</div><textarea class="mta" id="esLb" placeholder="Key / lockbox code, gate, who lets you in..." style="min-height:55px"></textarea>
   <div class="mlbl">Parking</div><textarea class="mta" id="esPk" placeholder="Where to park, visitor bays, permits, height limits..." style="min-height:55px"></textarea>
