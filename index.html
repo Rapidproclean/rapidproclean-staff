@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v47.0 — v46 + signing: read/tick boxes, signed PDF saved, working View links (typed signatures too) -->
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
 <!-- v40.0 — v39 + tabs: admin (All / Training / Policy / Personal / Signed by staff) and staff (Training / Policies / My documents / My signed) -->
 <!-- v39.0 — v38 + folder Type (Training / Policy) separate from Must sign, folder Settings, Training & Policy screens for staff, Copy to another folder -->
@@ -566,6 +567,9 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 
 <div class="mov" id="SignM"><div class="msh"><div class="mh"></div><div class="mt">Sign Document</div>
   <div class="ms" id="SignMN"></div><input type="hidden" id="SignMId">
+  <button class="btn sc sm" id="sigOpenDoc" style="display:none;margin:0 0 10px" onclick="sigOpenDocument()">📄 Open document to read</button>
+  <label style="display:flex;align-items:flex-start;gap:10px;padding:2px 2px 8px;font-size:13px;line-height:1.4;cursor:pointer"><input type="checkbox" id="sigC1" onchange="sigTickCh()" style="width:20px;height:20px;flex:none;accent-color:var(--nv2)">I have read and understood this document</label>
+  <label style="display:flex;align-items:flex-start;gap:10px;padding:2px 2px 12px;font-size:13px;line-height:1.4;cursor:pointer"><input type="checkbox" id="sigC2" onchange="sigTickCh()" style="width:20px;height:20px;flex:none;accent-color:var(--nv2)">I will follow it</label>
   <div class="mlbl">Signature Method</div>
   <select class="msel" id="sigMeth" onchange="sigMethCh()">
     <option value="draw">Draw with finger</option><option value="type">Type full name</option><option value="upload">Upload signed copy</option>
@@ -573,7 +577,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div id="sigDA"><div class="mlbl">Draw below</div><canvas id="sigPad" width="440" height="140"></canvas><button class="btn sc sm" style="margin-top:8px;margin-bottom:8px" onclick="clearSig()">Clear</button></div>
   <div id="sigTA" style="display:none"><div class="mlbl">Type your full name</div><input class="mi" id="sigTyped" placeholder="Your full name" type="text"></div>
   <div id="sigUA" style="display:none"><div class="mlbl">Upload signed document</div><input type="file" id="sigFile" accept="image/*,.pdf" style="margin-bottom:10px;font-size:13px"></div>
-  <button class="btn tl" onclick="saveSign()">Submit Signed Document</button>
+  <button class="btn tl" id="sigSubmit" onclick="saveSign()" disabled style="opacity:.5">Submit Signed Document</button>
   <button class="btn sc" onclick="closeM('SignM')">Cancel</button>
 </div></div>
 
@@ -600,7 +604,7 @@ const AV={a:{bg:'#E1F5EE',c:'#085041'},b:{bg:'#E6F1FB',c:'#0C447C'},c:{bg:'#FAEE
 let CU=null,allStaff=[],allSites=[],wkOff=0,rV='day';
 let pPhSh=null,pPhSite=null,pTrvId=null,pTrvAct=null,pTrvNm=null,pTrvShiftId=null,pTrvType=null,pTrvNextShiftId=null,pTrvSite=null;
 let lvY=new Date().getFullYear(),lvM=new Date().getMonth(),lvStart=null,lvEnd=null,lvPick=false;
-let sigCtx=null,sigDrw=false,pSignId=null;
+let sigCtx=null,sigDrw=false,pSignId=null,_signDocUrl=null;
 let selMode=false,selPh=[],shOpts={N:true,T:true,Nt:true,C:true};
 let docUrls={};
 // HELPERS
@@ -781,7 +785,7 @@ async function checkTraining(){
       var rb=document.createElement('button');rb.className='btn sc sm';rb.style.cssText='margin:0;flex:1';rb.textContent='📖 Read';
       (function(url){rb.onclick=function(){window.open(url,'_blank')};})(d.url);
       var sb=document.createElement('button');sb.className='btn tl sm';sb.style.cssText='margin:0;flex:1';sb.textContent='✍️ Sign Now';
-      (function(id,name){sb.onclick=function(){openSign(id,name);closeTB()};})(d.id,d.name);
+      (function(id,name,url){sb.onclick=function(){openSign(id,name,url);closeTB()};})(d.id,d.name,d.url);
       row.appendChild(rb);row.appendChild(sb);div.appendChild(row);tbl.appendChild(div);
     });
     q('TB').classList.add('on');return true;
@@ -2043,7 +2047,7 @@ async function renderStaffDocs(el2){
             var badge=document.createElement('span');badge.style.cssText='font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;background:var(--tll);color:var(--tl)';badge.textContent='✅ Signed';acts.appendChild(badge);
           } else if(folder.requires_signature==='yes'){
             var sb=document.createElement('button');sb.className='btn tl sm';sb.style.cssText='margin:0;padding:7px 12px';sb.textContent='✍️ Sign';
-            (function(id,name){sb.onclick=function(){openSign(id,name)};})(d.id,d.name);
+            (function(id,name,url){sb.onclick=function(){openSign(id,name,url)};})(d.id,d.name,d.url);
             acts.appendChild(sb);
           }
           ditem.appendChild(icon);ditem.appendChild(info);ditem.appendChild(acts);
@@ -2087,9 +2091,9 @@ async function renderStaffDocs(el2){
       info2.innerHTML='<div class="cl" style="font-size:13px">'+(d?esc(d.name):'Document')+'</div><div class="cs">Signed '+fmtD(s.signed_at)+'</div>';
       row.appendChild(info2);
       var rowActs=document.createElement('div');rowActs.style.cssText='display:flex;gap:4px;flex-shrink:0;align-items:center;flex-wrap:wrap';
-      if(s.signed_url){
-        var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View Sig';
-        (function(url){vb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);
+      if(s.signed_url||s.signed_pdf){
+        var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
+        (function(rec,nm,du){vb.onclick=function(){viewSignedRecord(rec,nm,du,CU.name)};})(s,d?d.name:'Document',d?d.url:null);
         rowActs.appendChild(vb);
       }
       var dlb=document.createElement('button');dlb.className='btn nv sm';
@@ -2296,7 +2300,7 @@ async function renderAdminDocs(el2){
           rowBtns.appendChild(openDocBtn);
         }
         row.appendChild(rowBtns);
-        if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
+        if(s.signed_url||s.signed_pdf){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(rec,nm,du){rb.onclick=function(){viewSignedRecord(rec,nm,du,rec.staff_name)};})(s,docNames[s.doc_id]||'Document',docUrls[s.doc_id]||null);row.appendChild(rb)}
         // Delete signed record — admin only, removes record but keeps original doc
         var delBtn=document.createElement('button');delBtn.className='dbtn';delBtn.textContent='Delete';delBtn.style.cssText='touch-action:manipulation';
         (function(sid,sname,dname){delBtn.onclick=function(){
@@ -2519,13 +2523,14 @@ async function delDocFolder(id,name){if(!confirm('Delete "'+name+'" and all docu
 async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path){const oth=await db.from('rpc_documents').select('id').eq('storage_path',path).neq('id',id).limit(1);if(!(oth.data&&oth.data.length))await db.storage.from('rpc-photos').remove([path])}await db.from('rpc_documents').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
 
 // SIGNATURE
-function openSign(docId,docName){pSignId=docId;q('SignMId').value=docId;q('SignMN').textContent=docName;q('sigTyped').value='';q('sigFile').value='';q('sigMeth').value='draw';sigMethCh();openM('SignM');setTimeout(initSig,100)}
+function openSign(docId,docName,docUrl){_signDocUrl=docUrl||null;var ob=q('sigOpenDoc');if(ob)ob.style.display=_signDocUrl?'inline-block':'none';q('sigC1').checked=false;q('sigC2').checked=false;sigTickCh();pSignId=docId;q('SignMId').value=docId;q('SignMN').textContent=docName;q('sigTyped').value='';q('sigFile').value='';q('sigMeth').value='draw';sigMethCh();openM('SignM');setTimeout(initSig,100)}
 function sigMethCh(){const m=q('sigMeth').value;q('sigDA').style.display=m==='draw'?'block':'none';q('sigTA').style.display=m==='type'?'block':'none';q('sigUA').style.display=m==='upload'?'block':'none'}
 function initSig(){const cv=q('sigPad');if(!cv)return;sigCtx=cv.getContext('2d');sigCtx.strokeStyle='#0a2540';sigCtx.lineWidth=2;sigCtx.lineCap='round';cv.onmousedown=e=>{sigDrw=true;sigCtx.beginPath();sigCtx.moveTo(e.offsetX,e.offsetY)};cv.onmousemove=e=>{if(!sigDrw)return;sigCtx.lineTo(e.offsetX,e.offsetY);sigCtx.stroke()};cv.onmouseup=()=>sigDrw=false;cv.ontouchstart=e=>{e.preventDefault();sigDrw=true;const t=e.touches[0],r=cv.getBoundingClientRect();sigCtx.beginPath();sigCtx.moveTo(t.clientX-r.left,t.clientY-r.top)};cv.ontouchmove=e=>{e.preventDefault();if(!sigDrw)return;const t=e.touches[0],r=cv.getBoundingClientRect();sigCtx.lineTo(t.clientX-r.left,t.clientY-r.top);sigCtx.stroke()};cv.ontouchend=()=>sigDrw=false}
 function clearSig(){if(sigCtx)sigCtx.clearRect(0,0,q('sigPad').width,q('sigPad').height)}
 async function saveSign(){
   var m=q('sigMeth').value,docId=parseInt(q('SignMId').value),docName=q('SignMN').textContent;
-  var signedUrl=null;
+  var signedUrl=null,signedPdf=null;
+  if(!(q('sigC1').checked&&q('sigC2').checked)){toast('Please tick both boxes first');return}
   try{
     if(m==='draw'){
       var cv=q('sigPad');
@@ -2547,11 +2552,24 @@ async function saveSign(){
       if(!up2.error){var ud3=db.storage.from('rpc-photos').getPublicUrl(fn2);signedUrl=ud3.data.publicUrl;}
       else{toast('Upload failed: '+up2.error.message);return;}
     }
+    // v47: make the signed PDF and keep it in storage (signing still works if this step fails)
+    var signedAtIso=new Date().toISOString();
+    try{
+      var pdfDoc=await buildSignedPdf(docName,CU.name,signedAtIso,signedUrl,_signDocUrl,true);
+      if(pdfDoc){
+        var pdfBlob=pdfDoc.output('blob');
+        var pfn='signed-pdfs/'+CU.id+'_'+docId+'_'+Date.now()+'.pdf';
+        var pup=await db.storage.from('rpc-photos').upload(pfn,pdfBlob,{contentType:'application/pdf',upsert:true});
+        if(!pup.error){signedPdf=db.storage.from('rpc-photos').getPublicUrl(pfn).data.publicUrl}
+      }
+    }catch(e){signedPdf=null}
     // Save signature record
-    var upsertRes=await db.from('rpc_signed_docs').upsert({
-      staff_id:CU.id,staff_name:CU.name,doc_id:docId,
-      signed_at:new Date().toISOString(),signed_url:signedUrl
-    },{onConflict:'staff_id,doc_id'});
+    var rec={staff_id:CU.id,staff_name:CU.name,doc_id:docId,signed_at:signedAtIso,signed_url:signedUrl};
+    if(signedPdf)rec.signed_pdf=signedPdf;
+    var upsertRes=await db.from('rpc_signed_docs').upsert(rec,{onConflict:'staff_id,doc_id'});
+    if(upsertRes.error&&signedPdf&&/signed_pdf|column|schema cache/i.test(upsertRes.error.message||'')){
+      delete rec.signed_pdf;upsertRes=await db.from('rpc_signed_docs').upsert(rec,{onConflict:'staff_id,doc_id'});
+    }
     if(upsertRes.error)throw upsertRes.error;
     // Notify admins
     try{
@@ -4562,54 +4580,92 @@ async function downloadIncidentPDF(inc){
 async function loadJsPDF(){if(window.jspdf)return true;return new Promise(function(resolve){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=function(){resolve(true)};s.onerror=function(){resolve(false)};document.head.appendChild(s);});}
 
 async function downloadSignedDoc(docName,staffName,signedAt,signedUrl,docUrl){
-  var loaded=await loadJsPDF();if(!loaded){toast('PDF failed. Try again.');return;}
   try{
-    var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=20;var y=0;
-    doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
-    try{var lr=await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');var lb=await lr.blob();var ld=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(lb)});doc.addImage(ld,'PNG',m,4,40,18);}catch(e){}
-    doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('RAPID PRO CLEAN',pw/2,14,{align:'center'});
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('rapidproclean.com.au | info@rapidproclean.com.au',pw/2,21,{align:'center'});
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('SIGNED DOCUMENT RECORD',pw/2,30,{align:'center'});
-    y=48;
-    doc.setTextColor(10,37,64);doc.setFontSize(12);doc.setFont('helvetica','bold');
-    var dlines=doc.splitTextToSize('Document: '+(docName||'Document'),pw-m*2);doc.text(dlines,m,y);y+=dlines.length*7+4;
-    doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    doc.text('Signed by: '+(staffName||''),m,y);y+=7;
-    doc.text('Date & Time: '+new Date(signedAt).toLocaleString('en-AU'),m,y);y+=7;
-    doc.text('Status: DIGITALLY SIGNED',m,y);y+=10;
-    doc.setDrawColor(10,37,64);doc.setLineWidth(0.3);doc.line(m,y,pw-m,y);y+=8;
-    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('ORIGINAL DOCUMENT',m,y);y+=7;
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    if(docUrl){
-      doc.text('Access the original document at:',m,y);y+=5;
-      var urlLines=doc.splitTextToSize(docUrl,pw-m*2);doc.setTextColor(0,0,200);doc.text(urlLines,m,y);y+=urlLines.length*5+4;
-      doc.setTextColor(80,80,80);doc.text('The staff member has read and agreed to the full contents of this document.',m,y,{maxWidth:pw-m*2});y+=10;
-    } else {
-      doc.text('Document: '+docName,m,y);y+=8;
-    }
-    doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(m,y,pw-m,y);y+=8;
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF SIGNATURE',m,y);y+=8;
-    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
-    doc.text('By signing, staff confirms they have read and understood: '+docName,m,y,{maxWidth:pw-m*2});y+=12;
-    if(signedUrl&&signedUrl.startsWith('data:image')){
-      try{doc.addImage(signedUrl,'PNG',m,y,80,30);y+=35;}catch(e){y+=10;}
-    } else if(signedUrl){
-      try{var sr=await fetch(signedUrl);var sb=await sr.blob();var sd=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(sb)});doc.addImage(sd,'PNG',m,y,80,30);y+=35;}catch(e){doc.text('[Signature on file]',m,y+5);y+=15;}
-    } else {
-      doc.setTextColor(150,150,150);doc.text('[No signature captured]',m,y+5);y+=15;
-    }
-    doc.setDrawColor(100,100,100);doc.setLineWidth(0.3);doc.line(m,y,m+90,y);
-    doc.setFontSize(8);doc.setTextColor(100,100,100);
-    doc.text('Staff: '+(staffName||''),m,y+5);y+=8;
-    doc.text('Date: '+new Date(signedAt).toLocaleDateString('en-AU'),m,y);y+=15;
-    doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');
-    doc.setFontSize(7);doc.setTextColor(100,100,100);
-    doc.text('Rapid Pro Clean | Digitally signed via Staff Portal | rapidproclean.com.au',pw/2,ph-5,{align:'center'});
-    doc.save('Signed_'+(docName||'Doc').replace(/[^a-zA-Z0-9]/g,'_')+'_'+(staffName||'').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf');
+    var d=await buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,false);
+    if(!d){toast('PDF failed. Try again.');return;}
+    d.save('Signed_'+(docName||'Doc').replace(/[^a-zA-Z0-9]/g,'_')+'_'+(staffName||'').replace(/[^a-zA-Z0-9]/g,'_')+'.pdf');
     toast('Signed PDF downloaded!');
   }catch(e){toast('PDF error: '+(e.message||'Try again'));}
 }
+
+// v47: shared signed-PDF builder. ticks=true when the staff member ticked the two boxes at signing.
+function _imgDims(u){return new Promise(function(r){var i=new Image();i.onload=function(){r([i.width||440,i.height||140])};i.onerror=function(){r([440,140])};i.src=u})}
+async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks){
+  var loaded=await loadJsPDF();if(!loaded)return null;
+  var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=20;var y=0;
+  doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
+  try{var lr=await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');var lb=await lr.blob();var ld=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(lb)});doc.addImage(ld,'PNG',m,6,26,0)}catch(e){}
+  doc.setTextColor(255,255,255);doc.setFontSize(14);doc.setFont('helvetica','bold');doc.text('RAPID PRO CLEAN',pw/2,14,{align:'center'});
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text('rapidproclean.com.au | info@rapidproclean.com.au',pw/2,21,{align:'center'});
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('SIGNED DOCUMENT RECORD',pw/2,30,{align:'center'});
+  y=48;
+  doc.setTextColor(10,37,64);doc.setFontSize(12);doc.setFont('helvetica','bold');
+  var dlines=doc.splitTextToSize('Document: '+(docName||'Document'),pw-m*2);doc.text(dlines,m,y);y+=dlines.length*7+4;
+  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+  doc.text('Signed by: '+(staffName||''),m,y);y+=7;
+  doc.text('Date & Time: '+new Date(signedAt).toLocaleString('en-AU'),m,y);y+=7;
+  doc.text('Status: DIGITALLY SIGNED',m,y);y+=10;
+  doc.setDrawColor(10,37,64);doc.setLineWidth(0.3);doc.line(m,y,pw-m,y);y+=8;
+  doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('ORIGINAL DOCUMENT',m,y);y+=7;
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+  if(docUrl){
+    doc.text('Access the original document at:',m,y);y+=5;
+    var urlLines=doc.splitTextToSize(docUrl,pw-m*2);doc.setTextColor(0,0,200);doc.text(urlLines,m,y);y+=urlLines.length*5+6;
+  } else {doc.text('Document: '+(docName||''),m,y);y+=8;}
+  doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(m,y,pw-m,y);y+=8;
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF DECLARATION',m,y);y+=8;
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+  var stm=ticks?['I have read and understood this document.','I will follow it.']:['By signing, staff confirms they have read and understood this document.'];
+  stm.forEach(function(t){
+    if(ticks){doc.setDrawColor(10,37,64);doc.setLineWidth(0.3);doc.rect(m,y-3.6,4,4);doc.setLineWidth(0.7);doc.line(m+0.8,y-1.6,m+1.8,y-0.4);doc.line(m+1.8,y-0.4,m+3.3,y-3.1)}
+    doc.text(t,m+(ticks?7:0),y);y+=7;
+  });
+  y+=6;
+  doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF SIGNATURE',m,y);y+=8;
+  var su=signedUrl||'';
+  if(su.indexOf('typed:')===0){
+    doc.setFont('times','bolditalic');doc.setFontSize(24);doc.setTextColor(10,37,64);doc.text(su.slice(6),m,y+10);y+=16;
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,100,100);doc.text('(typed signature)',m,y);y+=4;
+  } else if(su){
+    try{
+      var sr=await fetch(su);var sb=await sr.blob();
+      if(/pdf/i.test(sb.type)||/\.pdf(\?|$)/i.test(su)){
+        doc.setFontSize(9);doc.setTextColor(60,60,60);doc.text('Staff uploaded a signed copy:',m,y+3);y+=8;
+        var ul=doc.splitTextToSize(su,pw-m*2);doc.setTextColor(0,0,200);doc.text(ul,m,y);y+=ul.length*5+4;
+      } else {
+        var sd=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(sb)});
+        var dm=await _imgDims(sd);var sc=Math.min(80/dm[0],30/dm[1]);var iw=dm[0]*sc,ih=dm[1]*sc;
+        doc.addImage(sd,/jpe?g/i.test(sd.slice(0,30))?'JPEG':'PNG',m,y,iw,ih);y+=ih+4;
+      }
+    }catch(e){doc.setFontSize(9);doc.setTextColor(150,150,150);doc.text('[Signature image could not be loaded]',m,y+5);y+=12;}
+  } else {
+    doc.setFontSize(9);doc.setTextColor(150,150,150);doc.text('[No signature captured]',m,y+5);y+=15;
+  }
+  doc.setDrawColor(100,100,100);doc.setLineWidth(0.3);doc.line(m,y,m+90,y);
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+  doc.text('Staff: '+(staffName||''),m,y+5);y+=9;
+  doc.text('Date: '+new Date(signedAt).toLocaleDateString('en-AU'),m,y);
+  doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');
+  doc.setFontSize(7);doc.setTextColor(100,100,100);
+  doc.text('Rapid Pro Clean | Digitally signed via Staff Portal | rapidproclean.com.au',pw/2,ph-5,{align:'center'});
+  return doc;
+}
+// v47: open a signed record. Uses the saved PDF when there is one, otherwise makes the PDF on the spot.
+async function viewSignedRecord(rec,docName,docUrl,staffName){
+  var w=null;try{w=window.open('','_blank')}catch(e){}
+  try{
+    var url=rec.signed_pdf||null;
+    if(!url){
+      var d=await buildSignedPdf(docName,staffName||rec.staff_name,rec.signed_at,rec.signed_url,docUrl,false);
+      if(!d){if(w)w.close();toast('Could not make the PDF. Check your internet and try again.');return}
+      url=URL.createObjectURL(d.output('blob'));
+    }
+    if(w){w.location.href=url}else{window.open(url,'_blank')}
+  }catch(e){if(w)try{w.close()}catch(x){};toast('Could not open: '+(e.message||'try again'))}
+}
+function sigTickCh(){var ok=q('sigC1').checked&&q('sigC2').checked;var b=q('sigSubmit');if(b){b.disabled=!ok;b.style.opacity=ok?'1':'.5'}}
+function sigOpenDocument(){if(_signDocUrl)window.open(_signDocUrl,'_blank')}
 
 // ═══════════════════════════════
 // EDIT SHIFT
