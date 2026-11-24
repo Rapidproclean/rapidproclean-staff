@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v50.0 — v49 + one Send Doc screen: upload new or pick existing documents, choose Training/Policy and staff, send; Upload Document back to folders only -->
 <!-- v49.0 — v48 + Policy read tracking: I have read this, Policy read tab (who has / has not read), Remind, Re-issue, sign-in pop-up with Later, Home banner -->
 <!-- v48.0 — v47 + Send document to chosen staff (no folder needed), Who has it list with Remind, directly sent training blocks sign in -->
 <!-- v47.0 — v46 + signing: read/tick boxes, signed PDF saved, working View links (typed signatures too) -->
@@ -2214,7 +2215,7 @@ async function renderAdminDocs(el2){
   var ub=document.createElement('button');ub.className='btn nv sm';ub.style.cssText='margin:0;flex:1';ub.textContent='📎 Upload Doc';
   ub.onclick=function(){openUploadDoc()};
   var sb3=document.createElement('button');sb3.className='btn tl sm';sb3.style.cssText='margin:0;flex:1';sb3.textContent='📨 Send Doc';
-  sb3.onclick=function(){openUploadDoc(0)};
+  sb3.onclick=function(){openSendNew()};
   bRow.appendChild(cb);bRow.appendChild(ub);bRow.appendChild(sb3);el2.appendChild(bRow);
   var fsq=document.createElement('input');fsq.className='mi tabF';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
   fsq.oninput=function(){dcApply()};
@@ -2254,8 +2255,8 @@ async function renderAdminDocs(el2){
 
     var body=document.createElement('div');body.className='dfb';
     var addB=document.createElement('button');addB.className='btn nv sm';addB.style.cssText='margin:8px 0;width:100%';addB.textContent='📎 Add Documents to this folder';
-    (function(fid){addB.onclick=function(){openUploadDoc(fid)};})(folder._loose?0:folder.id);
-    if(folder._loose)addB.textContent='📎 Upload a document (no folder)';
+    (function(fid,lo){addB.onclick=function(){if(lo)openSendNew();else openUploadDoc(fid)};})(folder.id,!!folder._loose);
+    if(folder._loose)addB.textContent='📨 Send a new document';
     body.appendChild(addB);
     var allB=document.createElement('button');allB.className='ebtn dcAllB';allB.style.cssText='display:none;margin:0 0 8px;width:100%';allB.textContent='Select all in this folder';
     allB.onclick=function(){fdocs.forEach(function(d){var r=_dcRows[d.id];if(r){r.cb.checked=true;_dcSel[d.id]=true}});dcBarUpdate()};body.appendChild(allB);
@@ -2541,14 +2542,15 @@ async function saveFolderAccess(){
 function udFill(keep){
   var t=(q('udFq').value||'').trim().toLowerCase(),cur=keep||q('udFd').value;
   var list=_udFolders.filter(function(f){return !t||String(f.name).toLowerCase().indexOf(t)!==-1});
-  q('udFd').innerHTML=list.map(function(f){return '<option value="'+f.id+'"'+(String(f.id)===String(cur)?' selected':'')+'>'+esc(f.name)+'</option>'}).join('')+(!t||'no folder send directly'.indexOf(t)!==-1?'<option value="0"'+(String(cur)==='0'?' selected':'')+'>📄 No folder (send directly to staff)</option>':'')||'<option value="">No folder matches</option>';
+  q('udFd').innerHTML=list.length?list.map(function(f){return '<option value="'+f.id+'"'+(String(f.id)===String(cur)?' selected':'')+'>'+esc(f.name)+'</option>'}).join(''):'<option value="">No folder matches</option>';
 }
 async function openUploadDoc(fid){
   if(typeof fid!=='number')fid=null;
   try{
     const {data:folders,error}=await db.from('rpc_doc_folders').select('*').order('name');
     if(error)throw error;
-    _udFolders=folders||[];q('udFq').value='';udFill(fid===0?'0':fid);
+    if(!folders||!folders.length){toast('Create a folder first, or use Send Doc to send without a folder');return}
+    _udFolders=folders;q('udFq').value='';udFill(fid);
     q('udNm').value='';q('udFile').value='';q('udSg').value='no';q('udNt').checked=true;openM('UDM');
   }catch(e){toast('Error loading folders: '+(e.message||'Check database setup'))}
 }
@@ -4734,6 +4736,8 @@ async function viewSignedRecord(rec,docName,docUrl,staffName){
 // ═══════════════════════════════════════════════════════════════════
 var _sdDocs=[],_sdType=null,_dsRemind={ids:[],name:''};
 function docEffType(d,folder){if(d&&(d.doc_type==='training'||d.doc_type==='policy'))return d.doc_type;return folder&&fType(folder)==='training'?'training':'policy'}
+var _sdMode='docs',_sdSrc='up',_sdBusy=false;
+function sdSrc(s){_sdSrc=s;q('sdUpBox').style.display=s==='up'?'':'none';q('sdExBox').style.display=s==='ex'?'':'none';typeBtnPaint('sdSrU','sdSrE',s==='up'?'training':'policy')}
 function sdSetType(t){_sdType=t;typeBtnPaint('sdTyT','sdTyP',t)}
 function sdToggleAll(){q('sdPickBox').style.display=q('sdAll').checked?'none':'block'}
 function sdDbMsg(e){var m=(e&&e.message)||'';return /audience|doc_type|rpc_doc_assign|schema cache|relation|column/i.test(m)?'One-time database step needed: run the v48 SQL in Supabase, then try again.':'Error: '+(m||'try again')}
@@ -4744,6 +4748,7 @@ async function openSend(ids){
   }catch(e){toast('Could not load the document');return}
   if(!_sdDocs.length)return;
   var d0=_sdDocs[0],f0=(_foldersCache||[]).find(function(f){return f.id===d0.folder_id});
+  _sdMode='docs';q('sdDocBox').style.display='none';
   q('sdN').textContent=_sdDocs.length===1?_sdDocs[0].name:_sdDocs.length+' documents';
   sdSetType(docEffType(d0,f0));
   var pre=[],all=true;
@@ -4753,13 +4758,50 @@ async function openSend(ids){
   pkInit('sdList',staffPickItems(),pre);pkRender('sdList','sdSq');
   openM('SendM');
 }
+async function openSendNew(){
+  _sdMode='new';_sdDocs=[];_sdType=null;typeBtnPaint('sdTyT','sdTyP',null);
+  q('sdDocBox').style.display='';q('sdN').textContent='Choose the document, then who gets it.';
+  q('sdFile').value='';q('sdNm').value='';q('sdDq').value='';
+  var fnm={};(_foldersCache||[]).forEach(function(f){fnm[f.id]=f.name});
+  pkInit('sdDocList',(_docsCache||[]).map(function(d){return {id:d.id,label:d.name,sub:d.folder_id?('in '+(fnm[d.folder_id]||'a folder')):'no folder'}}),[]);pkRender('sdDocList','sdDq');
+  sdSrc('up');
+  q('sdAll').checked=true;sdToggleAll();q('sdSq').value='';q('sdMsg').value='';q('sdNt').checked=true;q('sdStop').style.display='none';
+  pkInit('sdList',staffPickItems(),[]);pkRender('sdList','sdSq');
+  openM('SendM');
+}
 async function saveSend(){
   var all=q('sdAll').checked,sel=pkGet('sdList'),type=_sdType;
   if(!type){toast('Choose Training or Policy');return}
   if(!all&&!sel.length){toast('Tick at least one staff member, or choose All staff');return}
   var notify=q('sdNt').checked,note=q('sdMsg').value.trim();
   var staffAll=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+  if(_sdMode==='new'){
+    if(_sdSrc==='up'){if(!(q('sdFile').files&&q('sdFile').files.length)){toast('Choose a file to upload, or tap Pick existing');return}}
+    else if(!pkGet('sdDocList').length){toast('Tick at least one document');return}
+  }
+  if(_sdBusy)return;_sdBusy=true;
   try{
+    if(_sdMode==='new'){
+      var nids=[];
+      if(_sdSrc==='up'){
+        toast('Uploading…');
+        var files=q('sdFile').files,nm0=q('sdNm').value.trim();
+        for(var fi=0;fi<files.length;fi++){
+          var file=files[fi],safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+          var dname=files.length===1&&nm0?nm0:(nm0?nm0+' — '+file.name:file.name);
+          var path='docs/direct_'+Date.now()+'_'+fi+'_'+safe;
+          var upl=await db.storage.from('rpc-photos').upload(path,file,{contentType:file.type,upsert:true});
+          if(upl.error){toast('Upload failed: '+upl.error.message);return}
+          var url=db.storage.from('rpc-photos').getPublicUrl(path).data.publicUrl;
+          var ins0=await db.from('rpc_documents').insert({folder_id:null,name:dname,url:url,storage_path:path}).select('id');
+          if(ins0.error)throw ins0.error;
+          nids.push(ins0.data[0].id);
+        }
+      } else nids=pkGet('sdDocList');
+      var dr=await db.from('rpc_documents').select('*').in('id',nids);
+      _sdDocs=dr.data||[];
+      if(!_sdDocs.length){toast('Could not load the document');return}
+    }
     for(var i=0;i<_sdDocs.length;i++){
       var d=_sdDocs[i];
       var up=await db.from('rpc_documents').update({doc_type:type,audience:all?'all':'selected'}).eq('id',d.id);
@@ -4785,6 +4827,7 @@ async function saveSend(){
     }
     closeM('SendM');toast('Sent ✅');renderDocs();loadNotifs();
   }catch(e){toast(sdDbMsg(e))}
+  finally{_sdBusy=false}
 }
 async function sdStop(){
   if(_sdDocs.length!==1)return;
@@ -5323,6 +5366,23 @@ async function publishShift(id){
 </div></div>
 <div class="mov" id="SendM"><div class="msh"><div class="mh"></div><div class="mt">Send document</div>
   <div class="ms" id="sdN"></div>
+  <div id="sdDocBox" style="display:none">
+    <div class="mlbl">Document</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn sc" id="sdSrU" style="margin:0;flex:1" onclick="sdSrc('up')">⬆ Upload new</button>
+      <button class="btn sc" id="sdSrE" style="margin:0;flex:1" onclick="sdSrc('ex')">📂 Pick existing</button>
+    </div>
+    <div id="sdUpBox">
+      <input type="file" id="sdFile" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" multiple style="margin-bottom:6px;font-size:13px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">PDF, Word or image. You can choose several files.</div>
+      <input class="mi" id="sdNm" type="text" placeholder="Document name (optional)" style="margin-bottom:12px">
+    </div>
+    <div id="sdExBox" style="display:none">
+      <input class="mi" id="sdDq" type="text" placeholder="🔍 Search documents…" oninput="pkRender('sdDocList','sdDq')" style="margin-bottom:6px;font-size:16px">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkClear('sdDocList','sdDq')">Clear</button><span id="sdDocListN" style="font-size:12px;color:var(--t3);margin-left:auto"></span></div>
+      <div id="sdDocList" style="max-height:170px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+    </div>
+  </div>
   <div class="mlbl">Type</div>
   <div style="display:flex;gap:8px;margin-bottom:12px">
     <button class="btn sc" id="sdTyT" style="margin:0;flex:1" onclick="sdSetType('training')">📚 Training<br><span style="font-size:10px;font-weight:500">read and sign</span></button>
