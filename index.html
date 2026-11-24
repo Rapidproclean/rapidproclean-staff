@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v48.0 — v47 + Send document to chosen staff (no folder needed), Who has it list with Remind, directly sent training blocks sign in -->
 <!-- v47.0 — v46 + signing: read/tick boxes, signed PDF saved, working View links (typed signatures too) -->
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
 <!-- v40.0 — v39 + tabs: admin (All / Training / Policy / Personal / Signed by staff) and staff (Training / Policies / My documents / My signed) -->
@@ -770,9 +771,12 @@ async function checkTraining(){
       return canSeeFolder(f,accIds);
     });
     var myFolderIds=myFolders.map(function(f){return f.id});
+    var myAsg=[];try{var gR=await db.from('rpc_doc_assign').select('doc_id').eq('staff_id',CU.id);myAsg=(gR.data||[]).map(function(x){return x.doc_id})}catch(e){}
     var needed=docs.filter(function(d){
-      return myFolderIds.indexOf(d.folder_id)!==-1 && signed.indexOf(d.id)===-1;
-    });
+      return !d.audience && myFolderIds.indexOf(d.folder_id)!==-1 && signed.indexOf(d.id)===-1;
+    }).concat(docs.filter(function(d){
+      return d.audience && d.doc_type==='training' && (d.audience==='all'||myAsg.indexOf(d.id)!==-1) && signed.indexOf(d.id)===-1;
+    }));
     if(!needed.length)return false;
     var tbl=q('TBL');tbl.innerHTML='';
     needed.forEach(function(d){
@@ -780,7 +784,7 @@ async function checkTraining(){
       var div=document.createElement('div');
       div.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:12px 14px;margin-bottom:10px';
       div.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--nv)">📄 '+esc(d.name)+'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin-top:2px">📁 '+esc(folder?folder.name:'Training')+' · Required before sign in</div>';
+        +'<div style="font-size:11px;color:var(--t3);margin-top:2px">📁 '+esc(folder?folder.name:'Sent to you')+' · Required before sign in</div>';
       var row=document.createElement('div');row.style.cssText='display:flex;gap:8px;margin-top:10px';
       var rb=document.createElement('button');rb.className='btn sc sm';rb.style.cssText='margin:0;flex:1';rb.textContent='📖 Read';
       (function(url){rb.onclick=function(){window.open(url,'_blank')};})(d.url);
@@ -2002,6 +2006,16 @@ async function renderStaffDocs(el2){
   });
   var signedIds=signed.map(function(s){return s.doc_id});
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  // v48: documents sent directly to this staff member (or to all staff) get their own groups
+  var myAsg=[];try{var gR=await db.from('rpc_doc_assign').select('doc_id').eq('staff_id',CU.id);myAsg=(gR.data||[]).map(function(x){return x.doc_id})}catch(e){}
+  var sentDocs=docs.filter(function(d){return d.audience==='all'||(d.audience==='selected'&&myAsg.indexOf(d.id)!==-1)});
+  docs=docs.filter(function(d){return !d.audience});
+  [['training',-1,'📨 Sent to you — Training','yes'],['policy',-2,'📨 Sent to you — Policy','no']].forEach(function(g){
+    var gd=sentDocs.filter(function(d){return (d.doc_type==='training'?'training':'policy')===g[0]});
+    if(!gd.length)return;
+    folders.push({id:g[1],name:g[2],folder_type:g[0],requires_signature:g[3]});
+    gd.forEach(function(d){var c=Object.assign({},d);c.folder_id=g[1];docs.push(c)});
+  });
   el2.innerHTML='<div class="sl">Training &amp; Policy</div>';
   var sfq=document.createElement('input');sfq.className='mi';sfq.type='text';sfq.placeholder='🔍 Search folders or documents…';sfq.style.cssText='margin-bottom:10px;font-size:16px';
   sfq.oninput=function(){var t=sfq.value.trim().toLowerCase();el2.querySelectorAll('.df[data-s]').forEach(function(d){d.style.display=(!t||(d.getAttribute('data-s')||'').indexOf(t)!==-1)?'':'none'});el2.querySelectorAll('[data-sr]').forEach(function(r){r.style.display=(!t||(r.getAttribute('data-sr')||'').indexOf(t)!==-1)?'':'none'})};
@@ -2132,6 +2146,9 @@ async function renderAdminDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   _docsCache=docs;_foldersCache=folders;
+  var asgMap={};try{var gR0=await db.from('rpc_doc_assign').select('doc_id');(gR0.data||[]).forEach(function(r){asgMap[r.doc_id]=(asgMap[r.doc_id]||0)+1})}catch(e){}
+  var loopF=[];[['training','📨 Sent directly — Training','yes'],['policy','📨 Sent directly — Policy','no'],['none','📄 Documents not sent yet','no']].forEach(function(g,i){if(docs.some(function(d){return !d.folder_id&&(d.doc_type||'none')===g[0]}))loopF.push({id:-(i+1),name:g[1],folder_type:g[0]==='none'?'policy':g[0],requires_signature:g[2],staff_folder_id:null,_loose:1,_lt:g[0]})});
+  loopF=loopF.concat(folders);
   var accMap={};try{var aR=await db.from('rpc_folder_access').select('folder_id,staff_id');(aR.data||[]).forEach(function(r){(accMap[r.folder_id]=accMap[r.folder_id]||[]).push(r.staff_id)})}catch(e){}
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
   var docNames={};docs.forEach(function(d){docNames[d.id]=d.name});
@@ -2144,7 +2161,7 @@ async function renderAdminDocs(el2){
 
   // Action buttons row — appended first, NEVER destroyed by innerHTML+=
   _dcRows={};_dcSel={};_dcMode=false;_dcChips={};_dcSearch=null;_dcEl=el2;dcBarOff();
-  var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});
+  var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});loopF.forEach(function(f){if(f._loose){fCnt.all++;if(f._lt!=='none')fCnt[f._lt]++}});
   var tabsBar=document.createElement('div');tabsBar.style.cssText='display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding-bottom:8px;margin-bottom:10px;-webkit-overflow-scrolling:touch';
   [['all','All ('+fCnt.all+')'],['training','📚 Training ('+fCnt.training+')'],['policy','📋 Policy ('+fCnt.policy+')'],['personal','🗂 Personal ('+fCnt.personal+')'],['signed','✍️ Signed by staff ('+signed.length+')']].forEach(function(c){
     var b=document.createElement('button');b.className='ebtn';b.style.cssText='flex:none;padding:9px 14px;font-size:13px;touch-action:manipulation';b.textContent=c[1];
@@ -2163,7 +2180,9 @@ async function renderAdminDocs(el2){
   };
   var ub=document.createElement('button');ub.className='btn nv sm';ub.style.cssText='margin:0;flex:1';ub.textContent='📎 Upload Doc';
   ub.onclick=function(){openUploadDoc()};
-  bRow.appendChild(cb);bRow.appendChild(ub);el2.appendChild(bRow);
+  var sb3=document.createElement('button');sb3.className='btn tl sm';sb3.style.cssText='margin:0;flex:1';sb3.textContent='📨 Send Doc';
+  sb3.onclick=function(){openUploadDoc(0)};
+  bRow.appendChild(cb);bRow.appendChild(ub);bRow.appendChild(sb3);el2.appendChild(bRow);
   var fsq=document.createElement('input');fsq.className='mi tabF';fsq.type='text';fsq.placeholder='🔍 Search folders or documents…';fsq.style.cssText='margin-bottom:10px;font-size:16px';
   fsq.oninput=function(){dcApply()};
   el2.appendChild(fsq);
@@ -2178,11 +2197,11 @@ async function renderAdminDocs(el2){
   }
 
   // Folder list
-  folders.forEach(function(folder){
-    var fdocs=docs.filter(function(d){return d.folder_id===folder.id});
+  loopF.forEach(function(folder){
+    var fdocs=docs.filter(function(d){return folder._loose?(!d.folder_id&&(d.doc_type||'none')===folder._lt):d.folder_id===folder.id});
     var df=document.createElement('div');df.className='df tabF';
     df.setAttribute('data-s',(folder.name+' '+fdocs.map(function(d){return d.name}).join(' ')).toLowerCase());
-    df.setAttribute('data-ft',fType(folder));
+    df.setAttribute('data-ft',folder._lt==='none'?'loose':fType(folder));
 
     var hdr=document.createElement('div');hdr.className='dfh';
     var icon=document.createElement('div');icon.style.fontSize='20px';icon.textContent='📁';
@@ -2190,19 +2209,20 @@ async function renderAdminDocs(el2){
     var accIds=[];if(folder.staff_folder_id){accIds.push(folder.staff_folder_id);(accMap[folder.id]||[]).forEach(function(i){if(accIds.indexOf(i)===-1)accIds.push(i)})}
     var assignedTo=accIds.length?{name:accIds.length===1?((allStaff.find(function(s){return s.id===accIds[0]})||{}).name||'1 staff member'):(accIds.length<=3?accIds.map(function(i){var s=allStaff.find(function(x){return x.id===i});return s?s.name.split(' ')[0]:'?'}).join(', '):accIds.length+' staff')}:null;
     info.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(folder.name)+'</div>'
-      +fTagHTML(folder)
-      +'<div style="font-size:11px;color:var(--t3);margin-top:1px">'+fdocs.length+' doc'+(fdocs.length!==1?'s':'')+' · '+(folder.requires_signature==='yes'?'✍️ Sig required':'Read only')+'</div>'
-      +'<div style="font-size:10px;margin-top:2px;font-weight:700;color:'+(assignedTo?'var(--nv2)':'var(--t3)')+'">👤 '+(assignedTo?assignedTo.name+' only':'All Staff')+'</div>';
+      +(folder._loose?'':fTagHTML(folder))
+      +'<div style="font-size:11px;color:var(--t3);margin-top:1px">'+fdocs.length+' doc'+(fdocs.length!==1?'s':'')+(folder._loose?'':' · '+(folder.requires_signature==='yes'?'✍️ Sig required':'Read only'))+'</div>'
+      +(folder._loose?'':'<div style="font-size:10px;margin-top:2px;font-weight:700;color:'+(assignedTo?'var(--nv2)':'var(--t3)')+'">👤 '+(assignedTo?assignedTo.name+' only':'All Staff')+'</div>');
     var arrSpan=document.createElement('span');arrSpan.style.cssText='color:var(--t3);font-size:14px';arrSpan.textContent='▼';
     var dBtn=document.createElement('button');dBtn.className='dbtn';dBtn.textContent='Delete';
     (function(fid,fname){dBtn.onclick=function(e){e.stopPropagation();delDocFolder(fid,fname)};})(folder.id,folder.name);
     var aBtn=document.createElement('button');aBtn.className='ebtn';aBtn.textContent='Settings';
     (function(fid){aBtn.onclick=function(e){e.stopPropagation();openFolderAccess(fid)};})(folder.id);
-    hdr.appendChild(icon);hdr.appendChild(info);hdr.appendChild(arrSpan);hdr.appendChild(aBtn);hdr.appendChild(dBtn);
+    hdr.appendChild(icon);hdr.appendChild(info);hdr.appendChild(arrSpan);hdr.appendChild(aBtn);hdr.appendChild(dBtn);if(folder._loose){aBtn.style.display='none';dBtn.style.display='none'}
 
     var body=document.createElement('div');body.className='dfb';
     var addB=document.createElement('button');addB.className='btn nv sm';addB.style.cssText='margin:8px 0;width:100%';addB.textContent='📎 Add Documents to this folder';
-    (function(fid){addB.onclick=function(){openUploadDoc(fid)};})(folder.id);
+    (function(fid){addB.onclick=function(){openUploadDoc(fid)};})(folder._loose?0:folder.id);
+    if(folder._loose)addB.textContent='📎 Upload a document (no folder)';
     body.appendChild(addB);
     var allB=document.createElement('button');allB.className='ebtn dcAllB';allB.style.cssText='display:none;margin:0 0 8px;width:100%';allB.textContent='Select all in this folder';
     allB.onclick=function(){fdocs.forEach(function(d){var r=_dcRows[d.id];if(r){r.cb.checked=true;_dcSel[d.id]=true}});dcBarUpdate()};body.appendChild(allB);
@@ -2216,7 +2236,14 @@ async function renderAdminDocs(el2){
         var dcb=document.createElement('input');dcb.type='checkbox';dcb.style.cssText='display:none;width:20px;height:20px;flex:none;accent-color:var(--nv2)';
         dcb.onchange=function(){if(dcb.checked)_dcSel[d.id]=true;else delete _dcSel[d.id];dcBarUpdate()};_dcRows[d.id]={cb:dcb,ic:dic};
         var dinf=document.createElement('div');dinf.style.flex='1';
-        dinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+esc(d.name)+'</div>';
+        dinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+esc(d.name)+'</div>'
+          +(d.audience?'<div style="font-size:10px;font-weight:700;color:var(--nv2);margin-top:2px">📨 Sent: '+(d.audience==='all'?'All staff':((asgMap[d.id]||0)+' staff'))+' · '+(d.doc_type==='training'?'Training':'Policy')+'</div>':'');
+        var dbRow=document.createElement('div');dbRow.style.cssText='display:flex;gap:6px;margin-top:5px;flex-wrap:wrap';
+        var sdB=document.createElement('button');sdB.className='ebtn';sdB.textContent='📨 Send';sdB.style.touchAction='manipulation';
+        (function(id){sdB.onclick=function(e){e.stopPropagation();openSend([id])};})(d.id);
+        var stB=document.createElement('button');stB.className='ebtn';stB.textContent='👥 Who has it';stB.style.touchAction='manipulation';
+        (function(id){stB.onclick=function(e){e.stopPropagation();openDocStatus(id)};})(d.id);
+        dbRow.appendChild(sdB);dbRow.appendChild(stB);dinf.appendChild(dbRow);
         var dacts=document.createElement('div');dacts.style.cssText='display:flex;gap:4px;flex-shrink:0';
         var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(d.url);
@@ -2480,26 +2507,25 @@ async function saveFolderAccess(){
 function udFill(keep){
   var t=(q('udFq').value||'').trim().toLowerCase(),cur=keep||q('udFd').value;
   var list=_udFolders.filter(function(f){return !t||String(f.name).toLowerCase().indexOf(t)!==-1});
-  q('udFd').innerHTML=list.length?list.map(function(f){return '<option value="'+f.id+'"'+(String(f.id)===String(cur)?' selected':'')+'>'+esc(f.name)+'</option>'}).join(''):'<option value="">No folder matches</option>';
+  q('udFd').innerHTML=list.map(function(f){return '<option value="'+f.id+'"'+(String(f.id)===String(cur)?' selected':'')+'>'+esc(f.name)+'</option>'}).join('')+(!t||'no folder send directly'.indexOf(t)!==-1?'<option value="0"'+(String(cur)==='0'?' selected':'')+'>📄 No folder (send directly to staff)</option>':'')||'<option value="">No folder matches</option>';
 }
 async function openUploadDoc(fid){
   if(typeof fid!=='number')fid=null;
   try{
     const {data:folders,error}=await db.from('rpc_doc_folders').select('*').order('name');
     if(error)throw error;
-    if(!folders||!folders.length){toast('Create a folder first before uploading documents');return}
-    _udFolders=folders;q('udFq').value='';udFill(fid);
+    _udFolders=folders||[];q('udFq').value='';udFill(fid===0?'0':fid);
     q('udNm').value='';q('udFile').value='';q('udSg').value='no';q('udNt').checked=true;openM('UDM');
   }catch(e){toast('Error loading folders: '+(e.message||'Check database setup'))}
 }
 
 async function saveDocUpload(){
   const fidRaw=q('udFd').value,fid=parseInt(fidRaw);
-  if(!fid||isNaN(fid)){toast('Select a folder first');return}
+  if(fidRaw===''||isNaN(fid)){toast('Select a folder first');return}
   const nm=q('udNm').value.trim(),files=q('udFile').files,sg=q('udSg').value;
   if(!files||!files.length){toast('Select at least one file');return}
   toast('Uploading '+files.length+' file'+(files.length>1?'s':'')+'...');
-  let cnt=0;const staff=allStaff.filter(s=>!s.is_admin);const upNames=[];
+  let cnt=0;const staff=allStaff.filter(s=>!s.is_admin);const upNames=[];const newIds=[];
   for(const file of files){
     // Sanitise filename — Supabase rejects spaces and special chars in paths
     const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
@@ -2509,18 +2535,19 @@ async function saveDocUpload(){
       const {error:ue}=await db.storage.from('rpc-photos').upload(fn,file,{contentType:file.type,upsert:true});
       if(ue){toast('Upload failed: '+ue.message);continue}
       const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
-      const {error:ie}=await db.from('rpc_documents').insert({folder_id:fid,name,url:ud.publicUrl,storage_path:fn});
+      const {data:insD,error:ie}=await db.from('rpc_documents').insert({folder_id:fid||null,name,url:ud.publicUrl,storage_path:fn}).select('id');
       if(ie){toast('Save failed: '+ie.message);continue}
-      if(sg==='yes')await db.from('rpc_doc_folders').update({requires_signature:'yes'}).eq('id',fid);
+      if(sg==='yes'&&fid)await db.from('rpc_doc_folders').update({requires_signature:'yes'}).eq('id',fid);
+      if(!fid&&insD&&insD[0])newIds.push(insD[0].id);
       cnt++;upNames.push(name);
     }catch(e){toast('Error: '+(e.message||'Upload failed'))}
   }
-  if(cnt>0&&q('udNt').checked){try{const rc=await folderRecipients(fid);if(rc.length){const msg=upNames.length===1?'"'+upNames[0]+'" uploaded. Please review.':upNames.length+' new documents uploaded. Please review.';await db.from('rpc_notifications').insert(rc.map(function(id){return {staff_id:id,title:'New Document',message:msg,icon:'📄',is_read:false}}))}}catch(e){}}
-  if(cnt>0){closeM('UDM');toast(cnt+' document'+(cnt>1?'s':'')+' uploaded ✅');renderDocs();loadNotifs();}
+  if(cnt>0&&fid&&q('udNt').checked){try{const rc=await folderRecipients(fid);if(rc.length){const msg=upNames.length===1?'"'+upNames[0]+'" uploaded. Please review.':upNames.length+' new documents uploaded. Please review.';await db.from('rpc_notifications').insert(rc.map(function(id){return {staff_id:id,title:'New Document',message:msg,icon:'📄',is_read:false}}))}}catch(e){}}
+  if(cnt>0){closeM('UDM');toast(cnt+' document'+(cnt>1?'s':'')+' uploaded ✅');renderDocs();loadNotifs();if(newIds.length)openSend(newIds);}
   else toast('No files were uploaded. Check the errors above.');
 }
 async function delDocFolder(id,name){if(!confirm('Delete "'+name+'" and all documents?'))return;try{await db.from('rpc_documents').delete().eq('folder_id',id);try{await db.from('rpc_folder_access').delete().eq('folder_id',id)}catch(e){}await db.from('rpc_doc_folders').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
-async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path){const oth=await db.from('rpc_documents').select('id').eq('storage_path',path).neq('id',id).limit(1);if(!(oth.data&&oth.data.length))await db.storage.from('rpc-photos').remove([path])}await db.from('rpc_documents').delete().eq('id',id);toast('Deleted');renderDocs()}catch{}}
+async function delDoc(id,name,path){if(!confirm('Delete "'+name+'"?'))return;try{if(path){const oth=await db.from('rpc_documents').select('id').eq('storage_path',path).neq('id',id).limit(1);if(!(oth.data&&oth.data.length))await db.storage.from('rpc-photos').remove([path])}await db.from('rpc_documents').delete().eq('id',id);try{await db.from('rpc_doc_assign').delete().eq('doc_id',id)}catch(e){}toast('Deleted');renderDocs()}catch{}}
 
 // SIGNATURE
 function openSign(docId,docName,docUrl){_signDocUrl=docUrl||null;var ob=q('sigOpenDoc');if(ob)ob.style.display=_signDocUrl?'inline-block':'none';q('sigC1').checked=false;q('sigC2').checked=false;sigTickCh();pSignId=docId;q('SignMId').value=docId;q('SignMN').textContent=docName;q('sigTyped').value='';q('sigFile').value='';q('sigMeth').value='draw';sigMethCh();openM('SignM');setTimeout(initSig,100)}
@@ -4664,6 +4691,106 @@ async function viewSignedRecord(rec,docName,docUrl,staffName){
     if(w){w.location.href=url}else{window.open(url,'_blank')}
   }catch(e){if(w)try{w.close()}catch(x){};toast('Could not open: '+(e.message||'try again'))}
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// v48: SEND A DOCUMENT TO CHOSEN STAFF (no folder needed)
+// rpc_documents.audience: empty = follow the folder, 'all' = all staff (incl. new), 'selected' = staff in rpc_doc_assign
+// rpc_documents.doc_type: 'training' (read + sign) or 'policy' (read only)
+// ═══════════════════════════════════════════════════════════════════
+var _sdDocs=[],_sdType=null,_dsRemind={ids:[],name:''};
+function docEffType(d,folder){if(d&&(d.doc_type==='training'||d.doc_type==='policy'))return d.doc_type;return folder&&fType(folder)==='training'?'training':'policy'}
+function sdSetType(t){_sdType=t;typeBtnPaint('sdTyT','sdTyP',t)}
+function sdToggleAll(){q('sdPickBox').style.display=q('sdAll').checked?'none':'block'}
+function sdDbMsg(e){var m=(e&&e.message)||'';return /audience|doc_type|rpc_doc_assign|schema cache|relation|column/i.test(m)?'One-time database step needed: run the v48 SQL in Supabase, then try again.':'Error: '+(m||'try again')}
+async function openSend(ids){
+  try{
+    var r=await db.from('rpc_documents').select('*').in('id',ids);
+    _sdDocs=r.data||[];
+  }catch(e){toast('Could not load the document');return}
+  if(!_sdDocs.length)return;
+  var d0=_sdDocs[0],f0=(_foldersCache||[]).find(function(f){return f.id===d0.folder_id});
+  q('sdN').textContent=_sdDocs.length===1?_sdDocs[0].name:_sdDocs.length+' documents';
+  sdSetType(docEffType(d0,f0));
+  var pre=[],all=true;
+  if(d0.audience==='selected'){all=false;try{var pr=await db.from('rpc_doc_assign').select('staff_id').eq('doc_id',d0.id);pre=(pr.data||[]).map(function(x){return x.staff_id})}catch(e){}}
+  q('sdAll').checked=all;sdToggleAll();q('sdSq').value='';q('sdMsg').value='';q('sdNt').checked=true;
+  q('sdStop').style.display=(_sdDocs.length===1&&d0.audience)?'':'none';
+  pkInit('sdList',staffPickItems(),pre);pkRender('sdList','sdSq');
+  openM('SendM');
+}
+async function saveSend(){
+  var all=q('sdAll').checked,sel=pkGet('sdList'),type=_sdType;
+  if(!type){toast('Choose Training or Policy');return}
+  if(!all&&!sel.length){toast('Tick at least one staff member, or choose All staff');return}
+  var notify=q('sdNt').checked,note=q('sdMsg').value.trim();
+  var staffAll=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+  try{
+    for(var i=0;i<_sdDocs.length;i++){
+      var d=_sdDocs[i];
+      var up=await db.from('rpc_documents').update({doc_type:type,audience:all?'all':'selected'}).eq('id',d.id);
+      if(up.error)throw up.error;
+      var prev=[];
+      try{var pr=await db.from('rpc_doc_assign').select('staff_id').eq('doc_id',d.id);prev=(pr.data||[]).map(function(x){return x.staff_id})}catch(e){}
+      var toAdd=[];
+      if(all){
+        if(prev.length){var dl0=await db.from('rpc_doc_assign').delete().eq('doc_id',d.id);if(dl0.error)throw dl0.error}
+      } else {
+        toAdd=sel.filter(function(s){return prev.indexOf(s)===-1});
+        var toRem=prev.filter(function(s){return sel.indexOf(s)===-1});
+        if(toRem.length){var dl=await db.from('rpc_doc_assign').delete().eq('doc_id',d.id).in('staff_id',toRem);if(dl.error)throw dl.error}
+        if(toAdd.length){var ins=await db.from('rpc_doc_assign').upsert(toAdd.map(function(s){return {doc_id:d.id,staff_id:s}}),{onConflict:'doc_id,staff_id'});if(ins.error)throw ins.error}
+      }
+      if(notify){
+        var rc=all?staffAll:toAdd;
+        if(rc.length){
+          var msg=(type==='training'?'Please read and sign "':'Please read "')+d.name+'"'+(note?' — '+note:'');
+          try{await db.from('rpc_notifications').insert(rc.map(function(s){return {staff_id:s,title:type==='training'?'Training to sign':'New policy',message:msg,icon:type==='training'?'📚':'📋',is_read:false}}))}catch(e){}
+        }
+      }
+    }
+    closeM('SendM');toast('Sent ✅');renderDocs();loadNotifs();
+  }catch(e){toast(sdDbMsg(e))}
+}
+async function sdStop(){
+  if(_sdDocs.length!==1)return;
+  if(!confirm('Stop sending "'+_sdDocs[0].name+'" directly? It will follow its folder again (a document with no folder is then seen by nobody).'))return;
+  try{
+    var up=await db.from('rpc_documents').update({audience:null,doc_type:null}).eq('id',_sdDocs[0].id);if(up.error)throw up.error;
+    try{await db.from('rpc_doc_assign').delete().eq('doc_id',_sdDocs[0].id)}catch(e){}
+    closeM('SendM');toast('Stopped');renderDocs();
+  }catch(e){toast(sdDbMsg(e))}
+}
+async function openDocStatus(did){
+  var d=(_docsCache||[]).find(function(x){return x.id===did});if(!d)return;
+  var f=(_foldersCache||[]).find(function(x){return x.id===d.folder_id});
+  var needsSign=d.doc_type?d.doc_type==='training':(!!f&&f.requires_signature==='yes');
+  q('dsN').textContent=d.name;q('dsSum').textContent='';q('dsRem').style.display='none';
+  q('dsList').innerHTML='<div class="loader"><div class="spin"></div>Loading…</div>';openM('DsM');
+  try{
+    var ids=[];
+    if(d.audience==='all')ids=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+    else if(d.audience==='selected'){var r=await db.from('rpc_doc_assign').select('staff_id').eq('doc_id',did);ids=(r.data||[]).map(function(x){return x.staff_id})}
+    else if(f)ids=await folderRecipients(f.id);
+    var sg={};var sr=await db.from('rpc_signed_docs').select('staff_id,signed_at').eq('doc_id',did);(sr.data||[]).forEach(function(x){sg[x.staff_id]=x.signed_at});
+    var rows=ids.map(function(i){var s=allStaff.find(function(x){return x.id===i});return s&&!s.is_admin?{id:i,name:s.name,at:sg[i]||null}:null}).filter(Boolean);
+    rows.sort(function(a,b){return (a.at?1:0)-(b.at?1:0)||String(a.name).localeCompare(b.name)});
+    var done=rows.filter(function(x){return x.at}).length,pend=rows.filter(function(x){return !x.at});
+    q('dsSum').textContent=needsSign?('Signed '+done+' of '+rows.length+(pend.length?' · '+pend.length+' still to sign':'')):('Sent to '+rows.length+' staff · read tracking comes in the next update');
+    q('dsList').innerHTML=rows.length?rows.map(function(x){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--bd);font-size:13px"><div style="flex:1;font-weight:600;color:var(--tx)">'+esc(x.name)+'</div><div style="font-size:12px;color:'+(x.at?'var(--tl)':'var(--t3)')+'">'+(needsSign?(x.at?'✅ Signed '+fmtD(x.at):'⏳ Not signed'):'📨 Sent')+'</div></div>';
+    }).join(''):'<div style="font-size:12px;color:var(--t3);padding:10px 2px">Nobody has this document yet.</div>';
+    _dsRemind={ids:pend.map(function(x){return x.id}),name:d.name};
+    if(needsSign&&pend.length)q('dsRem').style.display='';
+  }catch(e){q('dsList').innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 2px">Could not load. '+esc(sdDbMsg(e))+'</div>'}
+}
+async function dsSendRemind(){
+  if(!_dsRemind.ids.length)return;
+  try{
+    await db.from('rpc_notifications').insert(_dsRemind.ids.map(function(s){return {staff_id:s,title:'Reminder',message:'Please read and sign "'+_dsRemind.name+'"',icon:'⏰',is_read:false}}));
+    toast('Reminder sent to '+_dsRemind.ids.length+' staff ✅');closeM('DsM');loadNotifs();
+  }catch(e){toast('Error: '+(e.message||'try again'))}
+}
+
 function sigTickCh(){var ok=q('sigC1').checked&&q('sigC2').checked;var b=q('sigSubmit');if(b){b.disabled=!ok;b.style.opacity=ok?'1':'.5'}}
 function sigOpenDocument(){if(_signDocUrl)window.open(_signDocUrl,'_blank')}
 
@@ -4999,6 +5126,33 @@ async function publishShift(id){
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">The originals stay where they are. Delete them afterwards if you no longer need them.</div>
   <button class="btn tl" onclick="cpConfirm()">Copy</button>
   <button class="btn sc" onclick="closeM('CpM')">Cancel</button>
+</div></div>
+<div class="mov" id="SendM"><div class="msh"><div class="mh"></div><div class="mt">Send document</div>
+  <div class="ms" id="sdN"></div>
+  <div class="mlbl">Type</div>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn sc" id="sdTyT" style="margin:0;flex:1" onclick="sdSetType('training')">📚 Training<br><span style="font-size:10px;font-weight:500">read and sign</span></button>
+    <button class="btn sc" id="sdTyP" style="margin:0;flex:1" onclick="sdSetType('policy')">📋 Policy<br><span style="font-size:10px;font-weight:500">read only</span></button>
+  </div>
+  <div class="mlbl">Who gets it?</div>
+  <label style="display:flex;align-items:center;gap:10px;padding:6px 2px 10px;font-size:14px;font-weight:600;cursor:pointer"><input type="checkbox" id="sdAll" checked onchange="sdToggleAll()" style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">All staff (including new staff added later)</label>
+  <div id="sdPickBox" style="display:none">
+    <input class="mi" id="sdSq" type="text" placeholder="🔍 Search staff…" oninput="pkRender('sdList','sdSq')" style="margin-bottom:6px;font-size:16px">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('sdList','sdSq')">Select all shown</button><button class="ebtn" onclick="pkClear('sdList','sdSq')">Clear</button><span id="sdListN" style="font-size:12px;color:var(--t3);margin-left:auto"></span></div>
+    <div id="sdList" style="max-height:190px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:10px;padding:2px 2px 8px;font-size:13px;cursor:pointer"><input type="checkbox" id="sdNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Send a notification to the staff</label>
+  <input class="mi" id="sdMsg" type="text" placeholder="Optional message to staff" style="margin-bottom:12px">
+  <button class="btn tl" onclick="saveSend()">Send</button>
+  <button class="btn sc" id="sdStop" style="display:none" onclick="sdStop()">Stop sending (follow the folder again)</button>
+  <button class="btn sc" onclick="closeM('SendM')">Cancel</button>
+</div></div>
+<div class="mov" id="DsM"><div class="msh"><div class="mh"></div><div class="mt">Who has it</div>
+  <div class="ms" id="dsN"></div>
+  <div id="dsSum" style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:8px"></div>
+  <div id="dsList" style="max-height:300px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
+  <button class="btn tl" id="dsRem" style="display:none" onclick="dsSendRemind()">⏰ Remind staff who have not signed</button>
+  <button class="btn sc" onclick="closeM('DsM')">Close</button>
 </div></div>
 <div id="DcBar" style="display:none;position:fixed;left:8px;right:8px;bottom:calc(var(--nav) + 8px);z-index:95;background:var(--cd);border:1.5px solid var(--nv);border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div id="DcN" style="flex:1;font-size:13px;font-weight:700;color:var(--tx)">0 selected</div><button class="ebtn" onclick="dcSelMode(false)">Done</button></div>
