@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
 <!-- v51.0 — v50 + Sign again / Read again (issued_at), outdated signatures kept as history, sent documents return to their folder once signed or read -->
@@ -2668,7 +2669,8 @@ async function saveSign(){
     // v47: make the signed PDF and keep it in storage (signing still works if this step fails)
     var signedAtIso=new Date().toISOString();
     try{
-      var pdfDoc=await buildSignedPdf(docName,CU.name,signedAtIso,signedUrl,_signDocUrl,true);
+      var _meta={docId:docId};try{var _vr=await db.from('rpc_documents').select('version').eq('id',docId).limit(1);if(_vr.data&&_vr.data[0]&&_vr.data[0].version)_meta.version=_vr.data[0].version}catch(e){}
+      var pdfDoc=await buildSignedPdf(docName,CU.name,signedAtIso,signedUrl,_signDocUrl,true,_meta);
       if(pdfDoc){
         var pdfBlob=pdfDoc.output('blob');
         var pfn='signed-pdfs/'+CU.id+'_'+docId+'_'+Date.now()+'.pdf';
@@ -4704,10 +4706,39 @@ async function downloadSignedDoc(docName,staffName,signedAt,signedUrl,docUrl){
   }catch(e){toast('PDF error: '+(e.message||'Try again'));}
 }
 
+// v54: helpers for the signed PDF
+function _docFileName(url,fallback){try{var f=decodeURIComponent(String(url).split('?')[0].split('/').pop());f=f.replace(/^(direct_|v)?\d+_\d+_/,'');return f||fallback||'Document'}catch(e){return fallback||'Document'}}
+async function loadPdfLib(){if(window.PDFLib)return true;return new Promise(function(resolve){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';s.onload=function(){resolve(!!window.PDFLib)};s.onerror=function(){resolve(false)};document.head.appendChild(s)})}
+// Only PDFs up to 5 MB are attached (Word files and images keep the link only). Any problem returns null and the record is made without it.
+async function _fetchOriginalPdf(url){
+  if(!url||!/\.pdf(\?|$)/i.test(String(url)))return null;
+  if(!(await loadPdfLib()))return null;
+  var r=await fetch(url);if(!r.ok)return null;
+  var b=await r.arrayBuffer();if(!b||b.byteLength>5*1024*1024)return null;
+  var pd=await window.PDFLib.PDFDocument.load(b,{ignoreEncryption:true});
+  return {bytes:b,pages:pd.getPageCount()};
+}
+async function _attachOriginal(doc,att){
+  if(!att)return doc;
+  try{
+    var L=window.PDFLib,out=await L.PDFDocument.create();
+    var s=await L.PDFDocument.load(doc.output('arraybuffer'));
+    (await out.copyPages(s,s.getPageIndices())).forEach(function(p){out.addPage(p)});
+    var o=await L.PDFDocument.load(att.bytes,{ignoreEncryption:true});
+    (await out.copyPages(o,o.getPageIndices())).forEach(function(p){out.addPage(p)});
+    var bytes=await out.save();
+    return {
+      output:function(t){return t==='arraybuffer'?bytes.buffer:new Blob([bytes],{type:'application/pdf'})},
+      save:function(n){var u=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));var a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u)},1000)}
+    };
+  }catch(e){return doc}
+}
 // v47: shared signed-PDF builder. ticks=true when the staff member ticked the two boxes at signing.
 function _imgDims(u){return new Promise(function(r){var i=new Image();i.onload=function(){r([i.width||440,i.height||140])};i.onerror=function(){r([440,140])};i.src=u})}
-async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks){
+async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks,meta){
+  meta=meta||{};
   var loaded=await loadJsPDF();if(!loaded)return null;
+  var att=null;try{att=await _fetchOriginalPdf(docUrl)}catch(e){att=null}
   var jsPDF=window.jspdf.jsPDF;var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   var pw=doc.internal.pageSize.getWidth();var ph=doc.internal.pageSize.getHeight();var m=20;var y=0;
   doc.setFillColor(10,37,64);doc.rect(0,0,pw,38,'F');
@@ -4726,8 +4757,15 @@ async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks)
   doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('ORIGINAL DOCUMENT',m,y);y+=7;
   doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
   if(docUrl){
-    doc.text('Access the original document at:',m,y);y+=5;
-    var urlLines=doc.splitTextToSize(docUrl,pw-m*2);doc.setTextColor(0,0,200);doc.text(urlLines,m,y);y+=urlLines.length*5+6;
+    var infoL=['File: '+_docFileName(docUrl,docName)];
+    if(meta.docId)infoL.push('Document ID: '+meta.docId+(meta.version?'   ·   Version: v'+meta.version:''));
+    infoL.forEach(function(t){doc.text(t,m,y);y+=5});
+    if(att){doc.text('A copy of the original document is attached after this page (pages 2 to '+(att.pages+1)+').',m,y);y+=5}
+    y+=1;doc.setTextColor(0,0,200);doc.setFont('helvetica','bold');doc.textWithLink('Tap here to open the original document',m,y,{url:docUrl});y+=6;
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,120,120);
+    var urlLines=doc.splitTextToSize(docUrl,pw-m*2);
+    urlLines.forEach(function(ln){doc.text(ln,m,y);doc.link(m,y-3,pw-m*2,3.6,{url:docUrl});y+=3.4});
+    y+=4;doc.setFontSize(9);doc.setTextColor(60,60,60);
   } else {doc.text('Document: '+(docName||''),m,y);y+=8;}
   doc.setDrawColor(10,37,64);doc.setLineWidth(0.5);doc.line(m,y,pw-m,y);y+=8;
   doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);doc.text('STAFF DECLARATION',m,y);y+=8;
@@ -4748,7 +4786,7 @@ async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks)
       var sr=await fetch(su);var sb=await sr.blob();
       if(/pdf/i.test(sb.type)||/\.pdf(\?|$)/i.test(su)){
         doc.setFontSize(9);doc.setTextColor(60,60,60);doc.text('Staff uploaded a signed copy:',m,y+3);y+=8;
-        var ul=doc.splitTextToSize(su,pw-m*2);doc.setTextColor(0,0,200);doc.text(ul,m,y);y+=ul.length*5+4;
+        doc.setTextColor(0,0,200);doc.setFont('helvetica','bold');doc.textWithLink('Tap here to open the signed copy',m,y,{url:su});doc.setFont('helvetica','normal');y+=8;
       } else {
         var sd=await new Promise(function(r){var fr=new FileReader();fr.onload=function(e){r(e.target.result)};fr.readAsDataURL(sb)});
         var dm=await _imgDims(sd);var sc=Math.min(80/dm[0],30/dm[1]);var iw=dm[0]*sc,ih=dm[1]*sc;
@@ -4765,7 +4803,7 @@ async function buildSignedPdf(docName,staffName,signedAt,signedUrl,docUrl,ticks)
   doc.setFillColor(240,240,240);doc.rect(0,ph-12,pw,12,'F');
   doc.setFontSize(7);doc.setTextColor(100,100,100);
   doc.text('Rapid Pro Clean | Digitally signed via Staff Portal | rapidproclean.com.au',pw/2,ph-5,{align:'center'});
-  return doc;
+  return await _attachOriginal(doc,att);
 }
 // v47: open a signed record. Uses the saved PDF when there is one, otherwise makes the PDF on the spot.
 async function viewSignedRecord(rec,docName,docUrl,staffName){
@@ -4773,7 +4811,7 @@ async function viewSignedRecord(rec,docName,docUrl,staffName){
   try{
     var url=rec.signed_pdf||null;
     if(!url){
-      var d=await buildSignedPdf(docName,staffName||rec.staff_name,rec.signed_at,rec.signed_url,docUrl,false);
+      var d=await buildSignedPdf(docName,staffName||rec.staff_name,rec.signed_at,rec.signed_url,docUrl,false,{docId:rec.doc_id});
       if(!d){if(w)w.close();toast('Could not make the PDF. Check your internet and try again.');return}
       url=URL.createObjectURL(d.output('blob'));
     }
