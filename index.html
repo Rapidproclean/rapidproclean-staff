@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
 <!-- v51.0 — v50 + Sign again / Read again (issued_at), outdated signatures kept as history, sent documents return to their folder once signed or read -->
 <!-- v50.0 — v49 + one Send Doc screen: upload new or pick existing documents, choose Training/Policy and staff, send; Upload Document back to folders only -->
@@ -548,6 +549,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div></div>
 
 <div class="mov" id="ACM"><div class="msh"><div class="mh"></div><div class="mt" id="acT">Folder Settings</div>
+  <div class="mlbl">Folder name</div>
+  <input class="mi" id="acNm" type="text" maxlength="120" placeholder="Folder name" style="margin-bottom:12px">
   <div id="acTypeBox">
     <div class="mlbl">Folder type</div>
     <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn sc sm" id="acTyT" style="flex:1;margin:0" onclick="acSetType('training')">📚 Training</button><button class="btn sc sm" id="acTyP" style="flex:1;margin:0" onclick="acSetType('policy')">📋 Policy</button></div>
@@ -2305,7 +2308,9 @@ async function renderAdminDocs(el2){
         (function(id){stB.onclick=function(e){e.stopPropagation();openDocStatus(id)};})(d.id);
         var upB=document.createElement('button');upB.className='ebtn';upB.textContent='🔄 Update';upB.style.touchAction='manipulation';
         (function(id){upB.onclick=function(e){e.stopPropagation();openUpdate(id)};})(d.id);
-        dbRow.appendChild(sdB);dbRow.appendChild(stB);dbRow.appendChild(upB);dinf.appendChild(dbRow);
+        var rnB=document.createElement('button');rnB.className='ebtn';rnB.textContent='✏️ Rename';rnB.style.touchAction='manipulation';
+        (function(id){rnB.onclick=function(e){e.stopPropagation();openRenameDoc(id)};})(d.id);
+        dbRow.appendChild(sdB);dbRow.appendChild(stB);dbRow.appendChild(upB);dbRow.appendChild(rnB);dinf.appendChild(dbRow);
         var dacts=document.createElement('div');dacts.style.cssText='display:flex;gap:4px;flex-shrink:0';
         var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(d.url);
@@ -2535,7 +2540,7 @@ async function openFolderAccess(fid){
     (a.data||[]).forEach(function(r){if(cur.indexOf(r.staff_id)===-1)cur.push(r.staff_id)});
   }
   _acPrev=isAll?null:cur.slice();
-  q('acT').textContent='Settings — '+f.name;
+  q('acT').textContent='Settings — '+f.name;q('acNm').value=f.name||'';
   _acType=fType(f);q('acSg').value=f.requires_signature==='yes'?'yes':'no';q('acTypeBox').style.display=_acType==='personal'?'none':'';q('acPersonal').style.display=_acType==='personal'?'block':'none';acPaint();
   q('acAll').checked=isAll;q('acSq').value='';q('acNt').checked=true;
   q('acPickBox').style.display=isAll?'none':'block';
@@ -2545,6 +2550,10 @@ async function openFolderAccess(fid){
 async function saveFolderAccess(){
   var fid=_acFid,f=(_foldersCache||[]).find(function(x){return x.id===fid});if(!f)return;
   var all=q('acAll').checked,ids=all?[]:pkGet('acList');
+  var newName=(q('acNm').value||'').trim();
+  if(!newName){toast('Folder name cannot be empty');return}
+  var renamed=newName!==f.name;
+  if(renamed&&(_foldersCache||[]).some(function(x){return x.id!==fid&&String(x.name).trim().toLowerCase()===newName.toLowerCase()})&&!confirm('Another folder is already called "'+newName+'". Use the same name anyway?'))return;
   if(!all&&!ids.length){toast('Tick at least one staff member, or choose All Staff');return}
   var typeNew=(_acType==='training'||_acType==='policy')?_acType:null;
   var typeChanged=!!typeNew&&typeNew!==fType(f);
@@ -2561,7 +2570,7 @@ async function saveFolderAccess(){
       if(dl.error)throw dl.error;
     }
     if(all&&hasT){var d2=await db.from('rpc_folder_access').delete().eq('folder_id',fid);if(d2.error)throw d2.error}
-    var fu={staff_folder_id:all?null:ids[0]};if(typeChanged)fu.folder_type=typeNew;if(sigChanged)fu.requires_signature=sigNew;
+    var fu={staff_folder_id:all?null:ids[0]};if(renamed)fu.name=newName;if(typeChanged)fu.folder_type=typeNew;if(sigChanged)fu.requires_signature=sigNew;
     var u=await db.from('rpc_doc_folders').update(fu).eq('id',fid);
     if(u.error)throw u.error;
     if(q('acNt').checked){
@@ -2570,7 +2579,7 @@ async function saveFolderAccess(){
         var now=all?everyone:ids,before=_acPrev===null?everyone:_acPrev;
         var added=now.filter(function(i){return before.indexOf(i)===-1});
         if(added.length){
-          var msg='You now have access to "'+f.name+'"'+(f.requires_signature==='yes'?'. Signature required.':'. Please review.');
+          var msg='You now have access to "'+newName+'"'+(f.requires_signature==='yes'?'. Signature required.':'. Please review.');
           await db.from('rpc_notifications').insert(added.map(function(i){return {staff_id:i,title:'New Folder',message:msg,icon:'📁',is_read:false}}));
         }
       }catch(e){}
@@ -4916,6 +4925,23 @@ async function openDocStatus(did){
     }catch(e){}
   }catch(e){q('dsList').innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 2px">Could not load. '+esc(sdDbMsg(e))+'</div>'}
 }
+// v53: rename a document (name only)
+var _rnId=null;
+function openRenameDoc(id){
+  var d=(_docsCache||[]).find(function(x){return x.id===id});if(!d)return;
+  _rnId=id;q('rnNm').value=d.name||'';openM('RnM');
+}
+async function saveRenameDoc(){
+  var d=(_docsCache||[]).find(function(x){return x.id===_rnId});if(!d)return;
+  var nm=(q('rnNm').value||'').trim();
+  if(!nm){toast('Name cannot be empty');return}
+  if(nm===d.name){closeM('RnM');return}
+  try{
+    var r=await db.from('rpc_documents').update({name:nm}).eq('id',d.id);
+    if(r.error)throw r.error;
+    closeM('RnM');toast('Renamed ✅');renderDocs();
+  }catch(e){toast('Error: '+((e&&e.message)||'try again'))}
+}
 // v52: Update document — replaces the file on the same document, keeps the old file as a version
 var _updId=null,_updBusy=false;
 function updType(d){
@@ -5517,6 +5543,13 @@ async function publishShift(id){
   <button class="btn tl" onclick="saveSend()">Send</button>
   <button class="btn sc" id="sdStop" style="display:none" onclick="sdStop()">Stop sending (follow the folder again)</button>
   <button class="btn sc" onclick="closeM('SendM')">Cancel</button>
+</div></div>
+<div class="mov" id="RnM"><div class="msh"><div class="mh"></div><div class="mt">✏️ Rename document</div>
+  <div class="mlbl">Document name</div>
+  <input class="mi" id="rnNm" type="text" maxlength="160" placeholder="Document name" style="margin-bottom:6px">
+  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Only the name changes. The file, staff and signatures stay the same. Signed PDFs already made keep the old name written inside them.</div>
+  <button class="btn nv" id="rnGo" onclick="saveRenameDoc()">Save name</button>
+  <button class="btn sc" onclick="closeM('RnM')">Cancel</button>
 </div></div>
 <div class="mov" id="UpdM"><div class="msh"><div class="mh"></div><div class="mt">🔄 Update document</div>
   <div class="ms" id="updN"></div>
