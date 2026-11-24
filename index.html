@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v49.0 — v48 + Policy read tracking: I have read this, Policy read tab (who has / has not read), Remind, Re-issue, sign-in pop-up with Later, Home banner -->
 <!-- v48.0 — v47 + Send document to chosen staff (no folder needed), Who has it list with Remind, directly sent training blocks sign in -->
 <!-- v47.0 — v46 + signing: read/tick boxes, signed PDF saved, working View links (typed signatures too) -->
 <!-- v29.0 build 20261031 — v28 + site/staff/photo search, machines & chemicals, Working with (times), staff shift PDF -->
@@ -172,8 +173,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .wbox{background:var(--aml);border:1.5px solid #f5d08a;border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--am);font-weight:600;line-height:1.5}
 .ebox{background:var(--rdl);border:1.5px solid #f5b5b5;border-radius:var(--rs);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--rd);font-weight:600;line-height:1.5}
 #sigPad{border:1.5px solid var(--bd);border-radius:var(--rs);background:var(--sf);touch-action:none;display:block;width:100%;height:140px}
-#TB{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,22,45,.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center}
-#TB.on{display:flex}
+#TB,#PL{display:none;position:fixed;inset:0;z-index:300;background:rgba(8,22,45,.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center}
+#TB.on,#PL.on{display:flex}
 .tbsh{background:var(--cd);border-radius:24px 24px 0 0;padding:26px 22px 42px;width:100%;max-width:500px;max-height:92vh;overflow-y:auto}
 #LB{display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.92);align-items:center;justify-content:center;flex-direction:column}
 #LB.on{display:flex}
@@ -240,8 +241,18 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
     <button class="btn sc" onclick="closeTB()">I will do this later</button>
   </div>
 </div>
+<div id="PL">
+  <div class="tbsh">
+    <div class="ebox" style="margin-bottom:16px;background:var(--sf);border-color:var(--bd);color:var(--tx)">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">&#128203; Policies to read</div>
+      <div style="font-size:12px;line-height:1.5;font-weight:500">Please read each policy, then tap &quot;I have read this&quot;.</div>
+    </div>
+    <div id="PLL"></div>
+    <button class="btn sc" onclick="plLater()">Later</button>
+  </div>
+</div>
 <!-- PAGES -->
-<div class="pg" id="p-home"><div id="HC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
+<div class="pg" id="p-home"><div id="PLBan"></div><div id="HC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
 <div class="pg" id="p-roster">
   <div class="sl">Roster</div>
   <div class="vtabs" id="RTabs"></div>
@@ -673,7 +684,7 @@ async function startApp(){
   await Promise.all([loadStaff(),loadSites()]);
   buildNav();tick();setInterval(tick,1000);
   setInterval(()=>{if(q('p-home').classList.contains('on')&&Date.now()>phHold)renderHome()},30000);
-  if(!CU.is_admin)checkTraining();
+  if(!CU.is_admin){checkTraining();plRefresh(false)}
   loadNotifs();goHome();
 }
 async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[]}catch{}}
@@ -799,6 +810,7 @@ function closeTB(){q('TB').classList.remove('on')}
 
 // HOME PAGE
 async function renderHome(){
+  if(!CU.is_admin&&Date.now()-_plLast>60000)plRefresh(false);
   const el2=q('HC');el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
   try{
     const [stR,tvR]=await Promise.all([
@@ -1122,7 +1134,9 @@ async function notifyAdmins(title,message,icon){
 async function doTog(staffId,staffName,isIn,shiftId,site){
   // SAFETY: always enforce today's date — never allow signing in/out against a past shift
   const today=todayStr();
+  const _plSk=_plSkip;_plSkip=false;
   if(!isIn&&staffId===CU.id){const t=await checkTraining();if(t){toast('⚠️ Complete training before signing in');return}}
+  if(!isIn&&staffId===CU.id&&!CU.is_admin&&!_plSk){if(await plRefresh(true)){_plResume=function(){doTog(staffId,staffName,isIn,shiftId,site)};return}}
   toast('📍 Getting location...');
   const gps=await getGPS();
   const now=new Date().toISOString();
@@ -2006,6 +2020,9 @@ async function renderStaffDocs(el2){
   });
   var signedIds=signed.map(function(s){return s.doc_id});
   docUrls={};docs.forEach(function(d){docUrls[d.id]=d.url||db.storage.from('rpc-photos').getPublicUrl(d.storage_path).data.publicUrl;});
+  // v49: which policies this staff member has read
+  var readsMine={},readsRows=[],rdName={};docs.forEach(function(d){rdName[d.id]=d.name});
+  try{var rrR=await db.from('rpc_policy_reads').select('*').eq('staff_id',CU.id).order('read_at',{ascending:false});readsRows=rrR.data||[];readsRows.forEach(function(r){readsMine[r.doc_id]=r.read_at})}catch(e){}
   // v48: documents sent directly to this staff member (or to all staff) get their own groups
   var myAsg=[];try{var gR=await db.from('rpc_doc_assign').select('doc_id').eq('staff_id',CU.id);myAsg=(gR.data||[]).map(function(x){return x.doc_id})}catch(e){}
   var sentDocs=docs.filter(function(d){return d.audience==='all'||(d.audience==='selected'&&myAsg.indexOf(d.id)!==-1)});
@@ -2044,14 +2061,14 @@ async function renderStaffDocs(el2){
       } else {
         fdocs.forEach(function(d){
           var isSigned=signedIds.indexOf(d.id)!==-1;
-          if(folder.requires_signature==='yes'&&!isSigned)unsignedBy[ft]++;
+          if(folder.requires_signature==='yes'&&!isSigned)unsignedBy[ft]++;else if(ft==='policy'&&folder.requires_signature!=='yes'&&!readsMine[d.id]&&!isSigned)unsignedBy[ft]++;
           var ditem=document.createElement('div');ditem.className='dfi';
           var icon=document.createElement('div');icon.style.fontSize='18px';icon.textContent=(d.url&&d.url.indexOf('.pdf')!==-1)?'📄':'📝';
           var info=document.createElement('div');info.style.flex='1';
           info.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+esc(d.name)+'</div>'
             +'<div style="font-size:10px;color:var(--t3);margin-top:2px">'
             +(folder.requires_signature==='yes'?'✍️ Signature required · ':'')
-            +(isSigned?'✅ You have signed this':(folder.requires_signature==='yes'?'⏳ Not yet signed':'Read only'))
+            +(isSigned?'✅ You have signed this':(folder.requires_signature==='yes'?'⏳ Not yet signed':(ft==='policy'?(readsMine[d.id]?'✅ You read this '+fmtD(readsMine[d.id]):'⏳ Not read yet'):'Read only')))
             +'</div>';
           var acts=document.createElement('div');acts.style.cssText='display:flex;gap:6px;align-items:center;flex-shrink:0';
           var rb=document.createElement('button');rb.className='btn sc sm';rb.style.cssText='margin:0;padding:7px 12px';rb.textContent='📖 Read';
@@ -2063,6 +2080,14 @@ async function renderStaffDocs(el2){
             var sb=document.createElement('button');sb.className='btn tl sm';sb.style.cssText='margin:0;padding:7px 12px';sb.textContent='✍️ Sign';
             (function(id,name,url){sb.onclick=function(){openSign(id,name,url)};})(d.id,d.name,d.url);
             acts.appendChild(sb);
+          } else if(ft==='policy'){
+            if(readsMine[d.id]){
+              var rbd=document.createElement('span');rbd.style.cssText='font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;background:var(--tll);color:var(--tl)';rbd.textContent='✅ Read';acts.appendChild(rbd);
+            } else {
+              var rdb=document.createElement('button');rdb.className='btn tl sm';rdb.style.cssText='margin:0;padding:7px 12px';rdb.textContent='✔ I have read this';
+              (function(id){rdb.onclick=async function(){rdb.disabled=true;if(await plMarkRead(id)){toast('Thank you ✅');renderDocs()}else rdb.disabled=false}})(d.id);
+              acts.appendChild(rdb);
+            }
           }
           ditem.appendChild(icon);ditem.appendChild(info);ditem.appendChild(acts);
           body.appendChild(ditem);
@@ -2127,6 +2152,12 @@ async function renderStaffDocs(el2){
     });
     el2.appendChild(sc);
   }
+  // v49: policies I have read (shown on My signed)
+  var slRd=document.createElement('div');slRd.className='sl tab-signed';slRd.style.marginTop='10px';slRd.textContent='Policies I Have Read';el2.appendChild(slRd);
+  var rdCard=document.createElement('div');rdCard.className='card tab-signed';
+  if(!readsRows.length){rdCard.innerHTML='<div class="cr"><div class="cs">No policies marked as read yet</div></div>'}
+  else readsRows.forEach(function(r){var row=document.createElement('div');row.className='cr';row.innerHTML='<div><div class="cl" style="font-size:13px">'+esc(rdName[r.doc_id]||'Policy')+'</div><div class="cs">Read '+fmtD(r.read_at)+'</div></div>';rdCard.appendChild(row)});
+  el2.appendChild(rdCard);
   if(Object.keys(_stTabs).length)stTabApply(el2);
 }
 async function renderAdminDocs(el2){
@@ -2146,7 +2177,9 @@ async function renderAdminDocs(el2){
   }
   var folders=fR.data||[],docs=dR.data||[],signed=sR.data||[];
   _docsCache=docs;_foldersCache=folders;
-  var asgMap={};try{var gR0=await db.from('rpc_doc_assign').select('doc_id');(gR0.data||[]).forEach(function(r){asgMap[r.doc_id]=(asgMap[r.doc_id]||0)+1})}catch(e){}
+  var asgMap={},asgIds={};try{var gR0=await db.from('rpc_doc_assign').select('doc_id,staff_id');(gR0.data||[]).forEach(function(r){asgMap[r.doc_id]=(asgMap[r.doc_id]||0)+1;(asgIds[r.doc_id]=asgIds[r.doc_id]||[]).push(r.staff_id)})}catch(e){}
+  var rdRows=[];try{var rrA=await db.from('rpc_policy_reads').select('*');rdRows=rrA.data||[]}catch(e){}
+  var plA=plAdminCompute(docs,folders,signed,accMap,asgIds,rdRows);
   var loopF=[];[['training','📨 Sent directly — Training','yes'],['policy','📨 Sent directly — Policy','no'],['none','📄 Documents not sent yet','no']].forEach(function(g,i){if(docs.some(function(d){return !d.folder_id&&(d.doc_type||'none')===g[0]}))loopF.push({id:-(i+1),name:g[1],folder_type:g[0]==='none'?'policy':g[0],requires_signature:g[2],staff_folder_id:null,_loose:1,_lt:g[0]})});
   loopF=loopF.concat(folders);
   var accMap={};try{var aR=await db.from('rpc_folder_access').select('folder_id,staff_id');(aR.data||[]).forEach(function(r){(accMap[r.folder_id]=accMap[r.folder_id]||[]).push(r.staff_id)})}catch(e){}
@@ -2163,7 +2196,7 @@ async function renderAdminDocs(el2){
   _dcRows={};_dcSel={};_dcMode=false;_dcChips={};_dcSearch=null;_dcEl=el2;dcBarOff();
   var fCnt={all:folders.length,training:0,policy:0,personal:0};folders.forEach(function(f){fCnt[fType(f)]++});loopF.forEach(function(f){if(f._loose){fCnt.all++;if(f._lt!=='none')fCnt[f._lt]++}});
   var tabsBar=document.createElement('div');tabsBar.style.cssText='display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding-bottom:8px;margin-bottom:10px;-webkit-overflow-scrolling:touch';
-  [['all','All ('+fCnt.all+')'],['training','📚 Training ('+fCnt.training+')'],['policy','📋 Policy ('+fCnt.policy+')'],['personal','🗂 Personal ('+fCnt.personal+')'],['signed','✍️ Signed by staff ('+signed.length+')']].forEach(function(c){
+  [['all','All ('+fCnt.all+')'],['training','📚 Training ('+fCnt.training+')'],['policy','📋 Policy ('+fCnt.policy+')'],['personal','🗂 Personal ('+fCnt.personal+')'],['signed','✍️ Signed by staff ('+signed.length+')'],['reads','📖 Policy read'+(plA.unreadTotal?' · '+plA.unreadTotal+' unread':'')]].forEach(function(c){
     var b=document.createElement('button');b.className='ebtn';b.style.cssText='flex:none;padding:9px 14px;font-size:13px;touch-action:manipulation';b.textContent=c[1];
     b.onclick=function(){_dcTab=c[0];dcTabApply()};_dcChips[c[0]]=b;tabsBar.appendChild(b);
   });
@@ -2267,6 +2300,7 @@ async function renderAdminDocs(el2){
     df.appendChild(hdr);df.appendChild(body);el2.appendChild(df);
   });
 
+  plAdminBuild(el2,plA);
   // Signed documents section
   var slSigned=document.createElement('div');slSigned.className='sl tabS';slSigned.style.marginTop='4px';slSigned.textContent='Signed Training & Policy Documents — By Staff';el2.appendChild(slSigned);
   _sgRows={};_sgGroups=[];_sgChips={};_sgSearch=null;_sgFilter='all';sgBarOff();
@@ -4237,10 +4271,11 @@ function dcSignedLabel(){
 }
 function dcTabApply(){
   if(!_dcEl)return;
-  var s=_dcTab==='signed';
-  _dcEl.querySelectorAll('.tabF').forEach(function(e){e.classList.toggle('tabHide',s)});
+  var s=_dcTab==='signed',r=_dcTab==='reads';
+  _dcEl.querySelectorAll('.tabF').forEach(function(e){e.classList.toggle('tabHide',s||r)});
   _dcEl.querySelectorAll('.tabS').forEach(function(e){e.classList.toggle('tabHide',!s)});
-  if(s)dcSelOff();else{try{sgBarOff()}catch(e){}}
+  _dcEl.querySelectorAll('.tabR').forEach(function(e){e.classList.toggle('tabHide',!r)});
+  if(s)dcSelOff();else{try{sgBarOff()}catch(e){}if(r)dcSelOff()}
   dcPaintChips();dcApply();
 }
 function dcApply(){
@@ -4772,23 +4807,182 @@ async function openDocStatus(did){
     else if(d.audience==='selected'){var r=await db.from('rpc_doc_assign').select('staff_id').eq('doc_id',did);ids=(r.data||[]).map(function(x){return x.staff_id})}
     else if(f)ids=await folderRecipients(f.id);
     var sg={};var sr=await db.from('rpc_signed_docs').select('staff_id,signed_at').eq('doc_id',did);(sr.data||[]).forEach(function(x){sg[x.staff_id]=x.signed_at});
+    if(!needsSign){try{var rr=await db.from('rpc_policy_reads').select('staff_id,read_at').eq('doc_id',did);(rr.data||[]).forEach(function(x){if(!sg[x.staff_id])sg[x.staff_id]=x.read_at})}catch(e){}}
     var rows=ids.map(function(i){var s=allStaff.find(function(x){return x.id===i});return s&&!s.is_admin?{id:i,name:s.name,at:sg[i]||null}:null}).filter(Boolean);
     rows.sort(function(a,b){return (a.at?1:0)-(b.at?1:0)||String(a.name).localeCompare(b.name)});
     var done=rows.filter(function(x){return x.at}).length,pend=rows.filter(function(x){return !x.at});
-    q('dsSum').textContent=needsSign?('Signed '+done+' of '+rows.length+(pend.length?' · '+pend.length+' still to sign':'')):('Sent to '+rows.length+' staff · read tracking comes in the next update');
+    var verb=needsSign?'sign':'read';
+    q('dsSum').textContent=(needsSign?'Signed ':'Read ')+done+' of '+rows.length+(pend.length?' · '+pend.length+' still to '+verb:'');
     q('dsList').innerHTML=rows.length?rows.map(function(x){
-      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--bd);font-size:13px"><div style="flex:1;font-weight:600;color:var(--tx)">'+esc(x.name)+'</div><div style="font-size:12px;color:'+(x.at?'var(--tl)':'var(--t3)')+'">'+(needsSign?(x.at?'✅ Signed '+fmtD(x.at):'⏳ Not signed'):'📨 Sent')+'</div></div>';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid var(--bd);font-size:13px"><div style="flex:1;font-weight:600;color:var(--tx)">'+esc(x.name)+'</div><div style="font-size:12px;color:'+(x.at?'var(--tl)':'var(--t3)')+'">'+(x.at?'✅ '+(needsSign?'Signed ':'Read ')+fmtD(x.at):'⏳ Not '+(needsSign?'signed':'read'))+'</div></div>';
     }).join(''):'<div style="font-size:12px;color:var(--t3);padding:10px 2px">Nobody has this document yet.</div>';
-    _dsRemind={ids:pend.map(function(x){return x.id}),name:d.name};
-    if(needsSign&&pend.length)q('dsRem').style.display='';
+    _dsRemind={ids:pend.map(function(x){return x.id}),name:d.name,verb:needsSign?'read and sign':'read'};
+    q('dsRem').textContent='⏰ Remind staff who have not '+(needsSign?'signed':'read it');
+    if(pend.length)q('dsRem').style.display='';
   }catch(e){q('dsList').innerHTML='<div style="font-size:12px;color:var(--t3);padding:10px 2px">Could not load. '+esc(sdDbMsg(e))+'</div>'}
 }
 async function dsSendRemind(){
   if(!_dsRemind.ids.length)return;
   try{
-    await db.from('rpc_notifications').insert(_dsRemind.ids.map(function(s){return {staff_id:s,title:'Reminder',message:'Please read and sign "'+_dsRemind.name+'"',icon:'⏰',is_read:false}}));
+    await db.from('rpc_notifications').insert(_dsRemind.ids.map(function(s){return {staff_id:s,title:'Reminder',message:'Please '+(_dsRemind.verb||'read and sign')+' "'+_dsRemind.name+'"',icon:'⏰',is_read:false}}));
     toast('Reminder sent to '+_dsRemind.ids.length+' staff ✅');closeM('DsM');loadNotifs();
   }catch(e){toast('Error: '+(e.message||'try again'))}
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// v49: POLICY READ TRACKING (table rpc_policy_reads). A policy counts as read when the staff member taps
+// "I have read this" or has signed it. Policies sent directly (v48) also pop up at sign-in until read.
+// ═══════════════════════════════════════════════════════════════════
+var _plUnread=[],_plSkip=false,_plResume=null,_plLast=0,_plAdm=null;
+async function plMarkRead(docId){
+  try{
+    var r=await db.from('rpc_policy_reads').upsert({doc_id:docId,staff_id:CU.id,read_at:new Date().toISOString()},{onConflict:'doc_id,staff_id'});
+    if(r.error)throw r.error;
+    return true;
+  }catch(e){toast('Could not save. Please try again, or tell the office.');return false}
+}
+async function plData(){
+  var res=await Promise.all([
+    db.from('rpc_documents').select('*'),
+    db.from('rpc_policy_reads').select('doc_id').eq('staff_id',CU.id),
+    db.from('rpc_doc_assign').select('doc_id').eq('staff_id',CU.id),
+    db.from('rpc_signed_docs').select('doc_id').eq('staff_id',CU.id)
+  ]);
+  if(res[0].error||res[1].error)return [];
+  var docs=res[0].data||[],read={};
+  (res[1].data||[]).forEach(function(r){read[r.doc_id]=1});(res[3].data||[]).forEach(function(r){read[r.doc_id]=1});
+  var mine={};(res[2].data||[]).forEach(function(r){mine[r.doc_id]=1});
+  return docs.filter(function(d){return d.doc_type==='policy'&&(d.audience==='all'||(d.audience==='selected'&&mine[d.id]))&&!read[d.id]});
+}
+async function plRefresh(show){
+  if(!CU||CU.is_admin)return false;
+  _plLast=Date.now();
+  try{_plUnread=await plData()}catch(e){_plUnread=[]}
+  plBanner();
+  if(show&&_plUnread.length){plShow();return true}
+  return false;
+}
+function plBanner(){
+  var b=q('PLBan');if(!b)return;
+  var n=_plUnread.length;
+  if(!n||CU.is_admin){b.innerHTML='';return}
+  b.innerHTML='<div class="ebox" style="cursor:pointer;touch-action:manipulation" onclick="plShow()"><div style="font-size:14px;font-weight:800">📋 '+n+' polic'+(n===1?'y':'ies')+' to read</div><div style="font-size:12px;font-weight:500">Tap here to read '+(n===1?'it':'them')+'.</div></div>';
+}
+function plShow(){
+  var l=q('PLL');l.innerHTML='';
+  _plUnread.forEach(function(d){
+    var div=document.createElement('div');div.style.cssText='background:var(--cd);border:1px solid var(--bd);border-radius:var(--rs);padding:12px 14px;margin-bottom:10px';
+    div.innerHTML='<div style="font-size:13px;font-weight:700;color:var(--nv)">📋 '+esc(d.name)+'</div>';
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:8px;margin-top:10px';
+    var rb=document.createElement('button');rb.className='btn sc sm';rb.style.cssText='margin:0;flex:1';rb.textContent='📖 Read';
+    (function(url){rb.onclick=function(){window.open(url,'_blank')}})(d.url);
+    var db3=document.createElement('button');db3.className='btn tl sm';db3.style.cssText='margin:0;flex:1';db3.textContent='✔ I have read this';
+    (function(id,btn){btn.onclick=function(){plDone(id,btn)}})(d.id,db3);
+    row.appendChild(rb);row.appendChild(db3);div.appendChild(row);l.appendChild(div);
+  });
+  q('PL').classList.add('on');
+}
+async function plDone(id,btn){
+  if(btn)btn.disabled=true;
+  var ok=await plMarkRead(id);
+  if(!ok){if(btn)btn.disabled=false;return}
+  _plUnread=_plUnread.filter(function(d){return d.id!==id});
+  plBanner();
+  if(_plUnread.length){plShow();return}
+  q('PL').classList.remove('on');toast('Thank you ✅');
+  if(_plResume){var f=_plResume;_plResume=null;_plSkip=true;f()}
+}
+function plLater(){
+  q('PL').classList.remove('on');
+  if(_plResume){var f=_plResume;_plResume=null;_plSkip=true;f()}
+}
+// ----- admin: Policy read tab -----
+function plAdminCompute(docs,folders,signed,accMap,asgIds,rdRows){
+  var staffIds=allStaff.filter(function(s){return !s.is_admin}).map(function(s){return s.id});
+  var inStaff=function(i){return staffIds.indexOf(i)!==-1};
+  var rd={};rdRows.forEach(function(r){(rd[r.doc_id]=rd[r.doc_id]||{})[r.staff_id]=r.read_at});
+  signed.forEach(function(s){rd[s.doc_id]=rd[s.doc_id]||{};if(!rd[s.doc_id][s.staff_id])rd[s.doc_id][s.staff_id]=s.signed_at});
+  var pol=[],byStaff={},total=0;
+  docs.forEach(function(d){
+    var f=folders.find(function(x){return x.id===d.folder_id});
+    var t=d.doc_type?d.doc_type:(f?fType(f):'');
+    if(t!=='policy')return;
+    var rec=[];
+    if(d.audience==='all')rec=staffIds;
+    else if(d.audience==='selected')rec=(asgIds[d.id]||[]).filter(inStaff);
+    else if(f){
+      if(f.staff_folder_id===null||f.staff_folder_id===undefined)rec=staffIds;
+      else rec=[f.staff_folder_id].concat(accMap[f.id]||[]).filter(function(i,k,a){return a.indexOf(i)===k&&inStaff(i)});
+    }
+    var rm=rd[d.id]||{},unread=rec.filter(function(i){return !rm[i]});
+    unread.forEach(function(i){(byStaff[i]=byStaff[i]||[]).push(d.name);total++});
+    pol.push({d:d,rec:rec,rm:rm,unread:unread});
+  });
+  pol.sort(function(a,b){return b.unread.length-a.unread.length||String(a.d.name).localeCompare(b.d.name)});
+  return {pol:pol,byStaff:byStaff,unreadTotal:total};
+}
+function plAdminBuild(el2,A){
+  _plAdm=A;
+  var nm=function(i){var s=allStaff.find(function(x){return x.id===i});return s?s.name:'Staff'};
+  var h=document.createElement('div');h.className='sl tabR tabHide';h.style.marginTop='4px';h.textContent='Policy read — who has read each policy';el2.appendChild(h);
+  // staff with unread policies
+  var sc=document.createElement('div');sc.className='card tabR tabHide';
+  var ids=Object.keys(A.byStaff).map(Number).sort(function(a,b){return A.byStaff[b].length-A.byStaff[a].length});
+  if(!A.pol.length){sc.innerHTML='<div class="cr"><div class="cs">No policies yet. Send a document as a Policy, or put it in a Policy folder.</div></div>'}
+  else if(!ids.length){sc.innerHTML='<div class="cr"><div class="cs">✅ Everyone has read every policy.</div></div>'}
+  else{
+    var t=document.createElement('div');t.style.cssText='padding:10px 14px 4px;font-size:13px;font-weight:700;color:var(--tx)';t.textContent='Staff with policies still to read';sc.appendChild(t);
+    ids.forEach(function(i){var r=document.createElement('div');r.className='cr';r.innerHTML='<div style="flex:1"><div class="cl" style="font-size:13px">'+esc(nm(i))+'</div><div class="cs">'+esc(A.byStaff[i].slice(0,3).join(', ')+(A.byStaff[i].length>3?' +'+(A.byStaff[i].length-3)+' more':''))+'</div></div><div style="font-size:12px;font-weight:700;color:var(--rd)">'+A.byStaff[i].length+' to read</div>';sc.appendChild(r)});
+    var ra=document.createElement('button');ra.className='btn tl sm';ra.style.cssText='margin:8px 14px 12px;width:calc(100% - 28px)';ra.textContent='⏰ Remind everyone with policies to read';ra.onclick=plAdminRemindAll;sc.appendChild(ra);
+  }
+  el2.appendChild(sc);
+  // each policy
+  A.pol.forEach(function(p){
+    var n=p.rec.length,rd=n-p.unread.length;
+    var df=document.createElement('div');df.className='df tabR tabHide';
+    var hdr=document.createElement('div');hdr.className='dfh';
+    var pct=n?Math.round(rd*100/n):0;
+    var info=document.createElement('div');info.style.flex='1';
+    info.innerHTML='<div style="font-size:14px;font-weight:700;color:var(--tx)">'+esc(p.d.name)+'</div><div style="font-size:11px;margin-top:2px;font-weight:700;color:'+(p.unread.length?'var(--rd)':'var(--tl)')+'">'+rd+' of '+n+' read'+(p.unread.length?' · '+p.unread.length+' not read':' ✅')+'</div><div style="height:5px;border-radius:3px;background:var(--bd);margin-top:5px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--tl)"></div></div>';
+    var arr=document.createElement('span');arr.style.cssText='color:var(--t3);font-size:14px;margin-left:6px';arr.textContent='▼';
+    hdr.appendChild(info);hdr.appendChild(arr);
+    var body=document.createElement('div');body.className='dfb';
+    var order=p.rec.slice().sort(function(a,b){return (p.rm[a]?1:0)-(p.rm[b]?1:0)||nm(a).localeCompare(nm(b))});
+    if(!order.length)body.innerHTML='<div style="text-align:center;padding:12px;color:var(--t3);font-size:12px">Nobody is assigned this policy.</div>';
+    order.forEach(function(i){var r=document.createElement('div');r.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--bd);font-size:13px';r.innerHTML='<div style="flex:1;font-weight:600;color:var(--tx)">'+esc(nm(i))+'</div><div style="font-size:12px;color:'+(p.rm[i]?'var(--tl)':'var(--t3)')+'">'+(p.rm[i]?'✅ Read '+fmtD(p.rm[i]):'⏳ Not read')+'</div>';body.appendChild(r)});
+    var br=document.createElement('div');br.style.cssText='display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap';
+    if(p.unread.length){var rb=document.createElement('button');rb.className='btn tl sm';rb.style.cssText='margin:0;flex:1';rb.textContent='⏰ Remind '+p.unread.length+' not read';(function(id){rb.onclick=function(e){e.stopPropagation();plAdminRemind(id)}})(p.d.id);br.appendChild(rb)}
+    var ri=document.createElement('button');ri.className='btn sc sm';ri.style.cssText='margin:0;flex:1';ri.textContent='🔄 Re-issue';(function(id){ri.onclick=function(e){e.stopPropagation();plAdminReissue(id)}})(p.d.id);br.appendChild(ri);
+    var vw=document.createElement('button');vw.className='ebtn';vw.textContent='View';(function(u){vw.onclick=function(e){e.stopPropagation();window.open(u,'_blank')}})(p.d.url);br.appendChild(vw);
+    body.appendChild(br);
+    hdr.onclick=function(){body.classList.toggle('on');arr.textContent=body.classList.contains('on')?'▲':'▼'};
+    df.appendChild(hdr);df.appendChild(body);el2.appendChild(df);
+  });
+}
+async function plAdminRemind(docId){
+  var p=(_plAdm?_plAdm.pol:[]).find(function(x){return x.d.id===docId});if(!p||!p.unread.length)return;
+  try{
+    await db.from('rpc_notifications').insert(p.unread.map(function(s){return {staff_id:s,title:'Policy to read',message:'Please read "'+p.d.name+'"',icon:'📋',is_read:false}}));
+    toast('Reminder sent to '+p.unread.length+' staff ✅');loadNotifs();
+  }catch(e){toast('Error: '+(e.message||'try again'))}
+}
+async function plAdminRemindAll(){
+  if(!_plAdm)return;
+  var ids=Object.keys(_plAdm.byStaff).map(Number);if(!ids.length)return;
+  try{
+    await db.from('rpc_notifications').insert(ids.map(function(s){var n=_plAdm.byStaff[s].length;return {staff_id:s,title:'Policies to read',message:'You have '+n+' polic'+(n===1?'y':'ies')+' to read: '+_plAdm.byStaff[s].slice(0,3).join(', ')+(n>3?' and more':''),icon:'📋',is_read:false}}));
+    toast('Reminder sent to '+ids.length+' staff ✅');loadNotifs();
+  }catch(e){toast('Error: '+(e.message||'try again'))}
+}
+async function plAdminReissue(docId){
+  var p=(_plAdm?_plAdm.pol:[]).find(function(x){return x.d.id===docId});if(!p)return;
+  if(!confirm('Re-issue "'+p.d.name+'"? Everyone will need to read it again, and the current read dates for it are cleared. Staff who signed it keep their signature.'))return;
+  try{
+    var dl=await db.from('rpc_policy_reads').delete().eq('doc_id',docId);if(dl.error)throw dl.error;
+    if(p.rec.length)try{await db.from('rpc_notifications').insert(p.rec.map(function(s){return {staff_id:s,title:'Policy updated',message:'"'+p.d.name+'" has been updated. Please read it again.',icon:'📋',is_read:false}}))}catch(e){}
+    toast('Re-issued ✅');loadNotifs();renderDocs();
+  }catch(e){toast(sdDbMsg(e))}
 }
 
 function sigTickCh(){var ok=q('sigC1').checked&&q('sigC2').checked;var b=q('sigSubmit');if(b){b.disabled=!ok;b.style.opacity=ok?'1':'.5'}}
@@ -5151,7 +5345,7 @@ async function publishShift(id){
   <div class="ms" id="dsN"></div>
   <div id="dsSum" style="font-size:13px;font-weight:700;color:var(--tx);margin-bottom:8px"></div>
   <div id="dsList" style="max-height:300px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
-  <button class="btn tl" id="dsRem" style="display:none" onclick="dsSendRemind()">⏰ Remind staff who have not signed</button>
+  <button class="btn tl" id="dsRem" style="display:none" onclick="dsSendRemind()">⏰ Remind staff</button>
   <button class="btn sc" onclick="closeM('DsM')">Close</button>
 </div></div>
 <div id="DcBar" style="display:none;position:fixed;left:8px;right:8px;bottom:calc(var(--nav) + 8px);z-index:95;background:var(--cd);border:1.5px solid var(--nv);border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.25)">
