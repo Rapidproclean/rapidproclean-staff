@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v61.0 — v60 + admin "Shrink old photos" tool (Admin page): shrinks existing photos to 1400px and adds thumbnails, with a 5-photo test first, stop/resume. Previous: v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v63.0 — v62 + complete backup: reads every row (no 1000-row cut-off), choose the period, all tables included, "Last backup" reminder on the Admin page. Previous: v62.0 — v61 + new staff photos back to full quality (1800px, same as v59, so reports look as before) + "Make thumbnails only" button (keeps original photos, makes old photo pages fast). Previous: v61.0 — v60 + admin "Shrink old photos" tool (Admin page): shrinks existing photos to 1400px and adds thumbnails, with a 5-photo test first, stop/resume. Previous: v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -329,7 +329,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="sl" style="margin-top:18px">Data Backup</div>
   <div class="card"><div style="padding:12px 14px">
     <div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">Download a full backup of all your data — staff, attendance, shifts, leave, documents, photos and signed records. Save it to your phone or email it to yourself weekly.</div>
-    <button class="btn tl" style="margin:0" onclick="doBackup()">&#11015;&#65039; Download Full Backup</button>
+    <div id="BkLast" style="font-size:12px;font-weight:700;margin-bottom:10px"></div>
+    <button class="btn tl" style="margin:0" onclick="openBackup()">&#11015;&#65039; Download Full Backup</button>
   </div></div>
   <div class="sl" style="margin-top:18px">App Info</div>
   <div class="card">
@@ -677,21 +678,25 @@ function openShrink(){
   o.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(5,20,40,.6);display:flex;align-items:flex-end;justify-content:center;font-family:var(--fn)';
   o.innerHTML='<div style="background:var(--sf,#fff);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto">'
    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:16px;font-weight:800">Shrink old photos</div><button id="ShClose" style="border:none;background:none;font-size:20px;cursor:pointer">&#10005;</button></div>'
-   +'<div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">Makes existing photos smaller (up to 1400 px wide) and adds a small thumbnail for each, so the app and reports use much less data. Photos stay clear. <b>The original full-size file is replaced and cannot be restored.</b> Keep this screen open and awake while it runs. You can stop any time and run it again later — finished photos are skipped.</div>'
-   +'<div style="display:flex;gap:8px;margin-bottom:10px"><button id="ShTest" class="btn sc" style="flex:1">Test on 5 photos</button><button id="ShAll" class="btn" style="flex:1">Shrink all</button></div>'
+   +'<div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px"><b>Thumbnails only</b> adds a small preview copy for each old photo and leaves the originals untouched. <b>Shrink</b> also makes the originals smaller (up to 1400 px wide) and <b>cannot be undone</b>. Keep this screen open and awake while it runs. You can stop any time and run it again later — finished photos are skipped.</div>'
+   +'<button id="ShThumb" class="btn" style="width:100%;margin-bottom:8px">Make thumbnails only (keeps your original photos)</button>'
+   +'<div style="font-size:11px;color:var(--t3);margin:0 0 10px">Recommended. Original photos are NOT changed, so reports stay exactly as before. Old photo pages load faster.</div>'
+   +'<div style="font-size:11px;color:var(--t3);margin:0 0 6px">Optional — only if you ever want smaller files (replaces originals):</div>'
+   +'<div style="display:flex;gap:8px;margin-bottom:10px"><button id="ShTest" class="btn sc" style="flex:1">Test on 5 photos</button><button id="ShAll" class="btn sc" style="flex:1">Shrink all</button></div>'
    +'<button id="ShStop" class="btn sc" style="width:100%;display:none;margin-bottom:10px;color:#c0392b">Stop</button>'
    +'<div id="ShOut" style="font-size:13px;font-weight:700;line-height:1.6"></div></div>';
   document.body.appendChild(o);
   q('ShClose').onclick=function(){if(_shrinkRun&&!confirm('Stop shrinking and close?'))return;_shrinkStop=true;o.remove()};
+  q('ShThumb').onclick=function(){runShrink(0,'thumbs')};
   q('ShTest').onclick=function(){runShrink(5)};
   q('ShAll').onclick=function(){if(confirm('Shrink ALL old photos now? Original full-size files will be replaced.'))runShrink(0)};
   q('ShStop').onclick=function(){_shrinkStop=true;q('ShStop').disabled=true;q('ShOut').textContent+='\nStopping…'};
 }
-async function runShrink(limit){
+async function runShrink(limit,mode){
   if(_shrinkRun)return;
   _shrinkRun=true;_shrinkStop=false;
-  const out=q('ShOut'),bT=q('ShTest'),bA=q('ShAll'),bS=q('ShStop');
-  bT.disabled=bA.disabled=true;bS.style.display='block';bS.disabled=false;
+  const out=q('ShOut'),bT=q('ShTest'),bA=q('ShAll'),bS=q('ShStop'),bH=q('ShThumb');
+  bT.disabled=bA.disabled=bH.disabled=true;bS.style.display='block';bS.disabled=false;
   let wl=null;try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}
   const say=function(t){if(q('ShOut'))q('ShOut').innerText=t};
   try{
@@ -716,7 +721,7 @@ async function runShrink(limit){
         if(!rs.ok){failed++;continue}
         const blob=await rs.blob();
         let useBlob=blob;
-        if(blob.size>400*1024){
+        if(mode!=='thumbs'&&blob.size>400*1024){
           const comp=await compressImg(blob,1400,0.78);
           if(comp&&comp.size>0&&comp.size<blob.size*0.9){
             const up=await db.storage.from('rpc-photos').upload(it.path,comp,{contentType:'image/jpeg',upsert:true,cacheControl:'31536000'});
@@ -728,9 +733,9 @@ async function runShrink(limit){
       }catch(e){failed++}
     }
     const stopped=_shrinkStop;
-    say((stopped?'Stopped.':(limit?'Test finished.':'All done ✅'))+'\nShrunk: '+shrunk+' photo(s)\nThumbnails only (already small): '+thumbsOnly+'\nAlready done before: '+skipped+'\nFailed: '+failed+'\nSpace saved: '+((before-after)/1048576).toFixed(1)+' MB'+(limit&&!stopped?'\n\nNow check one of these photos in a report. If it looks fine, tap "Shrink all".':''));
+    say((stopped?'Stopped.':(limit?'Test finished.':'All done ✅'))+(mode==='thumbs'?'\nOriginal photos were not changed.':'')+'\nShrunk: '+shrunk+' photo(s)\nThumbnails made: '+thumbsOnly+'\nAlready done before: '+skipped+'\nFailed: '+failed+'\nSpace saved: '+((before-after)/1048576).toFixed(1)+' MB'+(limit&&!stopped?'\n\nNow check one of these photos in a report. If it looks fine, tap "Shrink all".':''));
   }catch(e){say('Error: '+(e&&e.message?e.message:e))}
-  finally{_shrinkRun=false;try{if(wl)wl.release()}catch(e){}if(q('ShTest')){q('ShTest').disabled=false;q('ShAll').disabled=false;q('ShStop').style.display='none'}}
+  finally{_shrinkRun=false;try{if(wl)wl.release()}catch(e){}if(q('ShTest')){q('ShTest').disabled=false;q('ShAll').disabled=false;q('ShThumb').disabled=false;q('ShStop').style.display='none'}}
 }
 const getGPS=()=>new Promise(res=>{
   const done=(v)=>res(v);
@@ -3102,7 +3107,7 @@ async function phUpload(files,ctx,category,label){
     n++;bt.textContent='Uploading photo '+n+' of '+files.length+'…';
     const work=(async function(){
       try{
-        const comp=await compressImg(file,1280,0.72);
+        const comp=await compressImg(file,1800,0.88);
         if(cancelled)return 'x';
         const fn='shifts/'+(ctx.shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
         const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg',cacheControl:'31536000'});
@@ -3716,6 +3721,7 @@ async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
 // ADMIN
 async function renderAdmin(){
   q('AW').textContent=CU.name;
+  try{bkShowLast()}catch(e){}
   ensureJobTypes(true).then(renderJtList);
   q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+(s.pin?esc(s.pin)+(s.must_change?' (temporary)':''):'set by staff')+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+((s.lockbox||s.parking||s.alarm_info||s.watch_out)?'<div class="cs">🔑 Access details saved</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
@@ -4595,34 +4601,90 @@ function uploadProfilePic(){
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
   inp.onchange=async()=>{const f=inp.files[0];if(!f)return;toast('Uploading...');try{const comp=await compressImg(f,400,0.8);const fn='profiles/'+CU.id+'_'+Date.now()+'.jpg';const {error}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg',upsert:true});if(error){toast('Failed: '+error.message);return}const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);await db.from('rpc_staff').update({profile_pic:ud.publicUrl}).eq('id',CU.id);CU.profile_pic=ud.publicUrl;await loadStaff();toast('Profile picture updated ✅');renderHome()}catch(e){toast('Error: '+e.message)}};inp.click();
 }
-async function doBackup(){
+// ===== v63: complete backup with period choice =====
+async function bkFetchAll(table,orderCol,dateCol,from,to){
+  const all=[];let off=0,useOrder=!!orderCol;
+  for(;;){
+    let qy=db.from(table).select('*');
+    if(dateCol&&from)qy=qy.gte(dateCol,from);
+    if(dateCol&&to)qy=qy.lte(dateCol,to);
+    if(useOrder)qy=qy.order(orderCol);
+    qy=qy.range(off,off+999);
+    const r=await qy;
+    if(r.error&&useOrder){useOrder=false;continue}
+    if(r.error)throw r.error;
+    const d=r.data||[];
+    for(let i=0;i<d.length;i++)all.push(d[i]);
+    if(d.length<1000)break;
+    off+=1000;
+  }
+  return all;
+}
+function bkShowLast(){
+  const el=q('BkLast');if(!el)return;
+  let info=null;try{info=JSON.parse(localStorage.getItem('rpc_last_backup')||'null')}catch(e){}
+  if(!info||!info.t){el.style.color='#b9770e';el.textContent='⚠ No backup recorded on this phone yet';return}
+  const days=Math.floor((Date.now()-new Date(info.t).getTime())/86400000);
+  const when=days<=0?'today':days===1?'yesterday':days+' days ago';
+  const old=days>30||info.err;
+  el.style.color=old?'#b9770e':'#0a9e7a';
+  el.textContent=(old?'⚠ ':'✅ ')+'Last backup: '+when+' ('+(info.label||'Everything')+(info.err?', some tables could not be read':'')+')'+(days>30?' — time for a new one':'');
+}
+function openBackup(){
+  if(!CU||!CU.is_admin){toast('Admin only');return}
+  if(q('BkO'))q('BkO').remove();
+  const o=document.createElement('div');o.id='BkO';
+  o.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(5,20,40,.6);display:flex;align-items:flex-end;justify-content:center;font-family:var(--fn)';
+  o.innerHTML='<div style="background:var(--sf,#fff);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto">'
+   +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:16px;font-weight:800">Download backup</div><button id="BkX" style="border:none;background:none;font-size:20px;cursor:pointer">&#10005;</button></div>'
+   +'<div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">Choose how much history to include. Shifts, attendance, breaks, travel, photo records and notifications follow the period. Staff, sites, documents, leave, incidents and settings are always included in full. Photo <i>files</i> are not in the backup (only the photo records).</div>'
+   +'<label style="font-size:12px;font-weight:700">Period</label>'
+   +'<select id="BkPer" style="width:100%;padding:11px;border-radius:10px;border:1px solid var(--bd);margin:4px 0 10px;font-size:14px;font-family:var(--fn)">'
+   +'<option value="all">Everything (recommended)</option><option value="12">Last 12 months</option><option value="6">Last 6 months</option><option value="3">Last 3 months</option><option value="custom">Custom dates…</option></select>'
+   +'<div id="BkCust" style="display:none;gap:8px;margin-bottom:10px"><div style="flex:1"><label style="font-size:12px;font-weight:700">From</label><input type="date" id="BkFrom" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);font-family:var(--fn)"></div><div style="flex:1"><label style="font-size:12px;font-weight:700">To</label><input type="date" id="BkTo" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);font-family:var(--fn)"></div></div>'
+   +'<button id="BkGo" class="btn tl" style="width:100%">&#11015;&#65039; Download backup</button></div>';
+  document.body.appendChild(o);
+  q('BkX').onclick=function(){o.remove()};
+  q('BkPer').onchange=function(){q('BkCust').style.display=q('BkPer').value==='custom'?'flex':'none'};
+  q('BkGo').onclick=function(){
+    const v=q('BkPer').value;let from=null,to=null,label='Everything';
+    const ds=function(d){const p=function(n){return String(n).padStart(2,'0')};return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
+    if(v==='12'||v==='6'||v==='3'){const d=new Date();d.setMonth(d.getMonth()-Number(v));from=ds(d);label='Last '+v+' months'}
+    else if(v==='custom'){from=q('BkFrom').value||null;to=q('BkTo').value||null;if(!from&&!to){toast('Choose a From and/or To date');return}if(from&&to&&from>to){toast('From date must be before To date');return}label='Custom '+(from||'start')+' to '+(to||'today')}
+    o.remove();doBackup(from,to,label);
+  };
+}
+async function doBackup(from,to,plabel){
   toast('📦 Preparing backup — please wait...');
   try{
-    // Fetch all tables in parallel
-    var results=await Promise.all([
-      db.from('rpc_staff').select('*').order('name'),
-      db.from('rpc_sites').select('*').order('name'),
-      db.from('rpc_shifts').select('*').order('shift_date'),
-      db.from('rpc_attendance').select('*').order('created_at'),
-      db.from('rpc_status').select('*'),
-      db.from('rpc_leave').select('*').order('created_at'),
-      db.from('rpc_breaks').select('*').order('created_at'),
-      db.from('rpc_travel').select('*').order('created_at'),
-      db.from('rpc_photos').select('*').order('created_at'),
-      db.from('rpc_doc_folders').select('*').order('name'),
-      db.from('rpc_documents').select('*').order('name'),
-      db.from('rpc_signed_docs').select('*').order('signed_at'),
-      db.from('rpc_notifications').select('*').order('created_at'),
-    ]);
-
-    var labels=['staff','sites','shifts','attendance','status','leave',
-                'breaks','travel','photos','doc_folders','documents',
-                'signed_docs','notifications'];
+    var per={from:from||null,to:to||null,label:plabel||'Everything'};
+    var spec=[
+      ['staff','rpc_staff','id',null],['sites','rpc_sites','id',null],['shifts','rpc_shifts','id','shift_date'],['attendance','rpc_attendance','id','shift_date'],
+      ['status','rpc_status',null,null],['leave','rpc_leave','id',null],['breaks','rpc_breaks','id','created_at'],['travel','rpc_travel','id','created_at'],
+      ['photos','rpc_photos','id','created_at'],['doc_folders','rpc_doc_folders','id',null],['documents','rpc_documents','id',null],['signed_docs','rpc_signed_docs','id',null],
+      ['notifications','rpc_notifications','id','created_at'],['incidents','rpc_incidents','id',null],['photo_comments','rpc_photo_comments','id',null],
+      ['folder_access','rpc_folder_access','id',null],['shift_files','rpc_shift_files','id',null],['job_types','rpc_job_types','id',null],
+      ['doc_assign','rpc_doc_assign','id',null],['held_hours','rpc_held_hours','id',null],['signed_history','rpc_signed_history','id',null],
+      ['policy_reads','rpc_policy_reads','id',null],['doc_versions','rpc_doc_versions','id',null]
+    ];
+    var labels=[],results=[],errors=[];
+    for(var si=0;si<spec.length;si++){
+      var sp=spec[si];labels.push(sp[0]);
+      toast('📦 Reading '+sp[0]+' ('+(si+1)+' of '+spec.length+')…');
+      try{
+        var f=null,t=null;
+        if(sp[3]==='shift_date'){f=per.from;t=per.to}
+        else if(sp[3]==='created_at'){f=per.from?new Date(per.from+'T00:00:00').toISOString():null;t=per.to?new Date(per.to+'T23:59:59.999').toISOString():null}
+        results.push({data:await bkFetchAll(sp[1],sp[2],sp[3],f,t)});
+      }catch(e){errors.push(sp[0]+': '+((e&&e.message)||'could not read'));results.push({data:[],failed:true})}
+    }
 
     var backup={
       exported_at: new Date().toISOString(),
       exported_by: CU.name,
-      app_version: 'RapidProClean_v40',
+      app_version: 'RapidProClean_v63',
+      period: per.label+(per.from||per.to?' ('+(per.from||'start')+' to '+(per.to||'today')+')':''),
+      errors: errors,
       supabase_url: 'https://dhcgsdxgxqqlczifqxyq.supabase.co',
       record_counts: {},
       data: {}
@@ -4631,15 +4693,19 @@ async function doBackup(){
     results.forEach(function(r,i){
       var rows=r.data||[];
       backup.data[labels[i]]=rows;
-      backup.record_counts[labels[i]]=rows.length;
+      backup.record_counts[labels[i]]=r.failed?'ERROR':rows.length;
     });
     (backup.data.staff||[]).forEach(function(x){var a=allStaff.find(function(y){return y.id===x.id});if(a)x.pin=a.pin||''});   // v57
+    (backup.data.attendance||[]).sort(function(x,y){return String(x.created_at||'')<String(y.created_at||'')?-1:1});
+    (backup.data.shifts||[]).sort(function(x,y){return String(x.shift_date||'')<String(y.shift_date||'')?-1:1});
 
     // Also build a human-readable CSV summary
     var csvLines=[];
     csvLines.push('RAPID PRO CLEAN — FULL DATA BACKUP');
     csvLines.push('Exported: '+new Date().toLocaleString('en-AU'));
     csvLines.push('Exported by: '+CU.name);
+    csvLines.push('Period: '+backup.period);
+    if(errors.length)csvLines.push('WARNING — could not read: '+errors.join(' | '));
     csvLines.push('');
 
     // Staff CSV section
@@ -4707,6 +4773,7 @@ async function doBackup(){
     Object.entries(backup.record_counts).forEach(function(e){
       csvLines.push(e[0]+','+e[1]);
     });
+    (function(){var ds=(backup.data.attendance||[]).map(function(x){return x.shift_date}).filter(Boolean).sort();if(ds.length)csvLines.push('attendance dates,'+ds[0]+' to '+ds[ds.length-1]);var sd=(backup.data.shifts||[]).map(function(x){return x.shift_date}).filter(Boolean).sort();if(sd.length)csvLines.push('shift dates,'+sd[0]+' to '+sd[sd.length-1])})();
 
     var csvContent=csvLines.join('\n');
     var dateStr=new Date().toISOString().slice(0,10);
@@ -4733,8 +4800,10 @@ async function doBackup(){
     },1500);
 
     // Show summary toast
-    var total=Object.values(backup.record_counts).reduce(function(a,b){return a+b},0);
-    toast('✅ Backup downloaded — '+total+' records across '+labels.length+' tables');
+    var total=Object.values(backup.record_counts).reduce(function(a,b){return a+(typeof b==='number'?b:0)},0);
+    try{localStorage.setItem('rpc_last_backup',JSON.stringify({t:new Date().toISOString(),label:per.label,err:errors.length>0}))}catch(e){}
+    try{bkShowLast()}catch(e){}
+    toast(errors.length?('⚠ Backup downloaded, but '+errors.length+' table(s) could not be read — see the file'):('✅ Backup downloaded — '+total+' records across '+labels.length+' tables ('+per.label+')'));
 
   }catch(e){
     toast('Backup failed: '+(e.message||'Check your connection and try again'));
