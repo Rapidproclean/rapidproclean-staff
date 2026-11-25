@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -678,14 +678,9 @@ async function doLogin(){
   if(!name||!pin){err.textContent='Please enter your name and PIN';return}
   err.textContent='Checking...';
   try{
-    // v56: secure sign-in first, old PIN check kept as a safety fallback
-    let u=await authLogin(name,pin);
-    if(!u){
-      try{await db.auth.signOut()}catch(e){}
-      const {data,error}=await db.from('rpc_staff').select('*').ilike('name',name).eq('pin',pin).limit(1);
-      if(error||!data||!data.length){err.textContent='Name or PIN is incorrect. Try again.';return}
-      u=data[0];
-    }
+    // v57: secure sign-in only (old open PIN check removed)
+    const u=await authLogin(name,pin);
+    if(!u){err.textContent='Name or PIN is incorrect. Try again.';return}
     CU=u;err.textContent='';await startApp();
   }catch(e){err.textContent='Connection error. Check internet.'}
 }
@@ -720,7 +715,10 @@ async function startApp(){
   if(!CU.is_admin){checkTraining();plRefresh(false)}
   loadNotifs();goHome();
 }
-async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[]}catch{}}
+async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[];
+  // v57: PINs live in an admin-only table; only Admin can read them
+  if(CU&&CU.is_admin){try{const pr=await db.from('rpc_staff_pins').select('staff_id,pin');if(pr.data){const m={};pr.data.forEach(p=>{m[p.staff_id]=p.pin});allStaff.forEach(x=>{x.pin=m[x.id]||''})}}catch(e){}}
+  }catch{}}
 async function loadSites(){try{
   if(CU&&!CU.is_admin){   // v43: staff phones only receive the sites they are rostered on
     const sr=await db.from('rpc_shifts').select('site').eq('staff_id',CU.id).eq('status','published');
@@ -4485,6 +4483,7 @@ async function doBackup(){
       backup.data[labels[i]]=rows;
       backup.record_counts[labels[i]]=rows.length;
     });
+    (backup.data.staff||[]).forEach(function(x){var a=allStaff.find(function(y){return y.id===x.id});if(a)x.pin=a.pin||''});   // v57
 
     // Also build a human-readable CSV summary
     var csvLines=[];
