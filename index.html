@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -211,7 +211,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
     <div class="ll2">Your Name</div>
     <input class="li" id="lName" placeholder="Enter your name" type="text" autocomplete="off">
     <div class="ll2">PIN</div>
-    <input class="li" id="lPin" placeholder="Enter your PIN" type="password" inputmode="numeric" maxlength="6">
+    <input class="li" id="lPin" placeholder="Enter your PIN" type="password" autocomplete="current-password" maxlength="40">
+    <label style="font-size:12px;color:var(--t3);display:flex;gap:6px;align-items:center;margin:2px 0 8px"><input type="checkbox" onchange="q('lPin').type=this.checked?'text':'password'"> Show PIN</label>
     <button class="lb" onclick="doLogin()">Sign In</button>
     <div class="le" id="lErr"></div>
   </div>
@@ -333,6 +334,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="sl" style="margin-top:18px">App Info</div>
   <div class="card">
     <div class="cr"><div class="cl">Logged in as</div><div style="font-size:13px;color:var(--t2)" id="AW">—</div></div>
+    <div class="cr"><div class="cl">My PIN</div><button class="ebtn" onclick="openPinChange(false)">&#128273; Change my PIN</button></div>
     <div class="cr"><div class="cl">Database</div><div style="font-size:13px;color:var(--tl);font-weight:700">&#128994; Connected</div></div>
   </div>
   <button class="btn rd" onclick="doLogout()">Log Out</button>
@@ -340,10 +342,23 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <nav class="bnav" id="MNav" style="display:none"></nav>
 
 <!-- MODALS -->
+<div class="mov" id="PinM" style="z-index:500"><div class="msh"><div class="mh"></div>
+  <div class="mt" id="PinT">Change my PIN</div>
+  <div class="ms" id="PinS"></div>
+  <div id="PinCurW"><div class="mlbl">Current PIN</div><input class="mi" id="pnCur" type="password" autocomplete="current-password" autocapitalize="off" maxlength="40"></div>
+  <div class="mlbl">New PIN</div><input class="mi" id="pnNew" type="password" autocomplete="new-password" autocapitalize="off" maxlength="40">
+  <div class="mlbl">Type the new PIN again</div><input class="mi" id="pnNew2" type="password" autocomplete="new-password" autocapitalize="off" maxlength="40">
+  <label style="font-size:12px;color:var(--t3);display:flex;gap:6px;align-items:center;margin:2px 0 8px"><input type="checkbox" onchange="pinShow(this.checked)"> Show PIN</label>
+  <div id="pnErr" style="font-size:12px;min-height:16px;margin-bottom:8px;color:var(--rd)"></div>
+  <button class="btn tl" id="pnSave" onclick="pinSubmit()">Save new PIN</button>
+  <button class="btn sc" id="pnCancel" onclick="closeM('PinM')">Cancel</button>
+  <button class="btn sc" id="pnOut" onclick="pinSignOut()" style="display:none">Sign out</button>
+</div></div>
+
 <div class="mov" id="AM"><div class="msh"><div class="mh"></div><div class="mt">Add Staff Member</div>
   <div class="mlbl">Full Name</div><input class="mi" id="nNm" placeholder="Full name" type="text">
   <div class="mlbl">Role</div><input class="mi" id="nRl" placeholder="e.g. Cleaner, Team Leader" type="text">
-  <div class="mlbl">PIN (4-6 digits)</div><input class="mi" id="nPn" placeholder="PIN" type="text" inputmode="numeric" maxlength="6">
+  <div class="mlbl">Temporary PIN (10+ characters, letters and numbers — they choose their own at first login)</div><input class="mi" id="nPn" placeholder="e.g. welcome2026ok" type="text" autocomplete="off" autocapitalize="off" maxlength="40">
   <div class="mlbl">Email Address</div><input class="mi" id="nEm" placeholder="staff@email.com" type="email">
   <div class="mlbl">Max Hours Per Fortnight (optional)</div><input class="mi" id="nMH" placeholder="e.g. 45" type="number" min="0">
   <div class="mlbl">Colour</div>
@@ -360,7 +375,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <div class="mov" id="EM"><div class="msh"><div class="mh"></div><div class="mt">Edit Staff Member</div>
   <input class="mi" id="eNm" placeholder="Full name" type="text">
   <input class="mi" id="eRl" placeholder="Role" type="text">
-  <input class="mi" id="ePn" placeholder="PIN" type="text" inputmode="numeric" maxlength="6">
+  <input class="mi" id="ePn" placeholder="PIN" type="text" autocomplete="off" autocapitalize="off" maxlength="40">
   <input class="mi" id="eEm" placeholder="Email address" type="email">
   <div class="mlbl">Max Hours Per Fortnight</div><input class="mi" id="eMH" placeholder="e.g. 45" type="number" min="0">
   <input type="hidden" id="eId">
@@ -518,7 +533,8 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <button class="btn sc" onclick="closeM('RptM')">Cancel</button>
 </div></div>
 
-<div class="mov" id="PhCatM"><div class="msh"><div class="mh"></div><div class="mt">Before &amp; After Photos</div>
+<div class="mov" id="PhCatM" onclick="if(event.target===this)phCatDone()"><div class="msh"><div class="mh"></div>
+  <div style="position:sticky;top:-26px;z-index:5;background:var(--cd);margin:-6px -22px 8px;padding:6px 22px 8px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--bd)"><div class="mt" style="margin:0">Before &amp; After Photos</div><button onclick="phCatDone()" style="flex-shrink:0;padding:9px 16px;border-radius:var(--rs);background:var(--nv);color:#fff;border:none;font-family:var(--fn);font-size:13px;font-weight:800;cursor:pointer">&#10005; Close</button></div>
   <div class="ms" id="PhCatS"></div>
   <div id="PhCatBody"></div>
   <button class="btn tl" onclick="phCatDone()">Done</button>
@@ -679,10 +695,49 @@ async function doLogin(){
   err.textContent='Checking...';
   try{
     // v57: secure sign-in only (old open PIN check removed)
+    _lastLoginPin=pin;
     const u=await authLogin(name,pin);
     if(!u){err.textContent='Name or PIN is incorrect. Try again.';return}
     CU=u;err.textContent='';await startApp();
   }catch(e){err.textContent='Connection error. Check internet.'}
+}
+// v59: stronger PINs — 10+ characters with a letter and a number
+let _lastLoginPin='',_pinForced=false,_pinBusy=false;
+function pinValid(p){return typeof p==='string'&&p.length>=10&&/[A-Za-z]/.test(p)&&/[0-9]/.test(p)}
+function pinShow(on){['pnCur','pnNew','pnNew2'].forEach(function(id){q(id).type=on?'text':'password'})}
+function openPinChange(forced){
+  _pinForced=!!forced;
+  ['pnCur','pnNew','pnNew2'].forEach(function(id){q(id).value='';q(id).type='password'});
+  var e=q('pnErr');e.textContent='';e.style.color='var(--rd)';
+  q('PinCurW').style.display=forced?'none':'block';
+  q('pnCancel').style.display=forced?'none':'block';
+  q('pnOut').style.display=forced?'block':'none';
+  q('PinT').textContent=forced?'Choose your new PIN':'Change my PIN';
+  q('PinS').textContent=(forced?'For your security you need a new PIN before you continue. ':'')+'Use 10 or more characters with at least one letter and one number, for example bluetiger2026.';
+  openM('PinM');
+}
+function pinSignOut(){closeM('PinM');doLogout()}
+async function pinSubmit(){
+  if(_pinBusy)return;
+  var err=q('pnErr'),n1=q('pnNew').value.trim(),n2=q('pnNew2').value.trim(),cur=q('pnCur').value.trim();
+  err.style.color='var(--rd)';err.textContent='';
+  if(!_pinForced&&!cur){err.textContent='Enter your current PIN';return}
+  if(!pinValid(n1)){err.textContent='New PIN needs 10 or more characters with at least one letter and one number';return}
+  if(n1!==n2){err.textContent='The two new PINs do not match';return}
+  if(!_pinForced&&n1===cur){err.textContent='New PIN must be different from the current one';return}
+  if(_pinForced&&_lastLoginPin&&n1===_lastLoginPin){err.textContent='Please choose a PIN different from the one you just used';return}
+  _pinBusy=true;q('pnSave').disabled=true;err.style.color='var(--t3)';err.textContent='Saving...';
+  try{
+    if(!_pinForced){
+      var u=await db.auth.getUser();var em=u&&u.data&&u.data.user&&u.data.user.email;
+      var t=await db.auth.signInWithPassword({email:em,password:'rpc#'+cur});
+      if(t.error){err.style.color='var(--rd)';err.textContent='Current PIN is incorrect';return}
+    }
+    var r=await db.rpc('rpc_change_my_pin',{p_new:n1});
+    if(r.error){err.style.color='var(--rd)';err.textContent='Could not save: '+r.error.message;return}
+    CU.must_change=false;_lastLoginPin='';closeM('PinM');toast('PIN changed ✅');
+  }catch(e){err.style.color='var(--rd)';err.textContent='Connection error — please try again'}
+  finally{_pinBusy=false;q('pnSave').disabled=false}
 }
 // v56: Supabase Auth helpers (secure accounts created by the Step 1 SQL)
 async function authLogin(name,pin){
@@ -714,6 +769,7 @@ async function startApp(){
   setInterval(()=>{if(q('p-home').classList.contains('on')&&Date.now()>phHold)renderHome()},30000);
   if(!CU.is_admin){checkTraining();plRefresh(false)}
   loadNotifs();goHome();
+  if(CU.must_change)openPinChange(true);   // v59
 }
 async function loadStaff(){try{const {data}=await db.from('rpc_staff').select('*').order('name');allStaff=data||[];
   // v57: PINs live in an admin-only table; only Admin can read them
@@ -946,6 +1002,7 @@ async function renderStaffHome(el2,sm,tm){
   const statusKey=isOnBrk?'br':isIn?'in':isTrv?'tr':'out';
   const statusLabel=isOnBrk?'On Break':isIn?'On Shift':isTrv?'Travelling':'Off Shift';
   const pill=document.createElement('div');pill.className='pill '+statusKey;pill.innerHTML='<div class="dot '+statusKey+'"></div>'+statusLabel;card.appendChild(pill);
+  {const pb=document.createElement('button');pb.className='ebtn';pb.style.cssText='margin:0 0 8px 0;font-size:11px';pb.innerHTML='&#128273; Change my PIN';pb.onclick=function(){openPinChange(false)};card.appendChild(pb)}
   if(isIn&&st.since){const sd=document.createElement('div');sd.style.cssText='font-family:var(--mn);font-size:11px;color:var(--t3);margin-bottom:6px';sd.textContent='Since '+fmtT(st.since);card.appendChild(sd);}
   if(workMin>0||trvMin>0){const hd=document.createElement('div');hd.style.cssText='font-size:11px;color:var(--t3);margin-bottom:8px';hd.innerHTML='Today: <span style="color:var(--nv2);font-weight:600">'+fmtHrs(Math.round(workMin))+' work</span>'+(trvMin>0?' + <span style="color:var(--am);font-weight:600">'+fmtHrs(Math.round(trvMin))+' travel</span>':'')+(brkNeeded?' · <span style="color:var(--or);font-weight:700">⚠️ Break due</span>':'');card.appendChild(hd);}
 
@@ -2958,20 +3015,40 @@ async function phUpload(files,ctx,category,label){
   if(!files||!files.length)return 0;
   phHold=Date.now()+180000;
   toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'…');
-  let cnt=0,fail=0;
+  let cnt=0,fail=0,cancelled=false,wake=null;
+  // v58: Cancel bar while uploading — stops the rest, keeps photos already uploaded
+  const bar=document.createElement('div');
+  bar.style.cssText='position:fixed;left:12px;right:12px;bottom:84px;z-index:400;background:#0c2a52;color:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-family:var(--fn)';
+  const bt=document.createElement('div');bt.style.cssText='font-size:13px;font-weight:700;min-width:0';
+  const bc=document.createElement('button');bc.textContent='Cancel upload';
+  bc.style.cssText='flex-shrink:0;padding:9px 14px;border-radius:10px;background:#fff;color:#c0392b;border:none;font-family:var(--fn);font-size:13px;font-weight:800;cursor:pointer';
+  bc.onclick=function(){cancelled=true;bc.disabled=true;bt.textContent='Cancelling…';if(wake)wake()};
+  bar.appendChild(bt);bar.appendChild(bc);document.body.appendChild(bar);
+  const stopP=new Promise(function(r){wake=r});
+  let n=0;
   for(const file of files){
-    try{
-      const comp=await compressImg(file,1800,0.88);
-      const fn='shifts/'+(ctx.shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
-      const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
-      if(ue){fail++;continue}
-      const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
-      const {error:ie}=await db.from('rpc_photos').insert({shift_id:ctx.shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:category,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:ctx.site||'General'});
-      if(ie){try{await db.storage.from('rpc-photos').remove([fn])}catch(e2){}fail++;continue}
-      cnt++;
-    }catch(e){fail++}
+    if(cancelled)break;
+    n++;bt.textContent='Uploading photo '+n+' of '+files.length+'…';
+    const work=(async function(){
+      try{
+        const comp=await compressImg(file,1800,0.88);
+        if(cancelled)return 'x';
+        const fn='shifts/'+(ctx.shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
+        const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
+        if(ue)return 'f';
+        if(cancelled){try{await db.storage.from('rpc-photos').remove([fn])}catch(e3){}return 'x'}
+        const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
+        const {error:ie}=await db.from('rpc_photos').insert({shift_id:ctx.shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:category,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:ctx.site||'General'});
+        if(ie){try{await db.storage.from('rpc-photos').remove([fn])}catch(e2){}return 'f'}
+        return 'ok';
+      }catch(e){return 'f'}
+    })();
+    const r=await Promise.race([work,stopP.then(function(){return 'x'})]);
+    if(r==='ok')cnt++;else if(r==='f')fail++;
   }
+  try{bar.remove()}catch(e){}
   phHold=Date.now()+3000;
+  if(cancelled){toast('Upload cancelled'+(cnt?' — '+cnt+' photo'+(cnt>1?'s':'')+' already uploaded':''));return cnt}
   if(cnt&&!fail)toast(cnt+' photo'+(cnt>1?'s':'')+' uploaded ✅');
   else if(cnt)toast(cnt+' uploaded, '+fail+' failed — please try the failed ones again');
   else toast('Upload failed — check your connection and try again');
@@ -3568,7 +3645,7 @@ async function exportCSV(from,to,sessions,travels,brkBy,trvBy){
 async function renderAdmin(){
   q('AW').textContent=CU.name;
   ensureJobTypes(true).then(renderJtList);
-  q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+esc(s.pin)+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
+  q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+(s.pin?esc(s.pin)+(s.must_change?' (temporary)':''):'set by staff')+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+((s.lockbox||s.parking||s.alarm_info||s.watch_out)?'<div class="cs">🔑 Access details saved</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   filterRows('StaffList','stSq');filterRows('SiteList','siSq');
   // Bottom spacer
@@ -3577,6 +3654,7 @@ async function renderAdmin(){
 async function saveStaff(){
   var nm=q('nNm').value.trim(),pin=q('nPn').value.trim();
   if(!nm||!pin){toast('Name and PIN required');return}
+  if(!pinValid(pin)){toast('Temporary PIN needs 10+ characters with a letter and a number');return}
   try{
     // Create the staff member
     var ins=await db.from('rpc_staff').insert({
@@ -3658,8 +3736,8 @@ async function openAddStaff(){
     nt.innerHTML='<div style="font-size:12px;color:var(--t3)">Could not load training folders.</div>';
   }
 }
-function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin;q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
-async function saveEditStaff(){const id=parseInt(q('eId').value);try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await authSync(id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
+function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin||'';q('ePn').placeholder=s.pin?'PIN':'PIN set by staff — type here only to set a temporary one';q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
+async function saveEditStaff(){const id=parseInt(q('eId').value);{const np=q('ePn').value.trim(),cs=allStaff.find(x=>x.id===id);if(np&&np!==((cs&&cs.pin)||'')&&!pinValid(np)){toast('Temporary PIN needs 10+ characters with a letter and a number');return}}try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await authSync(id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
 async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{try{await db.rpc('rpc_remove_auth_user',{p_staff_id:id})}catch(e){}await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
 async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;var sdv=siteDetailVals();var hasSd=!!(sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out);if(hasSd)Object.assign(srow,sdv);const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp||hasSd)){toast(/site_contact|maps_link|lockbox|parking|alarm_info|watch_out/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
 
