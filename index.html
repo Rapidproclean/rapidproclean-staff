@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v63.0 — v62 + complete backup: reads every row (no 1000-row cut-off), choose the period, all tables included, "Last backup" reminder on the Admin page. Previous: v62.0 — v61 + new staff photos back to full quality (1800px, same as v59, so reports look as before) + "Make thumbnails only" button (keeps original photos, makes old photo pages fast). Previous: v61.0 — v60 + admin "Shrink old photos" tool (Admin page): shrinks existing photos to 1400px and adds thumbnails, with a 5-photo test first, stop/resume. Previous: v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v65.0 — v64 + admin "Reset PIN" button on each staff row (makes a temporary PIN, staff must choose their own at next login). Previous: v64.0 — v63 + login delay: after 5 wrong PIN tries the login screen makes the person wait (1 min, then longer). Previous: v63.0 — v62 + complete backup: reads every row (no 1000-row cut-off), choose the period, all tables included, "Last backup" reminder on the Admin page. Previous: v62.0 — v61 + new staff photos back to full quality (1800px, same as v59, so reports look as before) + "Make thumbnails only" button (keeps original photos, makes old photo pages fast). Previous: v61.0 — v60 + admin "Shrink old photos" tool (Admin page): shrinks existing photos to 1400px and adds thumbnails, with a 5-photo test first, stop/resume. Previous: v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -383,6 +383,16 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <input type="hidden" id="eId">
   <button class="btn tl" onclick="saveEditStaff()">Save Changes</button>
   <button class="btn sc" onclick="closeM('EM')">Cancel</button>
+</div></div>
+
+<div class="mov" id="RPM"><div class="msh"><div class="mh"></div><div class="mt">Reset PIN</div>
+  <div class="mlbl" id="rpName"></div>
+  <div class="mlbl">Temporary PIN (they must choose their own at next login)</div>
+  <input class="mi" id="rpPin" type="text" autocomplete="off" autocapitalize="off" maxlength="40" style="font-size:20px;font-weight:700;letter-spacing:1px">
+  <input type="hidden" id="rpId">
+  <div class="cs" id="rpMsg" style="margin:6px 0 10px"></div>
+  <button class="btn tl" id="rpGo" onclick="doResetPin()">Set this temporary PIN</button>
+  <button class="btn sc" onclick="closeM('RPM')">Close</button>
 </div></div>
 
 <div class="mov" id="JtM"><div class="msh"><div class="mh"></div><div class="mt" id="JtMt">Add Job Type</div>
@@ -765,15 +775,28 @@ const parseMin=s=>{if(!s)return 0;const hm=String(s).match(/(\d+)h\s*(\d+)?m?/);
 const el=(tag,style,html)=>{const e=document.createElement(tag);if(style)e.style.cssText=style;if(html!==undefined)e.innerHTML=html;return e};
 
 // LOGIN
+// v64: slow down repeated wrong PIN tries (per phone)
+function lgKey(n){return 'rpc_lg_'+String(n).toLowerCase()}
+function lgGet(n){try{return JSON.parse(localStorage.getItem(lgKey(n))||'null')||{n:0,until:0,lv:0}}catch(e){return {n:0,until:0,lv:0}}}
+function lgSet(n,o){try{localStorage.setItem(lgKey(n),JSON.stringify(o))}catch(e){}}
+function lgText(sec){return sec>=120?Math.ceil(sec/60)+' minutes':sec+' seconds'}
 async function doLogin(){
   const name=q('lName').value.trim(),pin=q('lPin').value.trim(),err=q('lErr');
   if(!name||!pin){err.textContent='Please enter your name and PIN';return}
+  const lg0=lgGet(name),wait0=Math.ceil((lg0.until-Date.now())/1000);
+  if(wait0>0){err.textContent='Too many wrong tries. Please wait '+lgText(wait0)+', then try again.';return}
   err.textContent='Checking...';
   try{
     // v57: secure sign-in only (old open PIN check removed)
     _lastLoginPin=pin;
     const u=await authLogin(name,pin);
-    if(!u){err.textContent='Name or PIN is incorrect. Try again.';return}
+    if(!u){
+      const lg=lgGet(name);lg.n=(lg.n||0)+1;
+      if(lg.n>=5){lg.lv=(lg.lv||0)+1;const secs=Math.min(900,60*Math.pow(2,lg.lv-1));lg.until=Date.now()+secs*1000;lg.n=0;lgSet(name,lg);err.textContent='Too many wrong tries. Please wait '+lgText(secs)+', then try again.'}
+      else{lgSet(name,lg);err.textContent='Name or PIN is incorrect. Try again. ('+(5-lg.n)+' tr'+((5-lg.n)===1?'y':'ies')+' left before a short wait)'}
+      return;
+    }
+    lgSet(name,{n:0,until:0,lv:0});
     CU=u;err.textContent='';await startApp();
   }catch(e){err.textContent='Connection error. Check internet.'}
 }
@@ -3723,7 +3746,7 @@ async function renderAdmin(){
   q('AW').textContent=CU.name;
   try{bkShowLast()}catch(e){}
   ensureJobTypes(true).then(renderJtList);
-  q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+(s.pin?esc(s.pin)+(s.must_change?' (temporary)':''):'set by staff')+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
+  q('StaffList').innerHTML=allStaff.filter(s=>!s.is_admin).map(s=>{const av=AV[s.color||'a']||AV.a;return'<div class="cr" style="flex-wrap:wrap;gap:6px"><div style="display:flex;align-items:center;gap:8px;flex:1">'+(s.profile_pic?'<img style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0" src="'+esc(s.profile_pic)+'">':'<div style="width:32px;height:32px;border-radius:50%;background:'+av.bg+';color:'+av.c+';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">'+ini(s.name)+'</div>')+'<div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.role)+' · PIN: '+(s.pin?esc(s.pin)+(s.must_change?' (temporary)':''):'set by staff')+(s.email?' · '+esc(s.email):'')+(s.max_hours_fortnight?' · Max '+s.max_hours_fortnight+'h/fn':'')+'</div></div></div><div style="display:flex;gap:2px;flex-shrink:0">'+(s.email?'<button class="ebtn" onclick="window.location.href=\'mailto:'+esc(s.email)+'\'">📧</button>':'')+'<button class="ebtn" onclick="openResetPin('+s.id+')">Reset PIN</button><button class="ebtn" onclick="openEditStaff('+s.id+')">Edit</button><button class="dbtn" onclick="delStaff('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>'}).join('')||'<div class="cr"><div class="cs">No staff yet</div></div>';
   q('SiteList').innerHTML=allSites.map(s=>'<div class="cr"><div><div class="cl">'+esc(s.name)+'</div><div class="cs">'+esc(s.address||'No address')+'</div>'+((s.site_contact_name||s.site_contact_phone)?'<div class="cs">👤 '+esc([s.site_contact_name,s.site_contact_phone].filter(Boolean).join(' · '))+'</div>':'')+(s.maps_link?'<div class="cs">📍 Pin link set</div>':'')+((s.lockbox||s.parking||s.alarm_info||s.watch_out)?'<div class="cs">🔑 Access details saved</div>':'')+'</div><div style="display:flex;gap:4px;flex-shrink:0"><button class="ebtn" onclick="openEditSite('+s.id+')">Edit</button><button class="dbtn" onclick="delSite('+s.id+',\''+esc(s.name)+'\')">Remove</button></div></div>').join('')||'<div class="cr"><div class="cs">No sites yet</div></div>';
   filterRows('StaffList','stSq');filterRows('SiteList','siSq');
   // Bottom spacer
@@ -3816,6 +3839,16 @@ async function openAddStaff(){
 }
 function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin||'';q('ePn').placeholder=s.pin?'PIN':'PIN set by staff — type here only to set a temporary one';q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
 async function saveEditStaff(){const id=parseInt(q('eId').value);{const np=q('ePn').value.trim(),cs=allStaff.find(x=>x.id===id);if(np&&np!==((cs&&cs.pin)||'')&&!pinValid(np)){toast('Temporary PIN needs 10+ characters with a letter and a number');return}}try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await authSync(id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
+// v65: admin Reset PIN shortcut (same method as Edit → temporary PIN)
+function rpGen(){const L='abcdefghjkmnpqrstuvwxyz',D='23456789';let a='',b='';for(let k=0;k<6;k++)a+=L[Math.floor(Math.random()*L.length)];for(let k=0;k<4;k++)b+=D[Math.floor(Math.random()*D.length)];return a+b}
+function openResetPin(id){const st=allStaff.find(x=>x.id===id);if(!st)return;q('rpId').value=id;q('rpName').textContent=st.name;q('rpPin').value=rpGen();q('rpMsg').textContent='Tap "Set this temporary PIN", then tell '+st.name+' the PIN. You can type your own instead (10+ characters, letters and numbers).';q('rpGo').style.display='';q('rpGo').disabled=false;openM('RPM')}
+async function doResetPin(){const id=parseInt(q('rpId').value),st=allStaff.find(x=>x.id===id);if(!st)return;const np=q('rpPin').value.trim();if(!pinValid(np)){toast('Temporary PIN needs 10+ characters with a letter and a number');return}
+  q('rpGo').disabled=true;
+  try{const r=await db.from('rpc_staff').update({pin:np}).eq('id',id);if(r&&r.error)throw r.error;const ok=await authSync(id);if(!ok){q('rpGo').disabled=false;q('rpMsg').textContent='Could not update the secure login. Sign out and in as Admin, then try again.';return}
+    try{lgSet(st.name,{n:0,until:0,lv:0})}catch(e){}
+    await loadStaff();renderAdmin();
+    q('rpMsg').innerHTML='✅ Done. Temporary PIN for <b>'+esc(st.name)+'</b>: <b>'+esc(np)+'</b><br>They choose their own PIN the next time they log in.';q('rpGo').style.display='none'}
+  catch(e){q('rpGo').disabled=false;toast('Error: '+e.message)}}
 async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{try{await db.rpc('rpc_remove_auth_user',{p_staff_id:id})}catch(e){}await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
 async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;var sdv=siteDetailVals();var hasSd=!!(sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out);if(hasSd)Object.assign(srow,sdv);const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp||hasSd)){toast(/site_contact|maps_link|lockbox|parking|alarm_info|watch_out/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
 
