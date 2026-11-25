@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -661,6 +661,11 @@ const closeLB=()=>q('LB').classList.remove('on');
 const calcDays=(s,e)=>{if(!s)return 1;return Math.max(1,Math.round((new Date((e||s)+'T00:00:00')-new Date(s+'T00:00:00'))/86400000)+1)};
 const dlCSV=(rows,name)=>{const csv=rows.map(r=>r.map(x=>'"'+String(x||'').replace(/"/g,'""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=name+'.csv';a.click()};
 const compressImg=(file,maxW=800,q2=0.75)=>new Promise(res=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{const sc=Math.min(1,maxW/img.width),cv=document.createElement('canvas');cv.width=img.width*sc;cv.height=img.height*sc;cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);cv.toBlob(b=>res(b),'image/jpeg',q2);URL.revokeObjectURL(url)};img.src=url});
+const thumbOf=u=>{try{if(!u||typeof u!=='string')return u;const m=u.match(/^([^?#]+)\.jpg(\?.*)?$/i);return m?m[1]+'_t.jpg'+(m[2]||''):u}catch(e){return u}};
+const thumbImg=(im,u)=>{im.decoding='async';im.loading='lazy';const t=thumbOf(u);if(t===u){im.src=u;return im}im.onerror=function(){im.onerror=null;im.src=u};im.src=t;return im};
+const thumbPath=p=>(p&&/\.jpg$/i.test(p))?p.replace(/\.jpg$/i,'_t.jpg'):null;
+const withThumbs=a=>a.concat(a.map(thumbPath).filter(Boolean));
+async function upThumb(blob,fn){try{const tp=thumbPath(fn);if(!tp)return;const t=await compressImg(blob,360,0.6);await db.storage.from('rpc-photos').upload(tp,t,{contentType:'image/jpeg',cacheControl:'31536000',upsert:true})}catch(e){}}
 const getGPS=()=>new Promise(res=>{
   const done=(v)=>res(v);
   const fail=()=>done({lat:null,lng:null,addr:'Location unavailable'});
@@ -1525,7 +1530,7 @@ async function renderWeek(el2){
         Object.entries(byCat).forEach(([cat,cps])=>{
           const cd2=document.createElement('div');cd2.style.marginTop='8px';cd2.innerHTML='<div style="font-size:10px;font-weight:800;color:var(--nv2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">📁 '+esc(cat)+'</div>';
           const pg=document.createElement('div');pg.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:5px';
-          cps.forEach(p=>{const pd=document.createElement('div');pd.style.cssText='border-radius:7px;overflow:hidden;border:1px solid var(--bd);position:relative';const img=document.createElement('img');img.src=p.url;img.style.cssText='width:100%;height:65px;object-fit:cover;display:block;cursor:pointer';img.onclick=()=>openLB(p.url,p.label+' — '+p.staff_name);const lbl2=document.createElement('div');lbl2.style.cssText='background:rgba(0,0,0,.55);color:#fff;font-size:8px;font-weight:700;padding:2px 4px;text-transform:uppercase';lbl2.textContent=p.label;pd.appendChild(img);pd.appendChild(lbl2);if(CU.is_admin){const db4=document.createElement('button');db4.style.cssText='position:absolute;top:3px;right:3px;background:rgba(0,0,0,.5);border:none;color:#fff;border-radius:50%;width:17px;height:17px;font-size:10px;cursor:pointer';db4.textContent='✕';const pid=p.id,ppath=p.storage_path;db4.onclick=e2=>{e2.stopPropagation();delPhoto(pid,ppath)};pd.appendChild(db4)}pg.appendChild(pd)});
+          cps.forEach(p=>{const pd=document.createElement('div');pd.style.cssText='border-radius:7px;overflow:hidden;border:1px solid var(--bd);position:relative';const img=thumbImg(document.createElement('img'),p.url);img.style.cssText='width:100%;height:65px;object-fit:cover;display:block;cursor:pointer';img.onclick=()=>openLB(p.url,p.label+' — '+p.staff_name);const lbl2=document.createElement('div');lbl2.style.cssText='background:rgba(0,0,0,.55);color:#fff;font-size:8px;font-weight:700;padding:2px 4px;text-transform:uppercase';lbl2.textContent=p.label;pd.appendChild(img);pd.appendChild(lbl2);if(CU.is_admin){const db4=document.createElement('button');db4.style.cssText='position:absolute;top:3px;right:3px;background:rgba(0,0,0,.5);border:none;color:#fff;border-radius:50%;width:17px;height:17px;font-size:10px;cursor:pointer';db4.textContent='✕';const pid=p.id,ppath=p.storage_path;db4.onclick=e2=>{e2.stopPropagation();delPhoto(pid,ppath)};pd.appendChild(db4)}pg.appendChild(pd)});
           cd2.appendChild(pg);det.appendChild(cd2);
         });
       }
@@ -3003,7 +3008,7 @@ async function phRemove(ps){
     if(paths.length){   // keep a file that another shift's photo still uses (repeated shifts share one file)
       try{const delIds=ps.map(function(p){return p.id});const o=await db.from('rpc_photos').select('id,storage_path').in('storage_path',paths);const still={};(o.data||[]).forEach(function(r){if(delIds.indexOf(r.id)===-1)still[r.storage_path]=true});paths=paths.filter(function(p){return !still[p]})}catch(e){}
     }
-    if(paths.length)await db.storage.from('rpc-photos').remove(paths);
+    if(paths.length)await db.storage.from('rpc-photos').remove(withThumbs(paths));
     const {error}=await db.from('rpc_photos').delete().in('id',ps.map(function(p){return p.id}));
     if(error){toast('Could not delete: '+error.message);return false}
     return true;
@@ -3031,15 +3036,16 @@ async function phUpload(files,ctx,category,label){
     n++;bt.textContent='Uploading photo '+n+' of '+files.length+'…';
     const work=(async function(){
       try{
-        const comp=await compressImg(file,1800,0.88);
+        const comp=await compressImg(file,1280,0.72);
         if(cancelled)return 'x';
         const fn='shifts/'+(ctx.shiftId||'general')+'/'+label.toLowerCase()+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
-        const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg'});
+        const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg',cacheControl:'31536000'});
         if(ue)return 'f';
-        if(cancelled){try{await db.storage.from('rpc-photos').remove([fn])}catch(e3){}return 'x'}
+        await upThumb(comp,fn);
+        if(cancelled){try{await db.storage.from('rpc-photos').remove(withThumbs([fn]))}catch(e3){}return 'x'}
         const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);
         const {error:ie}=await db.from('rpc_photos').insert({shift_id:ctx.shiftId||null,staff_id:CU.id,staff_name:CU.name,label:label,category:category,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:ctx.site||'General'});
-        if(ie){try{await db.storage.from('rpc-photos').remove([fn])}catch(e2){}return 'f'}
+        if(ie){try{await db.storage.from('rpc-photos').remove(withThumbs([fn]))}catch(e2){}return 'f'}
         return 'ok';
       }catch(e){return 'f'}
     })();
@@ -3155,7 +3161,7 @@ function phDrawJob(box,ctx,photos){
       }
       list.forEach(function(p){
         const w=document.createElement('div');w.style.cssText='position:relative;border-radius:8px;overflow:hidden;border:2px solid '+col+';aspect-ratio:1/1;background:#000';
-        const im=document.createElement('img');im.src=p.url;im.loading='lazy';im.style.cssText='width:100%;height:100%;object-fit:cover;display:block;cursor:pointer';
+        const im=thumbImg(document.createElement('img'),p.url);im.style.cssText='width:100%;height:100%;object-fit:cover;display:block;cursor:pointer';
         im.onclick=function(){openLB(p.url,g.name+' · '+(p.label||label)+(p.staff_name?' · '+p.staff_name:''))};
         w.appendChild(im);
         if(ctx.canEdit){
@@ -3567,10 +3573,10 @@ async function uploadPhotos(){
   for(const file of files){try{const comp=await compressImg(file,800,0.75);const fn='shifts/'+(pPhSh||'general')+'/'+Date.now()+'_'+CU.id+'_'+Math.random().toString(36).slice(2,7)+'.jpg';const {error:ue}=await db.storage.from('rpc-photos').upload(fn,comp,{contentType:'image/jpeg',upsert:false});if(ue){toast('Error: '+ue.message);continue}const {data:ud}=db.storage.from('rpc-photos').getPublicUrl(fn);await db.from('rpc_photos').insert({shift_id:pPhSh||null,staff_id:CU.id,staff_name:CU.name,label,note:note||null,url:ud.publicUrl,storage_path:fn,uploaded_by:'staff',site:pPhSite||'General',category:cat});cnt++;}catch(e){toast('Error: '+e.message)}}
   closeM('PhotoM');toast(cnt+' photo'+(cnt>1?'s':'')+' uploaded ✅');if(q('p-roster').classList.contains('on'))renderRoster();
 }
-async function delPhoto(id,path){if(!confirm('Delete photo?'))return;try{if(path)await db.storage.from('rpc-photos').remove([path]);await db.from('rpc_photos').delete().eq('id',id);toast('Deleted');renderPhotos()}catch{}}
+async function delPhoto(id,path){if(!confirm('Delete photo?'))return;try{if(path)await db.storage.from('rpc-photos').remove(withThumbs([path]));await db.from('rpc_photos').delete().eq('id',id);toast('Deleted');renderPhotos()}catch{}}
 async function renameCat(site,cat,nn){try{await db.from('rpc_photos').update({category:nn}).eq('category',cat).eq('site',site);toast('Renamed ✅');renderPhotos()}catch{}}
-async function delCatPhotos(site,cat,ps){if(!confirm('Delete all in "'+cat+'"?'))return;try{await db.storage.from('rpc-photos').remove(ps.map(p=>p.storage_path).filter(Boolean));await db.from('rpc_photos').delete().in('id',ps.map(p=>p.id));toast('Deleted ✅');renderPhotos()}catch{}}
-async function delSitePhotos(site,ps){if(!confirm('Delete ALL photos for '+site+'?'))return;try{await db.storage.from('rpc-photos').remove(ps.map(p=>p.storage_path).filter(Boolean));await db.from('rpc_photos').delete().in('id',ps.map(p=>p.id));toast('All deleted ✅');renderPhotos()}catch{}}
+async function delCatPhotos(site,cat,ps){if(!confirm('Delete all in "'+cat+'"?'))return;try{await db.storage.from('rpc-photos').remove(withThumbs(ps.map(p=>p.storage_path).filter(Boolean)));await db.from('rpc_photos').delete().in('id',ps.map(p=>p.id));toast('Deleted ✅');renderPhotos()}catch{}}
+async function delSitePhotos(site,ps){if(!confirm('Delete ALL photos for '+site+'?'))return;try{await db.storage.from('rpc-photos').remove(withThumbs(ps.map(p=>p.storage_path).filter(Boolean)));await db.from('rpc_photos').delete().in('id',ps.map(p=>p.id));toast('All deleted ✅');renderPhotos()}catch{}}
 
 // PAYROLL
 function initPayroll(){setPrd('fort');q('PayC').innerHTML='<div class="empty"><div class="empty-ico">💰</div>Select period and tap Generate.</div>'}
