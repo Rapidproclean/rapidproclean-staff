@@ -6,6 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<!-- v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -677,10 +678,35 @@ async function doLogin(){
   if(!name||!pin){err.textContent='Please enter your name and PIN';return}
   err.textContent='Checking...';
   try{
-    const {data,error}=await db.from('rpc_staff').select('*').ilike('name',name).eq('pin',pin).limit(1);
-    if(error||!data||!data.length){err.textContent='Name or PIN is incorrect. Try again.';return}
-    CU=data[0];err.textContent='';await startApp();
+    // v56: secure sign-in first, old PIN check kept as a safety fallback
+    let u=await authLogin(name,pin);
+    if(!u){
+      try{await db.auth.signOut()}catch(e){}
+      const {data,error}=await db.from('rpc_staff').select('*').ilike('name',name).eq('pin',pin).limit(1);
+      if(error||!data||!data.length){err.textContent='Name or PIN is incorrect. Try again.';return}
+      u=data[0];
+    }
+    CU=u;err.textContent='';await startApp();
   }catch(e){err.textContent='Connection error. Check internet.'}
+}
+// v56: Supabase Auth helpers (secure accounts created by the Step 1 SQL)
+async function authLogin(name,pin){
+  try{
+    const r=await db.rpc('rpc_login_emails',{p_name:name});
+    const emails=(r&&r.data)||[];
+    for(const em of emails){
+      const {data,error}=await db.auth.signInWithPassword({email:em,password:'rpc#'+pin});
+      if(!error&&data&&data.user){
+        const s=await db.from('rpc_staff').select('*').eq('auth_id',data.user.id).limit(1);
+        if(s.data&&s.data.length)return s.data[0];
+      }
+    }
+  }catch(e){}
+  return null;
+}
+async function authSync(id){
+  try{const r=await db.rpc('rpc_sync_auth_user',{p_staff_id:id});if(r&&r.error){toast('Saved, but secure login not updated — sign out and in as Admin, then re-save');return false}return true}
+  catch(e){return false}
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!q('LS').classList.contains('h'))doLogin()});
 
@@ -3568,6 +3594,7 @@ async function saveStaff(){
     var newStaff=ins.data&&ins.data.length?ins.data[0]:null;
     if(!newStaff){toast('Error creating staff member');return}
     var newId=newStaff.id;
+    await authSync(newId);   // v56: create secure login
     // Create personal documents folder
     try{
       await db.from('rpc_doc_folders').insert({
@@ -3634,8 +3661,8 @@ async function openAddStaff(){
   }
 }
 function openEditStaff(id){const s=allStaff.find(x=>x.id===id);if(!s)return;q('eNm').value=s.name;q('eRl').value=s.role;q('ePn').value=s.pin;q('eEm').value=s.email||'';q('eMH').value=s.max_hours_fortnight||'';q('eId').value=id;openM('EM')}
-async function saveEditStaff(){const id=parseInt(q('eId').value);try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
-async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
+async function saveEditStaff(){const id=parseInt(q('eId').value);try{await db.from('rpc_staff').update({name:q('eNm').value.trim(),role:q('eRl').value.trim(),pin:q('ePn').value.trim(),email:q('eEm').value.trim()||null,max_hours_fortnight:q('eMH').value?parseFloat(q('eMH').value):null}).eq('id',id);await authSync(id);await loadStaff();closeM('EM');renderAdmin();toast('Saved ✅')}catch(e){toast('Error: '+e.message)}}
+async function delStaff(id,name){if(!confirm('Remove '+name+'?'))return;try{try{await db.rpc('rpc_remove_auth_user',{p_staff_id:id})}catch(e){}await db.from('rpc_staff').delete().eq('id',id);await loadStaff();renderAdmin();renderHome();toast(name+' removed')}catch{}}
 async function saveSite(){const nm=q('sNm').value.trim(),addr=q('sAd').value.trim();const cn=q('sCn').value.trim(),cp=q('sCp').value.trim(),mp=q('sMp').value.trim();if(mp&&!/^https?:\/\//i.test(mp)){toast('The pin link must start with https://');return}if(editSiteId){return saveSiteEdit(addr,cn,cp)}if(!nm){toast('Enter site name');return}let lat=null,lng=null;if(addr)try{const r=await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addr)+'&format=json&limit=1');const j=await r.json();if(j&&j[0]){lat=parseFloat(j[0].lat);lng=parseFloat(j[0].lon)}}catch{}try{const srow={name:nm,address:addr||null,lat,lng};if(cn||cp){srow.site_contact_name=cn||null;srow.site_contact_phone=cp||null}if(mp)srow.maps_link=mp;var sdv=siteDetailVals();var hasSd=!!(sdv.lockbox||sdv.parking||sdv.alarm_info||sdv.watch_out);if(hasSd)Object.assign(srow,sdv);const sins=await db.from('rpc_sites').insert(srow);if(sins.error&&(cn||cp||mp||hasSd)){toast(/site_contact|maps_link|lockbox|parking|alarm_info|watch_out/i.test(sins.error.message||'')?'This needs the one-time database step (SQL) first':'Error: '+sins.error.message);return}await loadSites();closeM('SiteM');renderAdmin();toast('Site added ✅'+(lat?' (GPS set)':''))}catch(e){toast('Error: '+e.message)}}
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4565,7 +4592,7 @@ async function doBackup(){
   }
 }
 
-function doLogout(){CU=null;q('LS').classList.remove('h');q('MH').style.display='none';q('MNav').style.display='none';document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));q('lName').value='';q('lPin').value=''}
+function doLogout(){try{db.auth.signOut()}catch(e){}CU=null;q('LS').classList.remove('h');q('MH').style.display='none';q('MNav').style.display='none';document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));q('lName').value='';q('lPin').value=''}
 
 // SHARE PAGE
 (()=>{
@@ -4849,7 +4876,7 @@ async function openSend(ids){
   openM('SendM');
 }
 async function openSendNew(){
-  _sdMode='new';_sdDocs=[];_sdType=null;typeBtnPaint('sdTyT','sdTyP',null);
+  _sdMode='new';_sdDocs=[];_sdType=null;typeBtnPaint('sdTyT','sdTyP',null);try{q('sdReT').textContent='Staff must sign again (training) or read again (policy). Earlier signatures become Outdated. Untick if you are only adding more staff.'}catch(e){}
   q('sdDocBox').style.display='';q('sdN').textContent='Choose the document, then who gets it.';
   q('sdFile').value='';q('sdNm').value='';q('sdDq').value='';
   var fnm={};(_foldersCache||[]).forEach(function(f){fnm[f.id]=f.name});
@@ -5575,7 +5602,7 @@ async function publishShift(id){
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px"><button class="ebtn" onclick="pkAll('sdList','sdSq')">Select all shown</button><button class="ebtn" onclick="pkClear('sdList','sdSq')">Clear</button><span id="sdListN" style="font-size:12px;color:var(--t3);margin-left:auto"></span></div>
     <div id="sdList" style="max-height:190px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--rs);padding:0 8px;margin-bottom:12px"></div>
   </div>
-  <label style="display:flex;align-items:flex-start;gap:10px;padding:2px 2px 10px;font-size:13px;line-height:1.4;cursor:pointer"><input type="checkbox" id="sdRe" style="width:18px;height:18px;flex:none;accent-color:var(--nv2);margin-top:2px"><span id="sdReT"></span></label>
+  <label style="display:flex;align-items:flex-start;gap:10px;padding:2px 2px 10px;font-size:13px;line-height:1.4;cursor:pointer"><input type="checkbox" id="sdRe" style="width:18px;height:18px;flex:none;accent-color:var(--nv2);margin-top:2px"><span id="sdReT">Staff must sign again (training) or read again (policy). Earlier signatures become Outdated. Untick if you are only adding more staff.</span></label>
   <label style="display:flex;align-items:center;gap:10px;padding:2px 2px 8px;font-size:13px;cursor:pointer"><input type="checkbox" id="sdNt" checked style="width:18px;height:18px;flex:none;accent-color:var(--nv2)">Send a notification to the staff</label>
   <input class="mi" id="sdMsg" type="text" placeholder="Optional message to staff" style="margin-bottom:12px">
   <button class="btn tl" onclick="saveSend()">Send</button>
