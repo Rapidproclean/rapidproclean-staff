@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<!-- v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
+<!-- v61.0 — v60 + admin "Shrink old photos" tool (Admin page): shrinks existing photos to 1400px and adds thumbnails, with a 5-photo test first, stop/resume. Previous: v60.0 — v59 + smaller photos: new photos shrunk (1280px) + tiny thumbnail copy, grids show thumbnails, long browser cache. Previous: v59.0 — v58 + stronger PINs: 10+ characters (letters+numbers), staff change their own PIN, forced new PIN at next login for old/temporary PINs, admin sets temporary PINs only. Previous: v58.0 — v57 + photo sheet: Close button at the top, tap outside to close, Cancel button while photos upload. Previous: v57.0 — v56 + staff table locked: PINs moved to an admin-only table; old PIN fallback removed. Previous: v56.0 — v55 + secure sign-in via Supabase Auth (old PIN check kept as fallback); admin add/edit/remove staff keeps secure logins in sync -->
 <!-- v54.0 — v53 + signed PDF: tappable original-document link, file name / document ID / version, copy of the original attached inside the signed PDF when it is a PDF (pdf-lib); no SQL -->
 <!-- v53.0 — v52 + rename folders (in folder Settings) and rename documents (✏️ Rename button); no SQL -->
 <!-- v52.0 — v51 + Update document (version number, note, admin version history, notify, sign again); admin tabs: All removed, Signed by staff renamed Training signed -->
@@ -335,6 +335,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
   <div class="card">
     <div class="cr"><div class="cl">Logged in as</div><div style="font-size:13px;color:var(--t2)" id="AW">—</div></div>
     <div class="cr"><div class="cl">My PIN</div><button class="ebtn" onclick="openPinChange(false)">&#128273; Change my PIN</button></div>
+    <div class="cr"><div class="cl">Photo size</div><button class="ebtn" onclick="openShrink()">&#128476; Shrink old photos</button></div>
     <div class="cr"><div class="cl">Database</div><div style="font-size:13px;color:var(--tl);font-weight:700">&#128994; Connected</div></div>
   </div>
   <button class="btn rd" onclick="doLogout()">Log Out</button>
@@ -666,6 +667,71 @@ const thumbImg=(im,u)=>{im.decoding='async';im.loading='lazy';const t=thumbOf(u)
 const thumbPath=p=>(p&&/\.jpg$/i.test(p))?p.replace(/\.jpg$/i,'_t.jpg'):null;
 const withThumbs=a=>a.concat(a.map(thumbPath).filter(Boolean));
 async function upThumb(blob,fn){try{const tp=thumbPath(fn);if(!tp)return;const t=await compressImg(blob,360,0.6);await db.storage.from('rpc-photos').upload(tp,t,{contentType:'image/jpeg',cacheControl:'31536000',upsert:true})}catch(e){}}
+
+// ===== v61: shrink existing photos (admin) =====
+let _shrinkStop=false,_shrinkRun=false;
+function openShrink(){
+  if(!CU||!CU.is_admin){toast('Admin only');return}
+  if(q('ShrinkO'))q('ShrinkO').remove();
+  const o=document.createElement('div');o.id='ShrinkO';
+  o.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(5,20,40,.6);display:flex;align-items:flex-end;justify-content:center;font-family:var(--fn)';
+  o.innerHTML='<div style="background:var(--sf,#fff);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto">'
+   +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:16px;font-weight:800">Shrink old photos</div><button id="ShClose" style="border:none;background:none;font-size:20px;cursor:pointer">&#10005;</button></div>'
+   +'<div style="font-size:12px;color:var(--t2);line-height:1.5;margin-bottom:10px">Makes existing photos smaller (up to 1400 px wide) and adds a small thumbnail for each, so the app and reports use much less data. Photos stay clear. <b>The original full-size file is replaced and cannot be restored.</b> Keep this screen open and awake while it runs. You can stop any time and run it again later — finished photos are skipped.</div>'
+   +'<div style="display:flex;gap:8px;margin-bottom:10px"><button id="ShTest" class="btn sc" style="flex:1">Test on 5 photos</button><button id="ShAll" class="btn" style="flex:1">Shrink all</button></div>'
+   +'<button id="ShStop" class="btn sc" style="width:100%;display:none;margin-bottom:10px;color:#c0392b">Stop</button>'
+   +'<div id="ShOut" style="font-size:13px;font-weight:700;line-height:1.6"></div></div>';
+  document.body.appendChild(o);
+  q('ShClose').onclick=function(){if(_shrinkRun&&!confirm('Stop shrinking and close?'))return;_shrinkStop=true;o.remove()};
+  q('ShTest').onclick=function(){runShrink(5)};
+  q('ShAll').onclick=function(){if(confirm('Shrink ALL old photos now? Original full-size files will be replaced.'))runShrink(0)};
+  q('ShStop').onclick=function(){_shrinkStop=true;q('ShStop').disabled=true;q('ShOut').textContent+='\nStopping…'};
+}
+async function runShrink(limit){
+  if(_shrinkRun)return;
+  _shrinkRun=true;_shrinkStop=false;
+  const out=q('ShOut'),bT=q('ShTest'),bA=q('ShAll'),bS=q('ShStop');
+  bT.disabled=bA.disabled=true;bS.style.display='block';bS.disabled=false;
+  let wl=null;try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}
+  const say=function(t){if(q('ShOut'))q('ShOut').innerText=t};
+  try{
+    say('Reading photo list…');
+    let rows=[],from=0;
+    for(;;){const r=await db.from('rpc_photos').select('storage_path,url').not('storage_path','is',null).range(from,from+999);if(r.error)throw r.error;rows=rows.concat(r.data||[]);if(!r.data||r.data.length<1000)break;from+=1000}
+    const seen={},list=[];
+    rows.forEach(function(r){const p=r.storage_path;if(p&&/\.jpg$/i.test(p)&&!/_t\.jpg$/i.test(p)&&!seen[p]){seen[p]=1;list.push({path:p,url:r.url||db.storage.from('rpc-photos').getPublicUrl(p).data.publicUrl})}});
+    let done=0,skipped=0,shrunk=0,failed=0,before=0,after=0,thumbsOnly=0;
+    const total=list.length;
+    for(let i=0;i<list.length;i++){
+      if(_shrinkStop)break;
+      if(limit&&shrunk+thumbsOnly>=limit)break;
+      const it=list[i];
+      say('Checking '+(i+1)+' of '+total+'…\nShrunk: '+shrunk+' · Thumbnails only: '+thumbsOnly+' · Already done: '+skipped+' · Failed: '+failed+'\nSaved so far: '+((before-after)/1048576).toFixed(1)+' MB');
+      try{
+        const tp=thumbPath(it.path);
+        let exists=false;
+        try{const h=await fetch(thumbOf(it.url),{method:'HEAD',cache:'no-store'});exists=h.ok}catch(e){}
+        if(exists){skipped++;continue}
+        const rs=await fetch(it.url,{cache:'no-store'});
+        if(!rs.ok){failed++;continue}
+        const blob=await rs.blob();
+        let useBlob=blob;
+        if(blob.size>400*1024){
+          const comp=await compressImg(blob,1400,0.78);
+          if(comp&&comp.size>0&&comp.size<blob.size*0.9){
+            const up=await db.storage.from('rpc-photos').upload(it.path,comp,{contentType:'image/jpeg',upsert:true,cacheControl:'31536000'});
+            if(up.error){failed++;continue}
+            before+=blob.size;after+=comp.size;useBlob=comp;shrunk++;
+          }else{thumbsOnly++}
+        }else{thumbsOnly++}
+        await upThumb(useBlob,it.path);
+      }catch(e){failed++}
+    }
+    const stopped=_shrinkStop;
+    say((stopped?'Stopped.':(limit?'Test finished.':'All done ✅'))+'\nShrunk: '+shrunk+' photo(s)\nThumbnails only (already small): '+thumbsOnly+'\nAlready done before: '+skipped+'\nFailed: '+failed+'\nSpace saved: '+((before-after)/1048576).toFixed(1)+' MB'+(limit&&!stopped?'\n\nNow check one of these photos in a report. If it looks fine, tap "Shrink all".':''));
+  }catch(e){say('Error: '+(e&&e.message?e.message:e))}
+  finally{_shrinkRun=false;try{if(wl)wl.release()}catch(e){}if(q('ShTest')){q('ShTest').disabled=false;q('ShAll').disabled=false;q('ShStop').style.display='none'}}
+}
 const getGPS=()=>new Promise(res=>{
   const done=(v)=>res(v);
   const fail=()=>done({lat:null,lng:null,addr:'Location unavailable'});
